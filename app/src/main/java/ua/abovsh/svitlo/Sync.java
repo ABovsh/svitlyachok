@@ -113,41 +113,44 @@ final class Sync {
     static final int GREEN = 0xFF2DB86C;
     private static final int GOLD = 0xFFF5B000;
 
-    static void post(Context c, int id, String channel, String title, String text) {
-        post(c, id, channel, title, text, R.drawable.ic_notify, GOLD);
+    /**
+     * One notification per place: every new one replaces the last of that place, so a phone holds
+     * at most one per place (Android bundles them under the app). A test sends its own two.
+     */
+    static int slot(Context c, String placeId) {
+        return 200 + placeNo(c, placeId);
     }
 
-    /** `icon` and `colour` tell off from on before a word is read: Samsung paints the circle with it. */
-    static void post(Context c, int id, String channel, String title, String text, int icon, int colour) {
+    static void post(Context c, int id, String channel, String title, String text) {
+        post(c, id, channel, title, text, R.drawable.ic_notify, GOLD, 0);
+    }
+
+    /**
+     * `icon` and `colour` tell off from on before a word is read: Samsung paints the circle with it.
+     * `until` (epoch seconds, 0 = never): when the notice stops being true it goes by itself.
+     */
+    static void post(Context c, int id, String channel, String title, String text, int icon, int colour, long until) {
         ensureChannels(c);
         long now = now();
         if (Prefs.quietNights(c) && Logic.quiet(now)) channel = CH_QUIET;
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Notification n = new Notification.Builder(c, channel)
+        Notification.Builder b = new Notification.Builder(c, channel)
                 .setSmallIcon(icon)
                 .setColor(colour)
                 .setContentTitle(tinted(title, colour))
                 .setContentText(text)
-                .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setWhen(now * 1000)
                 .setShowWhen(true)
                 .setAutoCancel(true)
                 .setContentIntent(PendingIntent.getActivity(c, 0, open,
-                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
-                .build();
+                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        if (text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(text));
+        if (until > now) b.setTimeoutAfter((until - now) * 1000);
         try {
-            c.getSystemService(NotificationManager.class).notify(id, n);
+            c.getSystemService(NotificationManager.class).notify(id, b.build());
         } catch (SecurityException ignored) {
             // notifications not allowed: the app still works
         }
-    }
-
-    /**
-     * A coloured mark at the start of a reminder: most phones drop text colours in notifications,
-     * a coloured circle stays. Red — the power goes off, green — it comes back.
-     */
-    static String mark(boolean on) {
-        return on ? "\uD83D\uDFE2 " : "\uD83D\uDD34 ";
     }
 
     /** The title in the colour of its kind, where the phone keeps colours in notifications. */
@@ -170,7 +173,7 @@ final class Sync {
             for (Logic.Note n : Logic.notes(p, before, after, now)) {
                 boolean wanted = n.kind == Logic.Note.PUBLISHED ? Prefs.tomorrowNotes(c) : Prefs.changeNotes(c);
                 if (!wanted) continue;
-                post(c, 100 + placeNo(c, p.id) * 2 + n.kind, CH_SCHEDULE, n.title, n.text);
+                post(c, slot(c, p.id), CH_SCHEDULE, n.title, n.text);
             }
         }
     }
@@ -199,19 +202,23 @@ final class Sync {
         for (Object[] x : upcoming(c, now)) {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now + 30) break;
-            String[] t = Logic.eventText(e, (String) x[1], base, now);
-            boolean on = e.kind == Logic.Event.SOON_ON || e.kind == Logic.Event.AT_ON;
-            post(c, 200 + placeNo(c, e.place) * 4 + e.kind, CH_REMIND, mark(on) + t[0], t[1],
-                    on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off, on ? GREEN : RED);
+            Logic.Notice n = Logic.eventText(e, (String) x[1], base, now);
+            post(c, slot(c, e.place), CH_REMIND, n.title, n.text,
+                    n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off, n.on ? GREEN : RED, n.until);
             Prefs.addFired(c, e.key(), now);
         }
     }
 
+    /** Two examples in the real format, for the place on screen; they go by themselves in 10 minutes. */
     static void testNotification(Context c) {
-        post(c, 998, CH_REMIND, mark(false) + "Скоро вимкнуть світло", "Пробне нагадування · так виглядає попередження про вимкнення",
-                R.drawable.ic_notify_off, RED);
-        post(c, 999, CH_REMIND, mark(true) + "Скоро увімкнуть світло", "Пробне нагадування · так виглядає попередження про світло",
-                R.drawable.ic_notify_on, GREEN);
+        List<Logic.Place> ps = Prefs.places(c);
+        String name = ps.isEmpty() ? "Дім" : ps.get(0).name;
+        for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) name = p.name;
+        long gone = now() + 600;
+        post(c, 998, CH_REMIND, Logic.mark(Logic.OFF) + name + " · без світла 18:00–22:00", "Пробне сповіщення",
+                R.drawable.ic_notify_off, RED, gone);
+        post(c, 999, CH_REMIND, Logic.mark(Logic.ON) + name + " · світло з 22:00", "Пробне сповіщення",
+                R.drawable.ic_notify_on, GREEN, gone);
     }
 
     // ---- widget --------------------------------------------------------------------

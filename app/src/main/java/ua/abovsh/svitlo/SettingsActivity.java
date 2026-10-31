@@ -120,8 +120,8 @@ public class SettingsActivity extends Base {
         x.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку",
                 Prefs.quietNights(this), on -> Prefs.setFlag(this, "quiet", on)), fill());
         page.addView(x, fill());
-        page.addView(note("Нагадування приходять точно у свій час. Новий графік Світлячок перевіряє "
-                + "приблизно раз на 15 хвилин."));
+        page.addView(note("Нагадування приходять точно у свій час, одне на місце: нове замінює попереднє. "
+                + "Зміни графіка застосунок перевіряє приблизно раз на 15 хвилин."));
     }
 
     private void lookSection() {
@@ -151,12 +151,12 @@ public class SettingsActivity extends Base {
     private void updatesSection() {
         page.addView(heading("Оновлення"));
         LinearLayout u = box();
-        u.addView(toggle("Перевіряти нові версії", "Коли ви відкриваєте Світлячок, не частіше двох разів на день",
+        u.addView(toggle("Перевіряти нові версії", "Коли ви відкриваєте застосунок, не частіше двох разів на день",
                 Updates.enabled(this), on -> Updates.setEnabled(this, on)), fill());
         u.addView(divider());
         u.addView(updateRow(), fill());
         page.addView(u, fill());
-        page.addView(note("Світлячок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
+        page.addView(note("Застосунок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
     }
 
     private void helpSection() {
@@ -164,12 +164,9 @@ public class SettingsActivity extends Base {
         LinearLayout h = box();
         h.addView(link("Повідомити про проблему на GitHub",
                 "Відкриється форма з технічними даними. Потрібен обліковий запис GitHub.", v -> Report.onGitHub(this)), fill());
-        h.addView(divider());
-        h.addView(link("Надіслати опис у месенджер",
-                "Viber, Telegram чи пошта: наприклад, тому, хто порадив вам Світлячок.", v -> Report.share(this)), fill());
         page.addView(h, fill());
-        page.addView(note("Застосунок нічого не надсилає сам: ви бачите текст і вирішуєте, кому його відправити. "
-                + "Технічні дані — версія, телефон, область і черга, без назв ваших місць."));
+        page.addView(note("Застосунок нічого не надсилає сам: форма відкривається в браузері, і ви бачите текст "
+                + "до надсилання. Технічні дані — версія, телефон, область і черга, без назв ваших місць."));
     }
 
     /** A row that opens something: a title, a line under it, a chevron. */
@@ -192,16 +189,26 @@ public class SettingsActivity extends Base {
         TextView about = Ui.text(this, 14, Ui.body(this), pal.muted);
         about.setLineSpacing(0, 1.1f);
         about.setText("Світлячок " + BuildConfig.VERSION_NAME + "\n\n"
-                + "Показує графік погодинних відключень, який публікує обленерго. Застосунок нічого не "
-                + "надсилає з телефона: він лише завантажує з GitHub відкритий файл графіка вашої області й "
-                + "перевіряє, чи вийшла нова версія. "
-                + "Місця, черги й налаштування зберігаються тільки на цьому телефоні. Без реєстрації, реклами "
-                + "й аналітики.\n\n"
-                + "Застосунок не знає, чи є світло у вашому будинку насправді, і не пов'язаний з ДТЕК "
-                + "чи іншими обленерго. Код відкритий: github.com/ABovsh/svitlyachok\n\n"
-                + "Щоб нагадування приходили вчасно, дозвольте Світлячку працювати без обмежень батареї.");
+                + "Графік погодинних відключень світла для одного або кількох місць: що зараз, до котрої "
+                + "години і що буде завтра. Нагадує перед вимкненням і увімкненням, має віджети й "
+                + "статистику за тиждень і місяць.\n\n"
+                + "Нічого не надсилає з телефона. Застосунок лише завантажує з GitHub відкритий файл графіка "
+                + "вашої області й перевіряє, чи вийшла нова версія. Місця, черги й налаштування "
+                + "зберігаються тільки на цьому телефоні. Без облікового запису, реклами й аналітики.\n\n"
+                + "Показує графік обленерго, а не фактичну наявність світла у вашому будинку. "
+                + "Не пов'язаний з ДТЕК чи іншими обленерго.");
         about.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         page.addView(about, fill());
+        TextView code = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
+        code.setText("Відкритий код на GitHub ›");
+        code.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), 0, Ui.dp(this, 4));
+        code.setOnClickListener(v -> Updates.open(this, Logic.REPO));
+        page.addView(code, fill());
+        TextView why = Ui.text(this, 14, Ui.body(this), pal.muted);
+        why.setLineSpacing(0, 1.1f);
+        why.setText("Щоб нагадування приходили вчасно, дозвольте застосунку працювати без обмежень батареї.");
+        why.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6), 0);
+        page.addView(why, fill());
         TextView battery = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         battery.setText("Налаштування батареї ›");
         battery.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), 0, Ui.dp(this, 14));

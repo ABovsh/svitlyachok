@@ -70,7 +70,7 @@ public class StatsActivity extends Base {
         TextView note = Ui.text(this, 13, Ui.body(this), pal.dim);
         note.setLineSpacing(0, 1.1f);
         note.setText("Обленерго публікує графік лише на сьогодні й завтра, тож статистика накопичується з дня, "
-                + "коли Світлячок з'явився на телефоні, — до місяця. Це графік, а не фактична наявність світла.");
+                + "коли застосунок з'явився на телефоні, — до місяця. Це графік, а не фактична наявність світла.");
         note.setPadding(Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6), 0);
         page.addView(note, fill());
     }

@@ -133,6 +133,7 @@ public class LogicTest {
         assertEquals("Світло є", n.title);
         assertEquals("до 14:30", n.big);
         assertEquals("вимкнуть через 4 год 30 хв", n.hint);
+        assertEquals(Logic.OFF, n.next);  // the hint takes the colour of what comes
         assertFalse(n.soon);
     }
 
@@ -150,6 +151,7 @@ public class LogicTest {
         assertEquals("Світла немає", n.title);
         assertEquals("до 18:30", n.big);
         assertEquals("увімкнуть через 3 год 30 хв", n.hint);
+        assertEquals(Logic.ON, n.next);
     }
 
     @Test
@@ -158,6 +160,7 @@ public class LogicTest {
         assertEquals(Logic.ON, n.state);
         assertEquals("до кінця дня", n.big);
         assertEquals("графік на завтра ще не опубліковано", n.hint);
+        assertEquals(Logic.UNKNOWN, n.next);
     }
 
     @Test
@@ -232,13 +235,27 @@ public class LogicTest {
 
     @Test
     public void reminderTexts() throws Exception {
+        // one line: a coloured mark, the place, what happens; the second line says when
         String t = tl(TODAY_ONLY);
         Logic.Event e = Logic.events(home(), t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
-        String[] s = Logic.eventText(e, t, OCT30, at(14, 2));
-        assertEquals("Скоро вимкнуть світло", s[0]);
-        assertEquals("Дім · о 14:30, через 28 хв · до 18:30", s[1]);
+        Logic.Notice s = Logic.eventText(e, t, OCT30, at(14, 2));
+        assertEquals("\uD83D\uDD34 Дім · без світла 14:30–18:30", s.title);
+        assertEquals("Через 28 хв", s.text);
+        assertFalse(s.on);
+        assertEquals(at(18, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
-        assertEquals("Дім · о 18:30, через 15 хв", Logic.eventText(on, t, OCT30, at(18, 15))[1]);
+        Logic.Notice n = Logic.eventText(on, t, OCT30, at(18, 15));
+        assertEquals("\uD83D\uDFE2 Дім · світло з 18:30", n.title);  // tomorrow unknown: no end
+        assertEquals("Через 15 хв", n.text);
+        assertTrue(n.on);
+        assertEquals(at(19, 30), n.until);
+        String t2 = tl(WITH_TOMORROW);
+        Logic.Event on2 = Logic.events(home(), t2, OCT30, at(15, 0), new Logic.Alerts()).get(0);
+        assertEquals("\uD83D\uDFE2 Дім · світло 18:30–24:00", Logic.eventText(on2, t2, OCT30, at(18, 15)).title);
+        String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
+        Logic.Event m = Logic.events(home(), maybe, OCT30, at(9, 0), new Logic.Alerts()).get(0);
+        assertEquals("\uD83D\uDFE0 Дім · можливе вимкнення 10:00–14:00",
+                Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
     }
 
     @Test
@@ -251,10 +268,20 @@ public class LogicTest {
         assertEquals(2, ev.size());
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
-        assertEquals("Вимкнення за графіком", Logic.eventText(ev.get(0), t, OCT30, at(14, 30))[0]);
-        assertEquals("Дім · до 18:30", Logic.eventText(ev.get(0), t, OCT30, at(14, 30))[1]);
+        Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30, at(14, 30));
+        assertEquals("\uD83D\uDD34 Дім · без світла 14:30–18:30", off.title);
+        assertEquals("Зараз, за графіком", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
-        assertEquals("Світло має з'явитися", Logic.eventText(ev.get(1), t, OCT30, at(18, 30))[0]);
+        assertEquals("\uD83D\uDFE2 Дім · світло з 18:30", Logic.eventText(ev.get(1), t, OCT30, at(18, 30)).title);
+    }
+
+    @Test
+    public void anOutageWithoutAKnownEndSaysOnlyFrom() throws Exception {
+        String open = repeat('1', 12) + repeat('0', 36) + repeat('2', 48);
+        Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), new Logic.Alerts()).get(0);
+        Logic.Notice s = Logic.eventText(e, open, OCT30, at(5, 45));
+        assertEquals("\uD83D\uDD34 Дім · без світла з 06:00", s.title);
+        assertEquals(at(10, 0), s.until);
     }
 
     @Test
@@ -422,11 +449,12 @@ public class LogicTest {
 
     @Test
     public void aDaySaysHowLongThereIsLight() {
-        assertEquals("зі світлом 18 год · 75 %", Logic.dayLight(DAY_11));          // off 06-08 and 14:30-18:30
-        assertEquals("зі світлом 22 год 30 хв · 94 %", Logic.dayLight("000" + repeat('1', 45)));
+        // a forecast, not a record: "очікується"
+        assertEquals("очікується 18 год світла · 75 %", Logic.dayLight(DAY_11));  // off 06-08 and 14:30-18:30
+        assertEquals("очікується 22 год 30 хв світла · 94 %", Logic.dayLight("000" + repeat('1', 45)));
         assertEquals("без вимкнень", Logic.dayLight(repeat('1', 48)));
         assertEquals("ще не опубліковано", Logic.dayLight(null));
-        assertEquals("зі світлом 0 год · 0 %", Logic.dayLight(repeat('0', 48)));
+        assertEquals("очікується 0 год світла · 0 %", Logic.dayLight(repeat('0', 48)));
     }
 
     @Test
@@ -521,7 +549,7 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
-        assertEquals("Дім: графік на завтра", n.get(0).title);
+        assertEquals("\uD83D\uDCC5 Дім · графік на завтра", n.get(0).title);
         assertEquals("2 вимкнення, без світла 4 год: 00:00 – 02:00, 20:00 – 22:00", n.get(0).text);
     }
 
@@ -532,7 +560,7 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), after, at(12, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.CHANGED, n.get(0).kind);
-        assertEquals("Дім: графік змінився", n.get(0).title);
+        assertEquals("\uD83D\uDCC5 Дім · графік змінився", n.get(0).title);
         assertEquals("Сьогодні без світла 7 год: 06:00 – 08:00, 14:30 – 18:30, 19:00 – 20:00", n.get(0).text);
     }
 

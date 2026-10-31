@@ -358,6 +358,7 @@ public final class Logic {
         public String then = "";
         public boolean soon;
         public long change;
+        public int next = UNKNOWN;
     }
 
     static int state(char slot) {
@@ -424,6 +425,7 @@ public final class Logic {
         long change = slotStart(base, ch.get(0)[0]);
         char next = (char) ch.get(0)[1];
         n.change = change;
+        n.next = state(next);
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
@@ -497,12 +499,15 @@ public final class Logic {
 
     static final int HISTORY_DAYS = 31;
 
-    /** "зі світлом 18 год · 75 %": the positive side of a day, as a share of all 24 hours. */
+    /**
+     * "очікується 18 год світла · 75 %": the positive side of a day, as a share of all 24 hours;
+     * "очікується", so nobody reads the schedule as a record of what happened.
+     */
     public static String dayLight(String day) {
         if (day == null) return NOT_PUBLISHED;
         int on = count(day, '1');
         if (on == day.length()) return NO_OUTAGES;
-        return "зі світлом " + length(on) + " · " + Math.round(on * 100f / day.length()) + " %";
+        return "очікується " + length(on) + " світла · " + Math.round(on * 100f / day.length()) + " %";
     }
 
     private static int count(String day, char c) {
@@ -664,25 +669,67 @@ public final class Logic {
         return 0;
     }
 
-    /** {title, text}, counted at the moment it is shown. */
-    public static String[] eventText(Event e, String tl, LocalDate base, long now) {
-        int i = index(base, e.change);
-        boolean maybe = i >= 0 && i < tl.length() && tl.charAt(i) == '3';
-        long end = outageEnd(tl, base, e.change);
-        String in = ", через " + waitText(Math.max(0, e.change - now));
-        switch (e.kind) {
-            case Event.SOON_OFF:
-                return new String[] {maybe ? "Можливе вимкнення світла" : "Скоро вимкнуть світло",
-                        e.name + " · о " + hm(e.change) + in + (end > 0 ? " · до " + until(end, e.change) : "")};
-            case Event.SOON_ON:
-                return new String[] {"Скоро увімкнуть світло", e.name + " · о " + hm(e.change) + in};
-            case Event.AT_OFF:
-                return new String[] {maybe ? "Можливе вимкнення за графіком" : "Вимкнення за графіком",
-                        e.name + (end > 0 ? " · до " + until(end, e.change) : " · за графіком")};
-            default:
-                return new String[] {"Світло має з'явитися", e.name + " · за графіком з " + hm(e.change)};
-        }
+    /** A notification: its one line, when, red or green, and when it is no longer true. */
+    public static final class Notice {
+        public String title = "";
+        public String text = "";
+        public boolean on;
+        public long until;
     }
+
+    /**
+     * A coloured circle first: most phones drop text colours in notifications, the circle stays.
+     * Red — no power, green — power, amber — a possible outage.
+     */
+    static String mark(int state) {
+        if (state == ON) return "\uD83D\uDFE2 ";
+        return state == MAYBE ? "\uD83D\uDFE0 " : "\uD83D\uDD34 ";
+    }
+
+    /** End of the power that comes at `change`, or 0 when the data ends first. */
+    static long powerEnd(String tl, LocalDate base, long change) {
+        for (int[] c : changesFrom(tl, index(base, change))) {
+            if (c[1] == '0' || c[1] == '3') return slotStart(base, c[0]);
+            if (c[1] == '2') return 0;
+        }
+        return 0;
+    }
+
+    /** "14:30–18:30", "з 06:00" when the end is not known yet; midnight after the start is 24:00. */
+    private static String range(long from, long to) {
+        if (to <= 0) return "з " + hm(from);
+        return hm(from) + "–" + (dayDiff(from, to) == 1 && hm(to).equals("00:00") ? "24:00" : hm(to));
+    }
+
+    /**
+     * A reminder in one line: mark, place, what happens and when; the second line, how soon.
+     * It is no longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
+     */
+    public static Notice eventText(Event e, String tl, LocalDate base, long now) {
+        Notice n = new Notice();
+        n.on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
+        int i = index(base, e.change);
+        boolean maybe = !n.on && i >= 0 && i < tl.length() && tl.charAt(i) == '3';
+        long end = n.on ? powerEnd(tl, base, e.change) : outageEnd(tl, base, e.change);
+        int state = OFF;
+        String what = "без світла ";
+        if (n.on) {
+            state = ON;
+            what = "світло ";
+        } else if (maybe) {
+            state = MAYBE;
+            what = "можливе вимкнення ";
+        }
+        n.title = mark(state) + e.name + " · " + what + range(e.change, end);
+        boolean at = e.kind == Event.AT_OFF || e.kind == Event.AT_ON;
+        n.text = at ? "Зараз, за графіком" : "Через " + waitText(Math.max(0, e.change - now));
+        if (n.on) n.until = e.change + 3600;
+        else n.until = end > 0 ? end : e.change + 4 * 3600;
+        return n;
+    }
+
+    /** A calendar first: a schedule, not a change of power. */
+    static final String SCHEDULE_MARK = "\uD83D\uDCC5 ";
 
     public static final class Note {
         public static final int PUBLISHED = 0;
@@ -728,14 +775,14 @@ public final class Logic {
         Note n = new Note();
         if (b == null) {
             n.kind = Note.PUBLISHED;
-            n.title = p.name + ": графік на " + (today ? "сьогодні" : "завтра");
+            n.title = SCHEDULE_MARK + p.name + " · графік на " + (today ? "сьогодні" : "завтра");
             int k = offCount(a);
             n.text = k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a);
             return n;
         }
         if (a.substring(from).equals(b.substring(from))) return null;
         n.kind = Note.CHANGED;
-        n.title = p.name + ": графік змінився";
+        n.title = SCHEDULE_MARK + p.name + " · графік змінився";
         String w = today ? "Сьогодні" : "Завтра";
         n.text = offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a);
         return n;

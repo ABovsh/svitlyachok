@@ -291,11 +291,12 @@ public class MainActivity extends Base {
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         w.addView(name);
         TextView title = Ui.text(this, 15, Ui.display(this), pal.status(n.state));
-        title.setText(n.title);
+        // no-break spaces: auto-size shrinks the words instead of dropping "немає" to a hidden line
+        title.setText(n.title.replace(' ', '\u00A0'));
         title.setMaxLines(1);
         title.setGravity(Gravity.CENTER_VERTICAL);
         // shrinks to fit a narrow tile instead of cutting the state off ("Світла н…")
-        title.setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        title.setAutoSizeTextTypeUniformWithConfiguration(8, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         title.setPadding(0, Ui.dp(this, 2), 0, 0);
         w.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 Math.round(title.getTextSize() * 1.35f) + Ui.dp(this, 2)));  // auto-size needs a fixed height
@@ -324,11 +325,24 @@ public class MainActivity extends Base {
             n.hint = "інтернет потрібен лише для першого завантаження";
         }
         int tint = n.state == Logic.UNKNOWN ? 0 : pal.fill(n.state);
-        LinearLayout card = Ui.column(this);
+        // the words on the left; on the right, round buttons: notifications and statistics
+        LinearLayout card = Ui.row(this);
+        card.setBaselineAligned(false);
         card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 16));
         card.setBackground(Ui.card(this, pal, tint));
+        LinearLayout words = Ui.column(this);
+        card.addView(words, weight());
+        LinearLayout buttons = Ui.column(this);
+        buttons.addView(bell(p));
+        View stats = iconButton(R.drawable.ic_stats, "Статистика за тиждень і місяць",
+                v -> startActivity(new Intent(this, StatsActivity.class)));
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48));
+        sl.topMargin = Ui.dp(this, 8);
+        buttons.addView(stats, sl);
+        LinearLayout.LayoutParams bl = wrap();
+        bl.leftMargin = Ui.dp(this, 8);
+        card.addView(buttons, bl);
 
-        LinearLayout top = Ui.row(this);
         TextView where = Ui.text(this, 14, Ui.bold(this), pal.muted);
         android.text.SpannableStringBuilder w = new android.text.SpannableStringBuilder(p.name);
         w.setSpan(new android.text.style.ForegroundColorSpan(pal.text), 0, p.name.length(), 0);
@@ -336,13 +350,12 @@ public class MainActivity extends Base {
         where.setText(w);
         where.setMaxLines(1);
         where.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        top.addView(where, weight());
-        top.addView(bell(p));
-        card.addView(top, fill());
+        where.setPadding(0, Ui.dp(this, 13), 0, 0);  // level with the bell
+        words.addView(where, fill());
 
         card.setContentDescription("Зараз за графіком: " + n.title + (n.big.isEmpty() ? "" : ", " + n.big));
-        if (!many) card.addView(now(n), withTop(6));
-        hintAndThen(card, n);
+        if (!many) words.addView(now(n), withTop(10));
+        hintAndThen(words, n);
         return card;
     }
 
@@ -379,18 +392,28 @@ public class MainActivity extends Base {
         return l;
     }
 
+    /**
+     * What comes next, in its colour: reddish before an outage, greenish before power. Under 30
+     * minutes the pill fills with that colour.
+     */
     private void hintAndThen(LinearLayout card, Logic.Now n) {
+        boolean known = n.next != Logic.UNKNOWN;
+        // the colour of what comes, softened towards the text: a hint, not an alarm
+        int ink = known ? Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f)) : pal.text;
         if (!n.hint.isEmpty()) {
-            TextView hint = Ui.text(this, 15, Ui.bold(this), n.soon ? pal.accentInk : pal.text);
+            int soonInk = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+            TextView hint = Ui.text(this, 15, Ui.bold(this), n.soon && known ? soonInk : ink);
             hint.setText(n.hint);
             hint.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-            hint.setBackground(Ui.round(n.soon ? pal.maybe : pal.raised, Ui.px(this, 100)));
+            int bg = pal.raised;
+            if (known) bg = n.soon ? pal.fill(n.next) : Ui.blend(pal.raised, Ui.fade(pal.fill(n.next), pal.dark ? 0.16f : 0.12f));
+            hint.setBackground(Ui.round(bg, Ui.px(this, 100)));
             LinearLayout.LayoutParams hl = wrap();
-            hl.topMargin = Ui.dp(this, card.getChildCount() > 1 ? 14 : 6);  // closer under the place line
+            hl.topMargin = Ui.dp(this, card.getChildCount() > 1 ? 14 : 12);
             card.addView(hint, hl);
         }
         if (!n.then.isEmpty()) {
-            TextView then = Ui.text(this, 14, Ui.body(this), pal.muted);
+            TextView then = Ui.text(this, 14, Ui.bold(this), known ? Ui.blend(pal.muted, Ui.fade(ink, 0.75f)) : pal.muted);
             then.setText(cap(n.then));
             then.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), 0, 0);
             card.addView(then, fill());
@@ -440,38 +463,13 @@ public class MainActivity extends Base {
         LocalDate t = base.plusDays(1);
         day(card, p, "Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
                 Logic.day(d, p.group, t), -1, -1);
-        card.addView(statsButton(), withTop(14));
         return card;
     }
 
-    /** "Статистика за тиждень і місяць ›": the light of past days as bars. */
-    private View statsButton() {
-        LinearLayout b = Ui.row(this);
-        b.setGravity(Gravity.CENTER_VERTICAL);
-        b.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10));
-        b.setBackground(Ui.round(pal.raised, Ui.px(this, 16)));
-        ImageView icon = new ImageView(this);
-        icon.setImageResource(R.drawable.ic_stats);
-        icon.setColorFilter(pal.onText, PorterDuff.Mode.SRC_IN);
-        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22));
-        il.rightMargin = Ui.dp(this, 10);
-        b.addView(icon, il);
-        TextView t = Ui.text(this, 14, Ui.heavy(this), pal.text);
-        t.setText("Статистика за тиждень і місяць");
-        b.addView(t, weight());
-        ImageView go = new ImageView(this);
-        go.setImageResource(R.drawable.ic_chevron);
-        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
-        b.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24)));
-        b.setContentDescription("Статистика за тиждень і місяць");
-        b.setOnClickListener(v -> startActivity(new Intent(this, StatsActivity.class)));
-        return b;
-    }
-
     private void day(LinearLayout card, Logic.Place p, String title, String slots, int cur, float nowRel) {
-        // the title and how long there is light; on a narrow screen the second goes under the first
+        // the title and how much light to expect, at the right edge; on a narrow screen it goes under
         FlowRow head = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 6));
+        head.spread();
         TextView t = Ui.text(this, 16, Ui.display(this), pal.text);
         t.setText(title);
         head.addView(t);
@@ -516,7 +514,7 @@ public class MainActivity extends Base {
     private String notPublished(Logic.Place p, boolean tomorrow) {
         if (!tomorrow) return "Обленерго ще не опублікувало графік на сьогодні.";
         boolean told = Prefs.tomorrowNotes(this) && !Prefs.muted(this, p.id);
-        return "Графік ще не опубліковано." + (told ? " Світлячок надішле сповіщення, щойно він з'явиться." : "");
+        return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
 
     /** "06:00 – 08:00": filled red now, amber outline for a possible outage, faded when past. */

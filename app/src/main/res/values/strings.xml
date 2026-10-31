@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Світлячок</string>
-    <string name="widget_desc">Графік відключень одного місця: що зараз і до котрої. Для кожного місця — свій віджет.</string>
+    <!-- the name under the icon: Latin letters on a phone in any language but Ukrainian (values-uk) -->
+    <string name="app_name">Svitlyachok</string>
+    <string name="widget_desc" translatable="false">Графік відключень одного місця: що зараз і до котрої. Для кожного місця — свій віджет.</string>
 </resources>

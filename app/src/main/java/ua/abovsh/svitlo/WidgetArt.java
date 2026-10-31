@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -22,15 +23,22 @@ final class WidgetArt {
     static final class Model {
         Logic.Place place;
         boolean many;  // the app follows several places: name the one shown
+        boolean gone;  // the place of this widget was removed
         LocalDate base;
         String tl;
         Logic.Now now;
     }
 
-    /** The place chosen for one widget (by id; the first place when none or gone). */
+    /** The place chosen for one widget (by id; the first place when none was chosen). */
     static Model model(Context c, long now, String choice) {
-        Logic.Place p = Logic.widgetPlace(Prefs.places(c), choice);
-        if (p == null) return null;
+        List<Logic.Place> all = Prefs.places(c);
+        Logic.Place p = Logic.widgetPlace(all, choice);
+        if (p == null) {
+            if (all.isEmpty()) return null;
+            Model gone = new Model();  // its place was removed: say so rather than show another
+            gone.gone = true;
+            return gone;
+        }
         Model m = new Model();
         m.place = p;
         m.many = Prefs.places(c).size() > 1;
@@ -50,6 +58,7 @@ final class WidgetArt {
     static String key(Context c, Model m, long now, int wDp, int hDp) {
         StringBuilder b = new StringBuilder().append(wDp).append('x').append(hDp).append('|').append(Ui.pal(c).dark);
         if (m == null) return b.append("|empty").toString();
+        if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
         b.append('|').append(m.many).append('|').append(m.place.name).append('|').append(n.state).append('|')
                 .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon);
@@ -61,6 +70,7 @@ final class WidgetArt {
 
     static String describe(Model m) {
         if (m == null) return "Світлячок: відкрийте застосунок і оберіть чергу";
+        if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
         return m.place.name + ", зараз за графіком: " + n.title + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then);
@@ -96,6 +106,13 @@ final class WidgetArt {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);
             String msg = "Оберіть чергу в Світлячку";
             b.cv.drawText(msg, f.w / 2f, f.h / 2f + 4 * s, fit(t, msg, f.w - 2 * f.pad));
+        } else if (m.gone) {
+            Paint t = text(Ui.heavy(c), 14 * s, pal.text, Paint.Align.CENTER);
+            Paint u = text(Ui.bold(c), 11 * s, pal.muted, Paint.Align.CENTER);
+            String a = "Місце видалено";
+            String hint = "утримуйте віджет, щоб обрати інше";
+            b.cv.drawText(a, f.w / 2f, f.h / 2f - 2 * s, fit(t, a, f.w - 2 * f.pad));
+            b.cv.drawText(hint, f.w / 2f, f.h / 2f + 14 * s, fit(u, hint, f.w - 2 * f.pad));
         } else {
             one(c, b, m, now, f, Logic.widgetForm(wDp, hDp) == Logic.W_FULL);
         }

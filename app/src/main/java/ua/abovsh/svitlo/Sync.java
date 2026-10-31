@@ -40,15 +40,23 @@ final class Sync {
 
     /** Blocking (network): call off the main thread. True when every region answered. */
     static boolean fetchAndApply(Context c) {
-        return fetchAndApply(c, true);
+        return fetchAndApply(c, true, Long.MAX_VALUE);
     }
 
     /** A background check: no network when the source answered moments ago (see Logic.dueForFetch). */
     static boolean refreshInBackground(Context c) {
-        return fetchAndApply(c, false);
+        return fetchAndApply(c, false, Long.MAX_VALUE);
     }
 
-    private static boolean fetchAndApply(Context c, boolean always) {
+    /**
+     * Inside an alarm's broadcast, which Android allows about a minute: regions not reached in
+     * 20 seconds are left to a job (false comes back).
+     */
+    static boolean refreshWithin(Context c, long deadlineMs) {
+        return fetchAndApply(c, false, deadlineMs);
+    }
+
+    private static boolean fetchAndApply(Context c, boolean always, long deadlineMs) {
         long now = now();
         if (!always && !Logic.dueForFetch(checkedAt(c), now)) {
             apply(c);
@@ -56,8 +64,12 @@ final class Sync {
         }
         boolean ok = true;
         for (String region : Prefs.regions(c)) {
+            if (System.currentTimeMillis() > deadlineMs) {
+                ok = false;
+                break;
+            }
             Logic.Data before = Store.data(c, region);
-            int r = Store.fetch(c, region);
+            int r = Store.fetch(c, region, deadlineMs);
             if (r == Store.FAILED) ok = false;
             if (r == Store.NEW) notifyNotes(c, region, before, Store.data(c, region), now);
         }
@@ -113,27 +125,32 @@ final class Sync {
     static final int GREEN = 0xFF2DB86C;
     private static final int GOLD = 0xFFF5B000;
 
-    /**
-     * One notification per place: every new one replaces the last of that place, so a phone holds
-     * at most one per place (Android bundles them under the app). A test sends its own two.
-     */
-    static int slot(Context c, String placeId) {
-        return 200 + placeNo(c, placeId);
-    }
-
-    /** A schedule notice: gold, it stays until opened or swiped away. */
-    static void post(Context c, int id, String channel, String title, String text) {
+    /** A place's schedule notice: gold, it stays until opened or swiped away. */
+    static void post(Context c, String place, String channel, String title, String text) {
         Logic.Notice n = new Logic.Notice();
         n.title = title;
         n.text = text;
-        post(c, id, channel, n, false);
+        post(c, place, channel, n, false);
+    }
+
+    /** A removed place takes its notification with it. */
+    static void forget(Context c, String place) {
+        c.getSystemService(NotificationManager.class).cancel(Logic.slot(place));
     }
 
     /**
      * A reminder's bulb and colour tell off from on before a word is read: Samsung paints the
      * circle with it. `n.until`: when the notice stops being true it goes by itself.
      */
-    static void post(Context c, int id, String channel, Logic.Notice n, boolean reminder) {
+    /**
+     * One notification per place (Logic.slot): a new one replaces the last of that place, so a
+     * phone holds at most one per place. A tap opens that place.
+     */
+    static void post(Context c, String place, String channel, Logic.Notice n, boolean reminder) {
+        show(c, Logic.slot(place), place, channel, n, reminder);
+    }
+
+    private static void show(Context c, int id, String place, String channel, Logic.Notice n, boolean reminder) {
         int icon = R.drawable.ic_notify;
         int colour = GOLD;
         if (reminder) {
@@ -143,7 +160,8 @@ final class Sync {
         ensureChannels(c);
         long now = now();
         if (Prefs.quietNights(c) && Logic.quiet(now)) channel = CH_QUIET;
-        Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(MainActivity.EXTRA_PLACE, place);
         Notification.Builder b = new Notification.Builder(c, channel)
                 .setSmallIcon(icon)
                 .setColor(colour)
@@ -152,7 +170,7 @@ final class Sync {
                 .setWhen(now * 1000)
                 .setShowWhen(true)
                 .setAutoCancel(true)
-                .setContentIntent(PendingIntent.getActivity(c, 0, open,
+                .setContentIntent(PendingIntent.getActivity(c, id, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         if (n.text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(n.text));
         if (n.until > now) b.setTimeoutAfter((n.until - now) * 1000);
@@ -171,19 +189,14 @@ final class Sync {
         return s;
     }
 
-    static int placeNo(Context c, String id) {
-        List<Logic.Place> ps = Prefs.places(c);
-        for (int i = 0; i < ps.size(); i++) if (ps.get(i).id.equals(id)) return i;
-        return 9;
-    }
-
     static void notifyNotes(Context c, String region, Logic.Data before, Logic.Data after, long now) {
         for (Logic.Place p : Prefs.places(c)) {
-            if (!p.region.equals(region) || Prefs.muted(c, p.id)) continue;
+            if (!p.region.equals(region)) continue;
+            Logic.Alerts a = Prefs.alerts(c, p.id);
             for (Logic.Note n : Logic.notes(p, before, after, now)) {
-                boolean wanted = n.kind == Logic.Note.PUBLISHED ? Prefs.tomorrowNotes(c) : Prefs.changeNotes(c);
+                boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
                 if (!wanted) continue;
-                post(c, slot(c, p.id), CH_SCHEDULE, n.title, n.text);
+                post(c, p.id, CH_SCHEDULE, n.title, n.text);
             }
         }
     }
@@ -192,10 +205,10 @@ final class Sync {
     static List<Object[]> upcoming(Context c, long now) {
         List<Object[]> out = new ArrayList<>();
         LocalDate base = Logic.today(now);
-        Logic.Alerts a = Prefs.alerts(c);
         Set<String> fired = Prefs.fired(c);
         for (Logic.Place p : Prefs.places(c)) {
-            if (Prefs.muted(c, p.id)) continue;
+            Logic.Alerts a = Prefs.alerts(c, p.id);
+            if (!a.off && !a.on) continue;
             String tl = timeline(c, p, base);
             for (Logic.Event e : Logic.events(p, tl, base, now, a)) {
                 if (!fired.contains(e.key())) out.add(new Object[] {e, tl});
@@ -213,7 +226,7 @@ final class Sync {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now + 30) break;
             Logic.Notice n = Logic.eventText(e, (String) x[1], base, now);
-            post(c, slot(c, e.place), CH_REMIND, n, true);
+            post(c, e.place, CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
         }
     }
@@ -221,17 +234,19 @@ final class Sync {
     /** Two examples in the real format, for the place on screen; they go by themselves in 10 minutes. */
     static void testNotification(Context c) {
         List<Logic.Place> ps = Prefs.places(c);
-        String name = ps.isEmpty() ? "Дім" : ps.get(0).name;
-        for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) name = p.name;
+        Logic.Place at = ps.isEmpty() ? null : ps.get(0);
+        for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) at = p;
+        String name = at == null ? "Дім" : at.name;
+        String id = at == null ? "" : at.id;
         long gone = now() + 600;
-        post(c, 998, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + " · без світла 18:00–22:00", false, gone), true);
-        post(c, 999, CH_REMIND, sample(Logic.mark(Logic.ON) + name + " · світло з 22:00", true, gone), true);
+        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + " · Скоро вимкнуть світло", false, gone), true);
+        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + name + " · Скоро увімкнуть світло", true, gone), true);
     }
 
     private static Logic.Notice sample(String title, boolean on, long until) {
         Logic.Notice n = new Logic.Notice();
         n.title = title;
-        n.text = "Пробне сповіщення";
+        n.text = "Пробне сповіщення · о 18:00, через 15 хв";
         n.on = on;
         n.until = until;
         return n;
@@ -260,7 +275,8 @@ final class Sync {
             v.setImageViewBitmap(R.id.w_img, WidgetArt.draw(c, model, now, wDp, hDp));
             v.setContentDescription(R.id.w_img, WidgetArt.describe(model));
             Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            v.setOnClickPendingIntent(R.id.w_root, PendingIntent.getActivity(c, 1, open,
+            if (model != null && model.place != null) open.putExtra(MainActivity.EXTRA_PLACE, model.place.id);
+            v.setOnClickPendingIntent(R.id.w_root, PendingIntent.getActivity(c, 10_000 + id, open,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
             m.updateAppWidget(id, v);
             drawn.put(id, key);
@@ -331,7 +347,7 @@ final class Sync {
         Context app = c.getApplicationContext();
         new Thread(() -> {
             try {
-                if (!refreshInBackground(app)) fetchSoon(app);
+                if (!refreshWithin(app, System.currentTimeMillis() + 20_000)) fetchSoon(app);
             } finally {
                 result.finish();
             }

@@ -71,6 +71,13 @@
             </intent-filter>
         </receiver>
 
+        <!-- Lends the shared schedule picture to the chosen app, read-only, by a one-time grant. -->
+        <provider
+            android:name=".ShareProvider"
+            android:authorities="ua.abovsh.svitlo.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <service
             android:name=".FetchJob"
             android:exported="false"

@@ -235,27 +235,23 @@ public class LogicTest {
 
     @Test
     public void reminderTexts() throws Exception {
-        // one line: a coloured mark, the place, what happens; the second line says when
+        // what happens, then when; a coloured mark and the place in front
         String t = tl(TODAY_ONLY);
         Logic.Event e = Logic.events(home(), t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
         Logic.Notice s = Logic.eventText(e, t, OCT30, at(14, 2));
-        assertEquals("\uD83D\uDD34 Дім · без світла 14:30–18:30", s.title);
-        assertEquals("Через 28 хв", s.text);
+        assertEquals("\uD83D\uDD34 Дім · Скоро вимкнуть світло", s.title);
+        assertEquals("о 14:30, через 28 хв", s.text);
         assertFalse(s.on);
         assertEquals(at(18, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
         Logic.Notice n = Logic.eventText(on, t, OCT30, at(18, 15));
-        assertEquals("\uD83D\uDFE2 Дім · світло з 18:30", n.title);  // tomorrow unknown: no end
-        assertEquals("Через 15 хв", n.text);
+        assertEquals("\uD83D\uDFE2 Дім · Скоро увімкнуть світло", n.title);
+        assertEquals("о 18:30, через 15 хв", n.text);
         assertTrue(n.on);
         assertEquals(at(19, 30), n.until);
-        String t2 = tl(WITH_TOMORROW);
-        Logic.Event on2 = Logic.events(home(), t2, OCT30, at(15, 0), new Logic.Alerts()).get(0);
-        assertEquals("\uD83D\uDFE2 Дім · світло 18:30–24:00", Logic.eventText(on2, t2, OCT30, at(18, 15)).title);
         String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
         Logic.Event m = Logic.events(home(), maybe, OCT30, at(9, 0), new Logic.Alerts()).get(0);
-        assertEquals("\uD83D\uDFE0 Дім · можливе вимкнення 10:00–14:00",
-                Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
+        assertEquals("\uD83D\uDFE0 Дім · Можливе вимкнення", Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
     }
 
     @Test
@@ -269,19 +265,117 @@ public class LogicTest {
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
         Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30, at(14, 30));
-        assertEquals("\uD83D\uDD34 Дім · без світла 14:30–18:30", off.title);
-        assertEquals("Зараз, за графіком", off.text);
+        assertEquals("\uD83D\uDD34 Дім · Вимкнення за графіком", off.title);
+        assertEquals("до 18:30", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
-        assertEquals("\uD83D\uDFE2 Дім · світло з 18:30", Logic.eventText(ev.get(1), t, OCT30, at(18, 30)).title);
+        Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30, at(18, 30));
+        assertEquals("\uD83D\uDFE2 Дім · Світло має з'явитися", on.title);
+        assertEquals("за графіком з 18:30", on.text);
     }
 
     @Test
-    public void anOutageWithoutAKnownEndSaysOnlyFrom() throws Exception {
+    public void anOutageWithoutAKnownEndIsDroppedAfterFourHours() throws Exception {
         String open = repeat('1', 12) + repeat('0', 36) + repeat('2', 48);
-        Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), new Logic.Alerts()).get(0);
-        Logic.Notice s = Logic.eventText(e, open, OCT30, at(5, 45));
-        assertEquals("\uD83D\uDD34 Дім · без світла з 06:00", s.title);
+        Logic.Alerts a = new Logic.Alerts();
+        a.leadOff = 0;
+        Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), a).get(0);
+        Logic.Notice s = Logic.eventText(e, open, OCT30, at(6, 0));
+        assertEquals("за графіком", s.text);
         assertEquals(at(10, 0), s.until);
+    }
+
+    // ---- 1.3: notifications per place, sharing, small fixes ------------------------
+
+    @Test
+    public void eachPlaceKeepsItsOwnNotifications() throws Exception {
+        Logic.Alerts a = new Logic.Alerts();
+        a.on = false;
+        a.leadOff = 30;
+        a.tomorrow = true;
+        Logic.Alerts b = Logic.alertsFrom(Logic.alertsJson(a), null, false);
+        assertFalse(b.on);
+        assertTrue(b.off);
+        assertEquals(30, b.leadOff);
+        assertEquals(15, b.leadOn);
+        assertTrue(b.tomorrow);
+        assertFalse(b.changes);
+    }
+
+    @Test
+    public void aPlaceWithoutItsOwnSettingsTakesTheOldCommonOnes() {
+        Logic.Alerts old = new Logic.Alerts();
+        old.leadOff = 60;
+        old.changes = true;
+        Logic.Alerts a = Logic.alertsFrom(null, old, false);
+        assertEquals(60, a.leadOff);
+        assertTrue(a.off && a.on && a.changes);
+        // the bell of 1.2 switched a place off: it stays off
+        Logic.Alerts m = Logic.alertsFrom(null, old, true);
+        assertFalse(m.any());
+        assertEquals(60, m.leadOff);  // the chosen lead is kept for when it is switched on again
+        // a new place, or a broken record: the defaults, two reminders 15 minutes ahead
+        Logic.Alerts d = Logic.alertsFrom("{broken", null, false);
+        assertTrue(d.off && d.on && !d.tomorrow && !d.changes);
+        assertEquals(15, d.leadOff);
+    }
+
+    @Test
+    public void notificationSummaryOfAPlace() {
+        Logic.Alerts a = new Logic.Alerts();
+        assertTrue(a.any());
+        assertEquals("За 15 хв до вимкнення й увімкнення", Logic.alertsSummary(a));
+        a.leadOff = 30;
+        assertEquals("За 30 хв до вимкнення, за 15 хв до увімкнення", Logic.alertsSummary(a));
+        a.leadOff = 0;
+        a.on = false;
+        a.tomorrow = true;
+        assertEquals("У момент вимкнення · графік на завтра", Logic.alertsSummary(a));
+        a.off = false;
+        a.tomorrow = false;
+        a.changes = true;
+        assertEquals("Зміни графіка", Logic.alertsSummary(a));
+        a.changes = false;
+        assertFalse(a.any());
+        assertEquals("Вимкнено", Logic.alertsSummary(a));
+    }
+
+    @Test
+    public void aNotificationKeepsItsPlaceSlot() {
+        assertEquals(Logic.slot("p1730000000000"), Logic.slot("p1730000000000"));
+        assertTrue(Logic.slot("p1") != Logic.slot("p2"));
+        assertTrue(Logic.slot("p1") >= 1000);  // clear of the two test notifications (998, 999)
+    }
+
+    @Test
+    public void openingTheAppSkipsTheNetworkRightAfterACheck() {
+        assertTrue(Logic.dueOnOpen(0, at(10, 0)));
+        assertFalse(Logic.dueOnOpen(at(9, 59), at(10, 0)));
+        assertTrue(Logic.dueOnOpen(at(9, 58), at(10, 0)));
+        assertTrue(Logic.dueOnOpen(at(10, 5), at(10, 0)));  // a clock set back
+    }
+
+    @Test
+    public void summerTimeDaysKeepTheirSlotsOnTheClock() {
+        LocalDate spring = LocalDate.of(2027, 3, 28);  // 03:00 -> 04:00
+        LocalDate autumn = LocalDate.of(2027, 10, 31);  // 04:00 -> 03:00
+        assertEquals(java.time.ZonedDateTime.of(2027, 3, 28, 18, 0, 0, 0, Logic.KYIV).toEpochSecond(),
+                Logic.slotStart(spring, 36));
+        assertEquals(36, Logic.index(spring, Logic.slotStart(spring, 36)));
+        assertEquals(java.time.ZonedDateTime.of(2027, 10, 31, 18, 0, 0, 0, Logic.KYIV).toEpochSecond(),
+                Logic.slotStart(autumn, 36));
+        assertEquals(36, Logic.index(autumn, Logic.slotStart(autumn, 36)));
+        // the evening outage is reminded 15 minutes ahead by the clock, not an hour off
+        String day = repeat('1', 36) + repeat('0', 8) + repeat('1', 4) + repeat('2', 48);
+        Logic.Event e = Logic.events(home(), day, spring, Logic.slotStart(spring, 20), new Logic.Alerts()).get(0);
+        assertEquals(Logic.slotStart(spring, 36) - 15 * 60, e.at);
+    }
+
+    @Test
+    public void aSharedPictureSaysWhereToGetTheApp() {
+        String s = Logic.shareText(home());
+        assertEquals("Графік відключень: Київська область, черга 1.1. Застосунок «Світлячок»: "
+                + "https://github.com/ABovsh/svitlyachok", s);
+        assertFalse(s.contains("Дім"));  // the place's own name stays on the phone
     }
 
     @Test
@@ -416,8 +510,9 @@ public class LogicTest {
         r.phone = "Samsung SM-A155F";
         r.places = Arrays.asList(home());
         r.notifications = true;
-        r.alerts = new Logic.Alerts();
-        r.alerts.on = false;
+        Logic.Alerts a = new Logic.Alerts();
+        a.on = false;
+        r.alerts = Arrays.asList(a);
         r.batteryUnlimited = false;
         r.checked = at(9, 0);
         r.now = at(10, 0);
@@ -426,15 +521,16 @@ public class LogicTest {
                 Світлячок 1.2.0
                 Android 15 (API 35), Samsung SM-A155F
                 Місця: Київська область, черга 1.1
-                Сповіщення: дозволені; вимкнення — за 15 хв, увімкнення — вимкнено
+                Сповіщення: дозволені
+                Черга 1.1: за 15 хв до вимкнення
                 Обмеження батареї: є
                 Графік перевірено: сьогодні о 09:00
                 Віджетів: 2""", Logic.reportText(r));
         r.checked = 0;
         r.notifications = false;
-        r.alerts.leadOff = 0;
+        a.leadOff = 0;
         String s = Logic.reportText(r);
-        assertTrue(s.contains("Сповіщення: вимкнені в телефоні; вимкнення — одразу"));
+        assertTrue(s.contains("Сповіщення: вимкнені в телефоні\nЧерга 1.1: у момент вимкнення"));
         assertTrue(s.contains("Графік перевірено: ще ні"));
     }
 
@@ -515,7 +611,7 @@ public class LogicTest {
         List<Logic.Place> all = Arrays.asList(place("p1"), place("p2"), place("p3"));
         assertEquals("p2", Logic.widgetPlace(all, "p2").id);
         assertEquals("p1", Logic.widgetPlace(all, "").id);      // not chosen yet: the first place
-        assertEquals("p1", Logic.widgetPlace(all, "gone").id);  // its place was removed
+        assertNull(Logic.widgetPlace(all, "gone"));  // its place was removed: say so, not show another
         assertNull(Logic.widgetPlace(Arrays.asList(), "p1"));   // no places at all
     }
 

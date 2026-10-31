@@ -81,6 +81,7 @@ final class Prefs {
         list.removeIf(pl -> pl.id.equals(id));
         savePlaces(c, list);
         h(c).edit().remove(id).apply();
+        p(c).edit().remove("alerts_" + id).remove("mute_" + id).apply();
         if (id.equals(current(c))) setCurrent(c, "");
     }
 
@@ -99,13 +100,11 @@ final class Prefs {
         p(c).edit().putString("current", id).apply();
     }
 
-    static boolean muted(Context c, String place) {
+    /** The bell of 1.2 that switched a place off; read once, when its own settings are made. */
+    private static boolean muted(Context c, String place) {
         return p(c).getBoolean("mute_" + place, false);
     }
 
-    static void setMuted(Context c, String place, boolean v) {
-        p(c).edit().putBoolean("mute_" + place, v).apply();
-    }
 
     // ---- history -------------------------------------------------------------------
 
@@ -155,15 +154,29 @@ final class Prefs {
 
     // ---- notifications -------------------------------------------------------------
 
-    static Logic.Alerts alerts(Context c) {
-        Logic.Alerts a = new Logic.Alerts();
+    /** What one place notifies about; a place from before 1.3 takes the old common settings. */
+    static Logic.Alerts alerts(Context c, String place) {
+        return Logic.alertsFrom(p(c).getString("alerts_" + place, null), common(c), muted(c, place));
+    }
+
+    static void setAlerts(Context c, String place, Logic.Alerts a) {
+        p(c).edit().putString("alerts_" + place, Logic.alertsJson(a)).apply();
+    }
+
+    /** The settings of 1.0–1.2, shared by all places; null when none were ever changed. */
+    private static Logic.Alerts common(Context c) {
         SharedPreferences sp = p(c);
+        if (!sp.contains("lead_off") && !sp.contains("lead_on") && !sp.contains("n_off") && !sp.contains("n_on")
+                && !sp.contains("note_tomorrow") && !sp.contains("note_change")) return null;
+        Logic.Alerts a = new Logic.Alerts();
         a.leadOff = sp.getInt("lead_off", a.leadOff);
         a.leadOn = sp.getInt("lead_on", a.leadOn);
         // 1.1.0 had no switches: a lead of 0 meant "never", unless "at the moment" was on
         boolean atChange = sp.getBoolean("at_change", false);
         a.off = sp.getBoolean("n_off", a.leadOff > 0 || atChange);
         a.on = sp.getBoolean("n_on", a.leadOn > 0 || atChange);
+        a.tomorrow = sp.getBoolean("note_tomorrow", Logic.DEFAULT_TOMORROW);
+        a.changes = sp.getBoolean("note_change", Logic.DEFAULT_CHANGES);
         return a;
     }
 
@@ -177,14 +190,6 @@ final class Prefs {
 
     static void setFlag(Context c, String key, boolean v) {
         p(c).edit().putBoolean(key, v).apply();
-    }
-
-    static boolean tomorrowNotes(Context c) {
-        return flag(c, "note_tomorrow", Logic.DEFAULT_TOMORROW);
-    }
-
-    static boolean changeNotes(Context c) {
-        return flag(c, "note_change", Logic.DEFAULT_CHANGES);
     }
 
     static boolean quietNights(Context c) {

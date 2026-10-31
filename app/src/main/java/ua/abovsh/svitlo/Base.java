@@ -26,12 +26,17 @@ abstract class Base extends Activity {
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
-            render();
+            onTick();
             handler.postDelayed(this, 30_000);
         }
     };
 
     abstract void render();
+
+    /** Every 30 s while visible; a page that knows when nothing changed skips the work. */
+    void onTick() {
+        render();
+    }
 
     @Override
     protected void onCreate(Bundle state) {
@@ -108,6 +113,64 @@ abstract class Base extends Activity {
         b.setOnClickListener(l);
         b.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
         return b;
+    }
+
+    /** A switch row: a title, a line under it, the switch. */
+    View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
+        LinearLayout r = Ui.row(this);
+        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        r.addView(label(title, desc), weight());
+        ToggleView tv = new ToggleView(this, pal, on, v -> {
+            l.changed(v);
+            Sync.apply(getApplicationContext());
+        });
+        tv.setContentDescription(title);
+        LinearLayout.LayoutParams tl = wrap();
+        tl.leftMargin = Ui.dp(this, 12);
+        r.addView(tv, tl);
+        r.setOnClickListener(v -> tv.performClick());
+        return r;
+    }
+
+    View label(String title, String desc) {
+        LinearLayout t = Ui.column(this);
+        TextView n = Ui.text(this, 16, Ui.heavy(this), pal.text);
+        n.setText(title);
+        t.addView(n);
+        TextView d = Ui.text(this, 13, Ui.body(this), pal.muted);
+        d.setText(desc);
+        d.setLineSpacing(0, 1.1f);
+        d.setPadding(0, Ui.dp(this, 4), 0, 0);
+        t.addView(d);
+        return t;
+    }
+
+    /** How early: "Одразу" and minutes as a row of pills; `chosen` gets the minutes picked. */
+    View leads(int[] leads, int lead, java.util.function.IntConsumer chosen) {
+        LinearLayout box = Ui.column(this);
+        TextView when = Ui.text(this, 13, Ui.bold(this), pal.muted);
+        when.setText("Коли нагадати");
+        when.setPadding(0, 0, 0, Ui.dp(this, 8));
+        box.addView(when, fill());
+        LinearLayout row = Ui.row(this);
+        for (int i = 0; i < leads.length; i++) {
+            int v = leads[i];
+            TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
+            int side = Ui.dp(this, 4);
+            t.setPadding(side, 0, side, 0);
+            // a narrow phone with a large system font: the text shrinks instead of overflowing
+            t.setAutoSizeTextTypeUniformWithConfiguration(9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+            t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
+            t.setOnClickListener(c -> chosen.accept(v));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1f);
+            if (v == 0) lp.weight = 1.4f;  // "Одразу" is the longest word
+            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
+            row.addView(t, lp);
+        }
+        LinearLayout.LayoutParams rl = fill();
+        rl.bottomMargin = Ui.dp(this, 14);
+        box.addView(row, rl);
+        return box;
     }
 
     /** Back button + title for the inner pages. */

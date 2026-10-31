@@ -56,11 +56,25 @@ final class Store {
         return prefs(c).getLong(CHECKED + region, 0);
     }
 
-    static synchronized int fetch(Context c, String region) {
+    /** Network calls queue here, apart from `data`: the screen never waits for a slow answer. */
+    private static final Object FETCHING = new Object();
+
+    static int fetch(Context c, String region) {
+        return fetch(c, region, Long.MAX_VALUE);
+    }
+
+    /** The next address is not tried after `deadlineMs`. */
+    static int fetch(Context c, String region, long deadlineMs) {
+        synchronized (FETCHING) {
+            return fetchAny(c, region, deadlineMs);
+        }
+    }
+
+    private static int fetchAny(Context c, String region, long deadlineMs) {
         Logic.Region r = Logic.region(region);
         if (r == null) return FAILED;
         int result = NEXT;
-        for (int i = 0; i < r.urls.length && result == NEXT; i++) {
+        for (int i = 0; i < r.urls.length && result == NEXT && System.currentTimeMillis() <= deadlineMs; i++) {
             if (r.urls[i].startsWith("https://")) result = fetchFrom(c, region, r.urls[i]);  // never plain HTTP
         }
         return result == NEXT ? FAILED : result;

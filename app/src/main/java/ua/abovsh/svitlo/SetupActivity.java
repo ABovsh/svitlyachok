@@ -113,6 +113,7 @@ public class SetupActivity extends Base {
             del.setMinHeight(Ui.dp(this, 52));
             del.setOnClickListener(v -> {
                 Prefs.removePlace(this, edit.id);
+                Sync.forget(getApplicationContext(), edit.id);
                 Sync.apply(getApplicationContext());
                 finish();
             });

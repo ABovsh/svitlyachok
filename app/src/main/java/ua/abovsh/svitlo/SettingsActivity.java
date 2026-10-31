@@ -19,10 +19,8 @@ public class SettingsActivity extends Base {
     void render() {
         // rebuild only when something here could have changed (back from a place, from system settings)
         StringBuilder b = new StringBuilder(notificationsAllowed() ? "1" : "0");
-        Logic.Alerts a = Prefs.alerts(this);
-        b.append(a.off).append(a.on).append(a.leadOff).append(a.leadOn);
         for (Logic.Place p : Prefs.places(this)) {
-            b.append('|').append(p.id).append(p.name).append(p.group).append(Prefs.muted(this, p.id));
+            b.append('|').append(p.id).append(p.name).append(p.group).append(Logic.alertsJson(Prefs.alerts(this, p.id)));
         }
         int sig = b.toString().hashCode();
         if (sig == built) return;
@@ -80,10 +78,10 @@ public class SettingsActivity extends Base {
             places.addView(add, fill());
         }
         page.addView(places, fill());
-        page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць з будь-якими чергами. "
-                + "Дзвіночок вимикає сповіщення одного місця."));
+        page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць з будь-якими чергами."));
     }
 
+    /** A row per place, opening its own notifications; then what is common to all places. */
     private void notificationsSection() {
         page.addView(heading("Сповіщення"));
         LinearLayout n = box();
@@ -91,11 +89,10 @@ public class SettingsActivity extends Base {
             n.addView(warning(), fill());
             n.addView(divider());
         }
-        Logic.Alerts a = Prefs.alerts(this);
-        alertRow(n, OFF_ALERT, a.off, a.leadOff);
-        n.addView(divider());
-        alertRow(n, ON_ALERT, a.on, a.leadOn);
-        n.addView(divider());
+        for (Logic.Place p : Prefs.places(this)) {
+            n.addView(alertsRow(p), fill());
+            n.addView(divider());
+        }
         TextView test = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         test.setText("Надіслати пробне сповіщення");
         test.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
@@ -109,19 +106,38 @@ public class SettingsActivity extends Base {
         n.addView(test, fill());
         page.addView(n, fill());
 
-        page.addView(heading("Додатково"));
         LinearLayout x = box();
-        x.addView(toggle("Графік на завтра", "Щойно обленерго його опублікує",
-                Prefs.tomorrowNotes(this), on -> Prefs.setFlag(this, "note_tomorrow", on)), fill());
-        x.addView(divider());
-        x.addView(toggle("Зміни графіка", "Якщо змінилися години на сьогодні або завтра",
-                Prefs.changeNotes(this), on -> Prefs.setFlag(this, "note_change", on)), fill());
-        x.addView(divider());
         x.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку",
                 Prefs.quietNights(this), on -> Prefs.setFlag(this, "quiet", on)), fill());
-        page.addView(x, fill());
-        page.addView(note("Нагадування приходять точно у свій час, одне на місце: нове замінює попереднє. "
-                + "Зміни графіка застосунок перевіряє приблизно раз на 15 хвилин."));
+        LinearLayout.LayoutParams xl = fill();
+        xl.topMargin = Ui.dp(this, 10);
+        page.addView(x, xl);
+        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває і дзвіночок на картці місця. "
+                + "Одне сповіщення на місце: нове замінює попереднє. Зміни графіка застосунок перевіряє "
+                + "приблизно раз на 15 хвилин."));
+    }
+
+    /** "Дім" and what it notifies about, with its bell; opens the place's own settings. */
+    private View alertsRow(Logic.Place p) {
+        Logic.Alerts a = Prefs.alerts(this, p.id);
+        LinearLayout r = Ui.row(this);
+        r.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        ImageView bell = new ImageView(this);
+        bell.setImageResource(a.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off);
+        bell.setColorFilter(a.any() ? pal.text : pal.dim, PorterDuff.Mode.SRC_IN);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22));
+        bl.rightMargin = Ui.dp(this, 14);
+        r.addView(bell, bl);
+        r.addView(label(p.name, Logic.alertsSummary(a)), weight());
+        ImageView go = new ImageView(this);
+        go.setImageResource(R.drawable.ic_chevron);
+        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
+        go.setScaleType(ImageView.ScaleType.CENTER);
+        r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 44)));
+        r.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(a));
+        r.setOnClickListener(v -> AlertsSheet.show(this, p, this::rebuild));
+        return r;
     }
 
     private void lookSection() {
@@ -264,16 +280,6 @@ public class SettingsActivity extends Base {
         w.setPadding(0, Ui.dp(this, 3), 0, 0);
         t.addView(w);
         r.addView(t, weight());
-        boolean muted = Prefs.muted(this, p.id);
-        ImageView bell = iconButton(muted ? R.drawable.ic_bell_off : R.drawable.ic_bell,
-                muted ? "Сповіщення вимкнено" : "Сповіщення увімкнено", v -> {
-                    Prefs.setMuted(this, p.id, !muted);
-                    Sync.apply(getApplicationContext());
-                    rebuild();
-                });
-        bell.setColorFilter(muted ? pal.dim : pal.text, PorterDuff.Mode.SRC_IN);
-        if (muted) bell.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1)));
-        r.addView(bell);
         ImageView go = new ImageView(this);
         go.setImageResource(R.drawable.ic_chevron);
         go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
@@ -281,94 +287,6 @@ public class SettingsActivity extends Base {
         r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 44)));
         r.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
         return r;
-    }
-
-    /** One of the two main notifications, as the settings screen shows it. */
-    private static final class Alert {
-        final String title;
-        final String desc;
-        final String key;
-        final String leadKey;
-        final int[] leads;
-
-        Alert(String title, String desc, String key, String leadKey, int[] leads) {
-            this.title = title;
-            this.desc = desc;
-            this.key = key;
-            this.leadKey = leadKey;
-            this.leads = leads;
-        }
-    }
-
-    private static final Alert OFF_ALERT = new Alert("Вимкнення світла", "Попередити, що світло скоро вимкнуть",
-            "n_off", "lead_off", Prefs.LEADS_OFF);
-    private static final Alert ON_ALERT = new Alert("Увімкнення світла", "Повідомити, що світло скоро з'явиться",
-            "n_on", "lead_on", Prefs.LEADS_ON);
-
-    /** A switch and, while it is on, how early. */
-    private void alertRow(LinearLayout box, Alert al, boolean on, int lead) {
-        int[] leads = al.leads;
-        String leadKey = al.leadKey;
-        box.addView(toggle(al.title, al.desc, on, v -> {
-            Prefs.setFlag(this, al.key, v);
-            rebuild();
-        }), fill());
-        if (!on) return;
-        TextView when = Ui.text(this, 13, Ui.bold(this), pal.muted);
-        when.setText("Коли нагадати");
-        when.setPadding(0, 0, 0, Ui.dp(this, 8));
-        box.addView(when, fill());
-        LinearLayout row = Ui.row(this);
-        for (int i = 0; i < leads.length; i++) {
-            int v = leads[i];
-            TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
-            int side = Ui.dp(this, 4);
-            t.setPadding(side, 0, side, 0);
-            // a narrow phone with a large system font: the text shrinks instead of overflowing
-            t.setAutoSizeTextTypeUniformWithConfiguration(9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
-            t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
-            t.setOnClickListener(c -> {
-                Prefs.setInt(this, leadKey, v);
-                Sync.apply(getApplicationContext());
-                rebuild();
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1f);
-            if (v == 0) lp.weight = 1.4f;  // "Одразу" is the longest word
-            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
-            row.addView(t, lp);
-        }
-        LinearLayout.LayoutParams rl = fill();
-        rl.bottomMargin = Ui.dp(this, 14);
-        box.addView(row, rl);
-    }
-
-    private View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
-        LinearLayout r = Ui.row(this);
-        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
-        r.addView(label(title, desc), weight());
-        ToggleView tv = new ToggleView(this, pal, on, v -> {
-            l.changed(v);
-            Sync.apply(getApplicationContext());
-        });
-        tv.setContentDescription(title);
-        LinearLayout.LayoutParams tl = wrap();
-        tl.leftMargin = Ui.dp(this, 12);
-        r.addView(tv, tl);
-        r.setOnClickListener(v -> tv.performClick());
-        return r;
-    }
-
-    private View label(String title, String desc) {
-        LinearLayout t = Ui.column(this);
-        TextView n = Ui.text(this, 16, Ui.heavy(this), pal.text);
-        n.setText(title);
-        t.addView(n);
-        TextView d = Ui.text(this, 13, Ui.body(this), pal.muted);
-        d.setText(desc);
-        d.setLineSpacing(0, 1.1f);
-        d.setPadding(0, Ui.dp(this, 4), 0, 0);
-        t.addView(d);
-        return t;
     }
 
     private View warning() {

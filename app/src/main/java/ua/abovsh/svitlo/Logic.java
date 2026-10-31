@@ -614,6 +614,98 @@ public final class Logic {
         public boolean on = true;
         public int leadOff = 15;
         public int leadOn = 15;
+        public boolean tomorrow;
+        public boolean changes;
+
+        /** Anything at all: otherwise the bell of the place is crossed out. */
+        public boolean any() {
+            return off || on || tomorrow || changes;
+        }
+    }
+
+    /**
+     * The notifications of one place: its own record, or, for a place from before 1.3, the old
+     * common settings (switched off where the old bell was off); defaults for a new place.
+     */
+    static Alerts alertsFrom(String json, Alerts legacy, boolean muted) {
+        Alerts a = new Alerts();
+        if (json != null) {
+            try {
+                JSONObject o = new JSONObject(json);
+                a.off = o.optBoolean("off", a.off);
+                a.on = o.optBoolean("on", a.on);
+                a.leadOff = Math.max(0, Math.min(120, o.optInt("leadOff", a.leadOff)));
+                a.leadOn = Math.max(0, Math.min(120, o.optInt("leadOn", a.leadOn)));
+                a.tomorrow = o.optBoolean("tomorrow", a.tomorrow);
+                a.changes = o.optBoolean("changes", a.changes);
+            } catch (JSONException e) {
+                return new Alerts();
+            }
+            return a;
+        }
+        if (legacy != null) {
+            a.off = legacy.off;
+            a.on = legacy.on;
+            a.leadOff = legacy.leadOff;
+            a.leadOn = legacy.leadOn;
+            a.tomorrow = legacy.tomorrow;
+            a.changes = legacy.changes;
+        }
+        if (muted) {
+            a.off = false;
+            a.on = false;
+            a.tomorrow = false;
+            a.changes = false;
+        }
+        return a;
+    }
+
+    static String alertsJson(Alerts a) {
+        try {
+            return new JSONObject().put("off", a.off).put("on", a.on).put("leadOff", a.leadOff)
+                    .put("leadOn", a.leadOn).put("tomorrow", a.tomorrow).put("changes", a.changes).toString();
+        } catch (JSONException e) {
+            return "{}";  // only for a non-finite number, which none of these is
+        }
+    }
+
+    /** "За 15 хв до вимкнення й увімкнення", "У момент вимкнення · графік на завтра", "Вимкнено". */
+    static String alertsSummary(Alerts a) {
+        List<String> main = new ArrayList<>();
+        if (a.off && a.on && a.leadOff == a.leadOn) {
+            main.add(ahead(a.leadOff, "вимкнення й увімкнення"));
+        } else {
+            if (a.off) main.add(ahead(a.leadOff, "вимкнення"));
+            if (a.on) main.add(ahead(a.leadOn, "увімкнення"));
+        }
+        List<String> parts = new ArrayList<>();
+        if (!main.isEmpty()) parts.add(String.join(", ", main));
+        if (a.tomorrow) parts.add("графік на завтра");
+        if (a.changes) parts.add("зміни графіка");
+        if (parts.isEmpty()) return "Вимкнено";
+        String s = String.join(" · ", parts);
+        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
+    }
+
+    private static String ahead(int lead, String what) {
+        return lead == 0 ? "у момент " + what : "за " + lead + " хв до " + what;
+    }
+
+    /** The notification id of a place: the same for as long as the place exists. */
+    static int slot(String placeId) {
+        return 1000 + (placeId.hashCode() & 0x3FFF);
+    }
+
+    /** Opening the app goes to the network unless the source answered in the last 2 minutes. */
+    static boolean dueOnOpen(long checkedAt, long now) {
+        return checkedAt <= 0 || now < checkedAt || now - checkedAt >= 120;
+    }
+
+    /** The words under a shared picture: the region and queue, where to get the app; no place name. */
+    static String shareText(Place p) {
+        Region r = region(p.region);
+        return "Графік відключень: " + (r == null ? p.region : r.name) + ", черга " + queue(p.group)
+                + ". Застосунок «Світлячок»: " + REPO.substring(0, REPO.length() - 1);
     }
 
     /** Everything else is opt-in. */
@@ -690,43 +782,37 @@ public final class Logic {
         return state == MAYBE ? "\uD83D\uDFE0 " : "\uD83D\uDD34 ";
     }
 
-    /** End of the power that comes at `change`, or 0 when the data ends first. */
-    static long powerEnd(String tl, LocalDate base, long change) {
-        for (int[] c : changesFrom(tl, index(base, change))) {
-            if (c[1] == '0' || c[1] == '3') return slotStart(base, c[0]);
-            if (c[1] == '2') return 0;
-        }
-        return 0;
-    }
-
-    /** "14:30–18:30", "з 06:00" when the end is not known yet; midnight after the start is 24:00. */
-    private static String range(long from, long to) {
-        if (to <= 0) return "з " + hm(from);
-        return hm(from) + "–" + (dayDiff(from, to) == 1 && hm(to).equals("00:00") ? MIDNIGHT : hm(to));
-    }
-
     /**
-     * A reminder in one line: mark, place, what happens and when; the second line, how soon.
-     * It is no longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
+     * A reminder: what happens, then when; a coloured mark and the place first. It is no
+     * longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
      */
     public static Notice eventText(Event e, String tl, LocalDate base, long now) {
         Notice n = new Notice();
         n.on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
         int i = index(base, e.change);
         boolean maybe = !n.on && i >= 0 && i < tl.length() && tl.charAt(i) == '3';
-        long end = n.on ? powerEnd(tl, base, e.change) : outageEnd(tl, base, e.change);
+        long end = n.on ? 0 : outageEnd(tl, base, e.change);
         int state = OFF;
-        String what = NO_POWER;
-        if (n.on) {
-            state = ON;
-            what = "світло ";
-        } else if (maybe) {
-            state = MAYBE;
-            what = "можливе вимкнення ";
+        if (n.on) state = ON;
+        else if (maybe) state = MAYBE;
+        String head = mark(state) + e.name + " · ";
+        switch (e.kind) {
+            case Event.SOON_OFF:
+                n.title = head + (maybe ? "Можливе вимкнення" : "Скоро вимкнуть світло");
+                n.text = "о " + hm(e.change) + ", через " + waitText(Math.max(0, e.change - now));
+                break;
+            case Event.SOON_ON:
+                n.title = head + "Скоро увімкнуть світло";
+                n.text = "о " + hm(e.change) + ", через " + waitText(Math.max(0, e.change - now));
+                break;
+            case Event.AT_OFF:
+                n.title = head + (maybe ? "Можливе вимкнення за графіком" : "Вимкнення за графіком");
+                n.text = end > 0 ? "до " + until(end, e.change) : "за графіком";
+                break;
+            default:
+                n.title = head + "Світло має з'явитися";
+                n.text = "за графіком з " + hm(e.change);
         }
-        n.title = mark(state) + e.name + " · " + what + range(e.change, end);
-        boolean at = e.kind == Event.AT_OFF || e.kind == Event.AT_ON;
-        n.text = at ? "Зараз, за графіком" : "Через " + waitText(Math.max(0, e.change - now));
         if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
@@ -907,7 +993,7 @@ public final class Logic {
         public String phone = "";
         public List<Place> places = new ArrayList<>();
         public boolean notifications;
-        public Alerts alerts = new Alerts();
+        public List<Alerts> alerts = new ArrayList<>();
         public boolean batteryUnlimited;
         public long checked;
         public long now;
@@ -919,17 +1005,22 @@ public final class Logic {
         return "Світлячок " + r.version + "\n"
                 + "Android " + r.android + " (API " + r.api + "), " + r.phone + "\n"
                 + "Місця: " + placesSummary(r.places) + "\n"
-                + "Сповіщення: " + (r.notifications ? "дозволені" : "вимкнені в телефоні")
-                + "; вимкнення — " + leadWords(r.alerts.off, r.alerts.leadOff)
-                + ", увімкнення — " + leadWords(r.alerts.on, r.alerts.leadOn) + "\n"
+                + "Сповіщення: " + (r.notifications ? "дозволені" : "вимкнені в телефоні") + "\n"
+                + placeAlerts(r)
                 + "Обмеження батареї: " + (r.batteryUnlimited ? "немає" : "є") + "\n"
                 + "Графік перевірено: " + (r.checked > 0 ? dayWord(r.checked, r.now) + " о " + hm(r.checked) : "ще ні") + "\n"
                 + "Віджетів: " + r.widgets;
     }
 
-    private static String leadWords(boolean on, int minutes) {
-        if (!on) return "вимкнено";
-        return minutes == 0 ? "одразу" : "за " + minutes + " хв";
+    /** "Черга 1.1: за 15 хв до вимкнення й увімкнення", a line per place, without its name. */
+    private static String placeAlerts(ReportInfo r) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < r.places.size() && i < r.alerts.size(); i++) {
+            String s = alertsSummary(r.alerts.get(i));
+            b.append("Черга ").append(queue(r.places.get(i).group)).append(": ")
+                    .append(s.substring(0, 1).toLowerCase(Locale.ROOT)).append(s.substring(1)).append('\n');
+        }
+        return b.toString();
     }
 
     /** A new issue in this repository with the technical details already in the form. */
@@ -948,10 +1039,14 @@ public final class Logic {
     public static final int W_ROW = 0;
     public static final int W_FULL = 1;
 
-    /** The place a widget shows: the one chosen for it, or the first place when none is (left). */
+    /**
+     * The place a widget shows: the one chosen for it, the first place when none was chosen, or
+     * null when its place was removed (the widget says so instead of showing another one).
+     */
     public static Place widgetPlace(List<Place> all, String chosen) {
+        if (chosen.isEmpty()) return all.isEmpty() ? null : all.get(0);
         for (Place p : all) if (p.id.equals(chosen)) return p;
-        return all.isEmpty() ? null : all.get(0);
+        return null;
     }
 
     /** Whether a place still has no widget of its own (`widgetPlaces`: the place of each widget). */

@@ -26,7 +26,10 @@ import java.util.List;
 
 /** All places at a glance (two or more), then the chosen one: now, today and tomorrow in full. */
 public class MainActivity extends Base {
+    /** A widget or a notification names the place to open. */
+    static final String EXTRA_PLACE = "place";
     private TextView sub;
+    private String shown = "";
     private View addWidget;
     private LinearLayout body;
     private boolean loading;
@@ -50,6 +53,12 @@ public class MainActivity extends Base {
     }
 
     @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);  // a widget or a notification of another place, while the app is open
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         if (body == null) return;
@@ -58,7 +67,14 @@ public class MainActivity extends Base {
             finish();
             return;
         }
-        refresh();
+        String want = getIntent().getStringExtra(EXTRA_PLACE);
+        if (want != null) {
+            if (Prefs.place(this, want) != null) Prefs.setCurrent(this, want);
+            getIntent().removeExtra(EXTRA_PLACE);
+        }
+        // the source answered moments ago (the alarm, the job): the cache is fresh, no network
+        if (Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
+        else render();
         Updates.checkIfDue(this, () -> runOnUiThread(() -> {
             if (!isFinishing()) render();
         }));
@@ -142,9 +158,30 @@ public class MainActivity extends Base {
         return places.get(0);
     }
 
+    /**
+     * The screen depends on the minute, the cached files, the places and their settings: when
+     * none of these changed since the last drawing, nothing is rebuilt.
+     */
+    private String state() {
+        StringBuilder b = new StringBuilder().append(Sync.now() / 60).append(loading).append(Prefs.current(this));
+        for (Logic.Place p : Prefs.places(this)) {
+            b.append('|').append(p.id).append(p.name).append(p.group).append(Store.checkedAt(this, p.region))
+                    .append(System.identityHashCode(Store.data(this, p.region)))
+                    .append(Logic.alertsJson(Prefs.alerts(this, p.id)));
+        }
+        Logic.Release r = Updates.offered(this);
+        return b.append(r == null ? "" : r.version).toString();
+    }
+
+    @Override
+    void onTick() {
+        if (!state().equals(shown)) render();
+    }
+
     @Override
     void render() {
         if (body == null) return;
+        shown = state();
         List<Logic.Place> places = Prefs.places(this);
         if (places.isEmpty()) return;
         long now = Sync.now();
@@ -328,6 +365,7 @@ public class MainActivity extends Base {
         // the words on the left; on the right, round buttons: notifications and statistics
         LinearLayout card = Ui.row(this);
         card.setBaselineAligned(false);
+        card.setGravity(Gravity.TOP);  // the words start level with the bell, however tall the buttons
         card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 16));
         card.setBackground(Ui.card(this, pal, tint));
         LinearLayout words = Ui.column(this);
@@ -339,6 +377,11 @@ public class MainActivity extends Base {
         LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48));
         sl.topMargin = Ui.dp(this, 8);
         buttons.addView(stats, sl);
+        View share = iconButton(R.drawable.ic_share, "Поділитися графіком картинкою",
+                v -> Share.send(this, p));
+        LinearLayout.LayoutParams shl = new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48));
+        shl.topMargin = Ui.dp(this, 8);
+        buttons.addView(share, shl);
         LinearLayout.LayoutParams bl = wrap();
         bl.leftMargin = Ui.dp(this, 8);
         card.addView(buttons, bl);
@@ -430,18 +473,15 @@ public class MainActivity extends Base {
         return hint;
     }
 
+    /** The place's notifications: crossed out when none is on; a tap opens them. */
     private View bell(Logic.Place p) {
-        boolean muted = Prefs.muted(this, p.id);
-        ImageView b = iconButton(muted ? R.drawable.ic_bell_off : R.drawable.ic_bell,
-                muted ? "Сповіщення для цього місця вимкнено" : "Сповіщення для цього місця увімкнено", v -> {
-                    Prefs.setMuted(this, p.id, !muted);
-                    Toast.makeText(this, p.name + ": сповіщення " + (muted ? "увімкнено" : "вимкнено"),
-                            Toast.LENGTH_SHORT).show();
-                    Sync.apply(getApplicationContext());
-                    render();
-                });
-        b.setColorFilter(muted ? pal.dim : pal.text, PorterDuff.Mode.SRC_IN);
-        if (muted) b.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1)));
+        Logic.Alerts a = Prefs.alerts(this, p.id);
+        boolean any = a.any();
+        ImageView b = iconButton(any ? R.drawable.ic_bell : R.drawable.ic_bell_off,
+                "Сповіщення, " + p.name + ": " + Logic.alertsSummary(a),
+                v -> AlertsSheet.show(this, p, this::render));
+        b.setColorFilter(any ? pal.text : pal.dim, PorterDuff.Mode.SRC_IN);
+        if (!any) b.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1)));
         return b;
     }
 
@@ -523,7 +563,7 @@ public class MainActivity extends Base {
 
     private String notPublished(Logic.Place p, boolean tomorrow) {
         if (!tomorrow) return "Обленерго ще не опублікувало графік на сьогодні.";
-        boolean told = Prefs.tomorrowNotes(this) && !Prefs.muted(this, p.id);
+        boolean told = Prefs.alerts(this, p.id).tomorrow;
         return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
 

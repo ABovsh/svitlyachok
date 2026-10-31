@@ -22,7 +22,7 @@ final class Report {
         r.phone = Build.MANUFACTURER + " " + Build.MODEL;
         r.places = Prefs.places(c);
         r.notifications = c.getSystemService(NotificationManager.class).areNotificationsEnabled();
-        r.alerts = Prefs.alerts(c);
+        for (Logic.Place p : r.places) r.alerts.add(Prefs.alerts(c, p.id));
         r.batteryUnlimited = c.getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(c.getPackageName());
         r.checked = Sync.checkedAt(c);
         r.now = Sync.now();

@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
@@ -141,7 +142,7 @@ abstract class Base extends Activity {
     View divider() {
         View v = new View(this);
         v.setBackgroundColor(pal.line);
-        v.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 1)));
+        v.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 1)));
         return v;
     }
 
@@ -157,17 +158,17 @@ abstract class Base extends Activity {
     }
 
     static LinearLayout.LayoutParams wrap() {
-        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
     static LinearLayout.LayoutParams fill() {
-        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
     static LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
     }
 
     LinearLayout.LayoutParams gap(int bottomDp) {

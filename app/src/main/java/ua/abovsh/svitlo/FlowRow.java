@@ -6,7 +6,8 @@ import android.view.ViewGroup;
 
 /** Chips left to right, wrapping to the next line when they do not fit. */
 final class FlowRow extends ViewGroup {
-    private final int gap, rowGap;
+    private final int gap;
+    private final int rowGap;
 
     FlowRow(Context c, int gap) {
         this(c, gap, gap);
@@ -20,7 +21,10 @@ final class FlowRow extends ViewGroup {
 
     @Override
     protected void onMeasure(int ws, int hs) {
-        int max = MeasureSpec.getSize(ws), x = 0, y = 0, line = 0;
+        int max = MeasureSpec.getSize(ws);
+        int x = 0;
+        int y = 0;
+        int line = 0;
         for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
             v.measure(MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
@@ -37,7 +41,10 @@ final class FlowRow extends ViewGroup {
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        int max = r - l, x = 0, y = 0, line = 0;
+        int max = r - l;
+        int x = 0;
+        int y = 0;
+        int line = 0;
         for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
             if (x > 0 && x + v.getMeasuredWidth() > max) {

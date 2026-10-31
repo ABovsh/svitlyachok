@@ -13,7 +13,8 @@ import org.junit.Test;
 /** Every text and state of the app, on fixed clocks (Kyiv, winter time, UTC+2). */
 public class LogicTest {
     // 2026-10-30 00:00 Kyiv and 2026-10-31 00:00 Kyiv: the day keys of the DTEK feed.
-    static final long D30 = 1793311200L, D31 = 1793397600L;
+    static final long D30 = 1793311200L;
+    static final long D31 = 1793397600L;
     static final LocalDate OCT30 = LocalDate.of(2026, 10, 30);
 
     static long at(int h, int m) {
@@ -118,7 +119,7 @@ public class LogicTest {
 
     @Test
     public void everyRegionHasAName() {
-        assertTrue(Logic.REGIONS.length >= 10);
+        assertTrue(Logic.regions().size() >= 10);
         assertEquals("Київська область", Logic.region("kyiv_region").name);
         assertNull(Logic.region("nowhere"));
     }
@@ -302,6 +303,17 @@ public class LogicTest {
     }
 
     @Test
+    public void aBackgroundCheckRightAfterAnotherSkipsTheNetwork() {
+        // the 15-minute alarm and the 15-minute job must not both wake the radio
+        assertTrue(Logic.dueForFetch(0, at(10, 0)));                // never checked
+        assertFalse(Logic.dueForFetch(at(10, 0), at(10, 1)));       // the job just after the alarm
+        assertFalse(Logic.dueForFetch(at(10, 0), at(10, 12)));
+        assertTrue(Logic.dueForFetch(at(10, 0), at(10, 13)));       // the next round
+        assertTrue(Logic.dueForFetch(at(10, 0), at(14, 0)));        // a failed region keeps its old time
+        assertTrue(Logic.dueForFetch(at(10, 30), at(10, 0)));       // the clock went back
+    }
+
+    @Test
     public void onlyOffAndOnAreOnByDefault() {
         Logic.Alerts a = new Logic.Alerts();
         assertTrue(a.off);
@@ -331,9 +343,9 @@ public class LogicTest {
     }
 
     static String ids(List<Logic.Place> ps) {
-        StringBuilder b = new StringBuilder();
-        for (Logic.Place p : ps) b.append(b.length() > 0 ? "," : "").append(p.id);
-        return b.toString();
+        List<String> out = new java.util.ArrayList<>();
+        for (Logic.Place p : ps) out.add(p.id);
+        return String.join(",", out);
     }
 
     @Test

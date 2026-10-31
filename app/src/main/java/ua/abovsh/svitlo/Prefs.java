@@ -12,7 +12,8 @@ import org.json.JSONObject;
 /** The user's places and choices, kept on the phone only. */
 final class Prefs {
     static final int MAX_PLACES = 4;
-    static final int[] LEADS_OFF = {0, 10, 15, 30, 60}, LEADS_ON = {0, 5, 10, 15, 30};
+    static final int[] LEADS_OFF = {0, 10, 15, 30, 60};
+    static final int[] LEADS_ON = {0, 5, 10, 15, 30};
 
     private Prefs() {}
 

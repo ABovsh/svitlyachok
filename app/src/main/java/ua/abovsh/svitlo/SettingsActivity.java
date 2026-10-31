@@ -82,11 +82,9 @@ public class SettingsActivity extends Base {
             n.addView(divider());
         }
         Logic.Alerts a = Prefs.alerts(this);
-        main(n, "Вимкнення світла", "Попередити, що світло скоро вимкнуть", a.off, "n_off",
-                Prefs.LEADS_OFF, a.leadOff, "lead_off");
+        alertRow(n, OFF_ALERT, a.off, a.leadOff);
         n.addView(divider());
-        main(n, "Увімкнення світла", "Повідомити, що світло скоро з'явиться", a.on, "n_on",
-                Prefs.LEADS_ON, a.leadOn, "lead_on");
+        alertRow(n, ON_ALERT, a.on, a.leadOn);
         n.addView(divider());
         TextView test = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         test.setText("Надіслати пробне сповіщення");
@@ -196,11 +194,34 @@ public class SettingsActivity extends Base {
         return r;
     }
 
-    /** One of the two main notifications: a switch and, while it is on, how early. */
-    private void main(LinearLayout box, String title, String desc, boolean on, String key,
-            int[] leads, int lead, String leadKey) {
-        box.addView(toggle(title, desc, on, v -> {
-            Prefs.setFlag(this, key, v);
+    /** One of the two main notifications, as the settings screen shows it. */
+    private static final class Alert {
+        final String title;
+        final String desc;
+        final String key;
+        final String leadKey;
+        final int[] leads;
+
+        Alert(String title, String desc, String key, String leadKey, int[] leads) {
+            this.title = title;
+            this.desc = desc;
+            this.key = key;
+            this.leadKey = leadKey;
+            this.leads = leads;
+        }
+    }
+
+    private static final Alert OFF_ALERT = new Alert("Вимкнення світла", "Попередити, що світло скоро вимкнуть",
+            "n_off", "lead_off", Prefs.LEADS_OFF);
+    private static final Alert ON_ALERT = new Alert("Увімкнення світла", "Повідомити, що світло скоро з'явиться",
+            "n_on", "lead_on", Prefs.LEADS_ON);
+
+    /** A switch and, while it is on, how early. */
+    private void alertRow(LinearLayout box, Alert al, boolean on, int lead) {
+        int[] leads = al.leads;
+        String leadKey = al.leadKey;
+        box.addView(toggle(al.title, al.desc, on, v -> {
+            Prefs.setFlag(this, al.key, v);
             rebuild();
         }), fill());
         if (!on) return;

@@ -24,8 +24,11 @@ import java.util.Set;
 
 /** Fetch, tell about schedule changes, redraw widgets, arm the next refresh and reminder. */
 final class Sync {
-    static final int JOB_PERIODIC = 1, JOB_NOW = 2;
-    static final String CH_REMIND = "remind", CH_SCHEDULE = "schedule", CH_QUIET = "quiet";
+    static final int JOB_PERIODIC = 1;
+    static final int JOB_NOW = 2;
+    static final String CH_REMIND = "remind";
+    static final String CH_SCHEDULE = "schedule";
+    static final String CH_QUIET = "quiet";
     static final String ACTION_REFRESH = "ua.abovsh.svitlo.REFRESH";
     static final String ACTION_NOTIFY = "ua.abovsh.svitlo.NOTIFY";
 
@@ -37,8 +40,21 @@ final class Sync {
 
     /** Blocking (network): call off the main thread. True when every region answered. */
     static boolean fetchAndApply(Context c) {
-        boolean ok = true;
+        return fetchAndApply(c, true);
+    }
+
+    /** A background check: no network when the source answered moments ago (see Logic.dueForFetch). */
+    static boolean refreshInBackground(Context c) {
+        return fetchAndApply(c, false);
+    }
+
+    private static boolean fetchAndApply(Context c, boolean always) {
         long now = now();
+        if (!always && !Logic.dueForFetch(checkedAt(c), now)) {
+            apply(c);
+            return true;
+        }
+        boolean ok = true;
         for (String region : Prefs.regions(c)) {
             Logic.Data before = Store.data(c, region);
             int r = Store.fetch(c, region);
@@ -249,7 +265,7 @@ final class Sync {
         Context app = c.getApplicationContext();
         new Thread(() -> {
             try {
-                if (!fetchAndApply(app)) fetchSoon(app);
+                if (!refreshInBackground(app)) fetchSoon(app);
             } finally {
                 result.finish();
             }

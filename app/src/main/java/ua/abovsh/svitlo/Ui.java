@@ -24,9 +24,25 @@ final class Ui {
      */
     static final class Pal {
         final boolean dark;
-        final int bg, card, raised, line, text, muted, dim;
-        final int accent, accentText, accentInk;
-        final int on, onText, off, offText, maybe, maybeText, unknown, ink, glow;
+        final int bg;
+        final int card;
+        final int raised;
+        final int line;
+        final int text;
+        final int muted;
+        final int dim;
+        final int accent;
+        final int accentText;
+        final int accentInk;
+        final int on;
+        final int onText;
+        final int off;
+        final int offText;
+        final int maybe;
+        final int maybeText;
+        final int unknown;
+        final int ink;
+        final int glow;
 
         Pal(boolean dark) {
             this.dark = dark;
@@ -47,20 +63,38 @@ final class Ui {
 
         /** The colour of a state: lines of text and the bulb. */
         int status(int state) {
-            return state == Logic.ON ? onText : state == Logic.OFF ? offText : state == Logic.MAYBE ? maybeText : muted;
+            switch (state) {
+                case Logic.ON: return onText;
+                case Logic.OFF: return offText;
+                case Logic.MAYBE: return maybeText;
+                default: return muted;
+            }
         }
 
         /** The fill of a state: bars, glows, chips. */
         int fill(int state) {
-            return state == Logic.ON ? on : state == Logic.OFF ? off : state == Logic.MAYBE ? maybe : unknown;
+            switch (state) {
+                case Logic.ON: return on;
+                case Logic.OFF: return off;
+                case Logic.MAYBE: return maybe;
+                default: return unknown;
+            }
         }
 
+        /** A half hour on a bar: a possible outage is a paler amber, striped on top. */
         int slot(char c) {
-            return c == '1' ? on : c == '0' ? off : c == '3' ? Ui.fade(maybe, 0.45f) : unknown;
+            int state = Logic.state(c);
+            return state == Logic.MAYBE ? Ui.fade(maybe, 0.45f) : fill(state);
         }
     }
 
-    private static Typeface display, displayMid, body, bold, heavy;
+    private static final String UNBOUNDED = "Unbounded.ttf";
+    private static final String MANROPE = "Manrope.ttf";
+    private static Typeface display;
+    private static Typeface displayMid;
+    private static Typeface body;
+    private static Typeface bold;
+    private static Typeface heavy;
 
     private Ui() {}
 
@@ -78,30 +112,36 @@ final class Ui {
     }
 
     static Typeface display(Context c) {
-        if (display == null) display = variable(c, "Unbounded.ttf", 700);
+        if (display == null) display = variable(c, UNBOUNDED, 700);
         return display;
     }
 
     static Typeface displayMid(Context c) {
-        if (displayMid == null) displayMid = variable(c, "Unbounded.ttf", 500);
+        if (displayMid == null) displayMid = variable(c, UNBOUNDED, 500);
         return displayMid;
     }
 
     static Typeface body(Context c) {
-        if (body == null) body = variable(c, "Manrope.ttf", 600);
+        if (body == null) body = variable(c, MANROPE, 600);
         return body;
     }
 
     static Typeface bold(Context c) {
-        if (bold == null) bold = variable(c, "Manrope.ttf", 700);
+        if (bold == null) bold = variable(c, MANROPE, 700);
         return bold;
     }
 
     static Typeface heavy(Context c) {
-        if (heavy == null) heavy = variable(c, "Manrope.ttf", 800);
+        if (heavy == null) heavy = variable(c, MANROPE, 800);
         return heavy;
     }
 
+    /** dp as exact pixels, for drawing. */
+    static float px(Context c, float v) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics());
+    }
+
+    /** dp as whole pixels, for layout. */
     static int dp(Context c, float v) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
                 c.getResources().getDisplayMetrics()));
@@ -188,18 +228,24 @@ final class Ui {
     static android.view.View swatch(Context c, Pal p, char slot) {
         android.view.View v = new android.view.View(c);
         v.setBackground(new Drawable() {
-            private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            private final Brush b = new Brush(p, p.card);
+            private final android.graphics.RectF box = new android.graphics.RectF();
 
             @Override
             public void draw(android.graphics.Canvas cv) {
-                BarView.runs(cv, paint, p, String.valueOf(slot), 0, 1, 0, new android.graphics.RectF(getBounds()), 0);
+                box.set(getBounds());
+                BarView.runs(b.on(cv), String.valueOf(slot), 0, 1, 0, box, 0);
             }
 
             @Override
-            public void setAlpha(int a) {}
+            public void setAlpha(int a) {
+                // a legend sample is always drawn opaque
+            }
 
             @Override
-            public void setColorFilter(android.graphics.ColorFilter f) {}
+            public void setColorFilter(android.graphics.ColorFilter f) {
+                // the sample shows the real bar colours, never tinted
+            }
 
             @Override
             public int getOpacity() {

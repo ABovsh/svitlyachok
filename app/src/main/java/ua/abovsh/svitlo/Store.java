@@ -3,6 +3,7 @@ package ua.abovsh.svitlo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -16,19 +17,27 @@ import java.util.Map;
  * every 15 minutes costs almost no traffic. No server of ours sits in between.
  */
 final class Store {
-    static final int FAILED = 0, SAME = 1, NEW = 2;
+    static final int FAILED = 0;
+    static final int SAME = 1;
+    static final int NEW = 2;
     private static final int MAX_BYTES = 2_000_000;  // the region files are 10–60 KB
     private static final Map<String, Logic.Data> parsed = new HashMap<>();
     private static final Map<String, Integer> parsedHash = new HashMap<>();
 
     private Store() {}
 
+    private static final String JSON = "json_";
+    private static final String ETAG = "etag_";
+    private static final String URL_OF = "url_";
+    private static final String CHECKED = "checked_";
+    private static final int NEXT = -1;  // this address did not answer usefully: try the next one
+
     private static SharedPreferences prefs(Context c) {
         return c.getSharedPreferences("feed", Context.MODE_PRIVATE);
     }
 
     static synchronized Logic.Data data(Context c, String region) {
-        String raw = prefs(c).getString("json_" + region, null);
+        String raw = prefs(c).getString(JSON + region, null);
         if (raw == null) return null;
         Integer h = parsedHash.get(region);
         if (h != null && h == raw.hashCode()) return parsed.get(region);
@@ -37,66 +46,70 @@ final class Store {
             parsed.put(region, d);
             parsedHash.put(region, raw.hashCode());
             return d;
-        } catch (Exception e) {
+        } catch (Logic.BadFile e) {
             return null;
         }
     }
 
     /** Last moment the source answered (new data or "not modified"). */
     static long checkedAt(Context c, String region) {
-        return prefs(c).getLong("checked_" + region, 0);
+        return prefs(c).getLong(CHECKED + region, 0);
     }
 
     static synchronized int fetch(Context c, String region) {
         Logic.Region r = Logic.region(region);
         if (r == null) return FAILED;
-        SharedPreferences p = prefs(c);
-        String etag = p.getString("etag_" + region, null);
-        boolean haveData = p.contains("json_" + region);
-        for (String url : r.urls) {
-            if (!url.startsWith("https://")) continue;  // never plain HTTP
-            HttpURLConnection conn = null;
-            try {
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(10000);
-                conn.setRequestProperty("User-Agent", "Svitlyachok/" + BuildConfig.VERSION_NAME + " (Android)");
-                // the ETag belongs to the URL that gave it: only the first, preferred one
-                if (etag != null && haveData && url.equals(p.getString("url_" + region, ""))) {
-                    conn.setRequestProperty("If-None-Match", etag);
-                }
-                int code = conn.getResponseCode();
-                long now = System.currentTimeMillis() / 1000;
-                if (code == 304) {
-                    p.edit().putLong("checked_" + region, now).apply();
-                    return SAME;
-                }
-                if (code != 200) continue;
-                String raw = read(conn);
-                Logic.parse(raw);  // reject garbage before it replaces good data
-                boolean same = raw.equals(p.getString("json_" + region, null));
-                p.edit().putString("json_" + region, raw)
-                        .putString("etag_" + region, conn.getHeaderField("ETag"))
-                        .putString("url_" + region, url)
-                        .putLong("checked_" + region, now)
-                        .apply();
-                return same ? SAME : NEW;
-            } catch (Exception ignored) {
-                // try the next source
-            } finally {
-                if (conn != null) conn.disconnect();
-            }
+        int result = NEXT;
+        for (int i = 0; i < r.urls.length && result == NEXT; i++) {
+            if (r.urls[i].startsWith("https://")) result = fetchFrom(c, region, r.urls[i]);  // never plain HTTP
         }
-        return FAILED;
+        return result == NEXT ? FAILED : result;
     }
 
-    private static String read(HttpURLConnection conn) throws Exception {
+    /** One address: SAME, NEW, or NEXT when it failed or sent something that is not a schedule. */
+    private static int fetchFrom(Context c, String region, String url) {
+        SharedPreferences p = prefs(c);
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(10000);
+            conn.setRequestProperty("User-Agent", "Svitlyachok/" + BuildConfig.VERSION_NAME + " (Android)");
+            // the ETag belongs to the address that gave it
+            String etag = p.getString(ETAG + region, null);
+            if (etag != null && p.contains(JSON + region) && url.equals(p.getString(URL_OF + region, ""))) {
+                conn.setRequestProperty("If-None-Match", etag);
+            }
+            int code = conn.getResponseCode();
+            long now = System.currentTimeMillis() / 1000;
+            if (code == 304) {
+                p.edit().putLong(CHECKED + region, now).apply();
+                return SAME;
+            }
+            if (code != 200) return NEXT;
+            String raw = read(conn);
+            Logic.parse(raw);  // reject garbage before it replaces good data
+            boolean same = raw.equals(p.getString(JSON + region, null));
+            p.edit().putString(JSON + region, raw)
+                    .putString(ETAG + region, conn.getHeaderField("ETag"))
+                    .putString(URL_OF + region, url)
+                    .putLong(CHECKED + region, now)
+                    .apply();
+            return same ? SAME : NEW;
+        } catch (IOException | Logic.BadFile | RuntimeException e) {
+            return NEXT;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    private static String read(HttpURLConnection conn) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (InputStream in = conn.getInputStream()) {
             byte[] buf = new byte[8192];
-            for (int n; (n = in.read(buf)) > 0; ) {
+            for (int n = in.read(buf); n > 0; n = in.read(buf)) {
                 out.write(buf, 0, n);
-                if (out.size() > MAX_BYTES) throw new Exception("too big");
+                if (out.size() > MAX_BYTES) throw new IOException("larger than " + MAX_BYTES + " bytes");
             }
         }
         return out.toString(StandardCharsets.UTF_8.name());

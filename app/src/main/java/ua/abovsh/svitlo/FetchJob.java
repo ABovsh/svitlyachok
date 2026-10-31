@@ -8,7 +8,7 @@ public class FetchJob extends JobService {
     @Override
     public boolean onStartJob(JobParameters params) {
         new Thread(() -> {
-            Sync.fetchAndApply(getApplicationContext());
+            Sync.refreshInBackground(getApplicationContext());
             jobFinished(params, false);
         }).start();
         return true;

@@ -24,9 +24,12 @@ public class SetupActivity extends Base {
 
     private boolean first;
     private String editId;
-    private String region = "kyiv_region", group = "";
+    private String region = "kyiv_region";
+    private String group = "";
     private EditText name;
-    private LinearLayout regions, queues, preview;
+    private LinearLayout regions;
+    private LinearLayout queues;
+    private LinearLayout preview;
     private boolean loading;
 
     @Override
@@ -72,7 +75,8 @@ public class SetupActivity extends Base {
         LinearLayout nbox = box();
         nbox.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
         name = new EditText(this);
-        name.setText(edit != null ? edit.name : first ? "Дім" : "");
+        if (edit != null) name.setText(edit.name);
+        else if (first) name.setText("Дім");
         name.setHint("наприклад, Дім");
         name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         name.setTypeface(Ui.bold(this));
@@ -150,7 +154,7 @@ public class SetupActivity extends Base {
     private void fillRegions() {
         regions.removeAllViews();
         FlowRow f = new FlowRow(this, Ui.dp(this, 6));
-        for (Logic.Region r : Logic.REGIONS) {
+        for (Logic.Region r : Logic.regions()) {
             TextView t = Ui.pill(this, pal, r.name.replace(" область", ""), r.id.equals(region), 13.5f);
             t.setPadding(Ui.dp(this, 13), Ui.dp(this, 8), Ui.dp(this, 13), Ui.dp(this, 8));
             t.setContentDescription(r.name);

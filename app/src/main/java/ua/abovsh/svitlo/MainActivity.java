@@ -15,11 +15,13 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /** All places at a glance (two or more), then the chosen one: now, today and tomorrow in full. */
@@ -223,7 +225,7 @@ public class MainActivity extends Base {
         // shrinks to fit a narrow tile instead of cutting the state off ("Світла н…")
         title.setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         title.setPadding(0, Ui.dp(this, 2), 0, 0);
-        w.addView(title, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+        w.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 Math.round(title.getTextSize() * 1.35f) + Ui.dp(this, 2)));  // auto-size needs a fixed height
         TextView big = Ui.text(this, 13, Ui.heavy(this), pal.text);
         big.setText(n.big.isEmpty() ? " " : n.big);  // three lines in every tile: rows stay even
@@ -389,10 +391,7 @@ public class MainActivity extends Base {
         if (slots == null) {
             TextView none = Ui.text(this, 14, Ui.body(this), pal.muted);
             none.setLineSpacing(0, 1.1f);
-            none.setText(title.startsWith("Завтра")
-                    ? "Графік ще не опубліковано." + (Prefs.tomorrowNotes(this) && !Prefs.muted(this, p.id)
-                            ? " Світлячок надішле сповіщення, щойно він з'явиться." : "")
-                    : "Обленерго ще не опублікувало графік на сьогодні.");
+            none.setText(notPublished(p, title.startsWith("Завтра")));
             none.setPadding(0, Ui.dp(this, 8), 0, 0);
             card.addView(none, fill());
             return;
@@ -414,7 +413,13 @@ public class MainActivity extends Base {
         card.addView(chips, cl);
     }
 
-    /** "06:00 – 08:00": filled night blue now, striped outline for a possible outage, faded when past. */
+    private String notPublished(Logic.Place p, boolean tomorrow) {
+        if (!tomorrow) return "Обленерго ще не опублікувало графік на сьогодні.";
+        boolean told = Prefs.tomorrowNotes(this) && !Prefs.muted(this, p.id);
+        return "Графік ще не опубліковано." + (told ? " Світлячок надішле сповіщення, щойно він з'явиться." : "");
+    }
+
+    /** "06:00 – 08:00": filled red now, amber outline for a possible outage, faded when past. */
     private View chip(Logic.Outage o) {
         boolean now = o.when == Logic.Outage.NOW;
         TextView c = Ui.text(this, 14, Ui.heavy(this), now ? pal.ink : pal.text);
@@ -424,8 +429,10 @@ public class MainActivity extends Base {
         else if (o.maybe) c.setBackground(Ui.outline(pal.maybe, Ui.dp(this, 100), Ui.dp(this, 1.5f)));
         else c.setBackground(Ui.round(Ui.fade(pal.off, pal.dark ? 0.22f : 0.12f), Ui.dp(this, 100)));
         if (o.when == Logic.Outage.PAST) c.setAlpha(0.45f);
-        c.setContentDescription((o.maybe ? "можливе вимкнення " : "вимкнення ") + o.label
-                + ", " + o.length + (o.when == Logic.Outage.PAST ? ", минуло" : now ? ", триває зараз" : ""));
+        String when = "";
+        if (o.when == Logic.Outage.PAST) when = ", минуло";
+        else if (now) when = ", триває зараз";
+        c.setContentDescription((o.maybe ? "можливе вимкнення " : "вимкнення ") + o.label + ", " + o.length + when);
         return c;
     }
 
@@ -450,13 +457,12 @@ public class MainActivity extends Base {
     private View footer(Logic.Place p, Logic.Data d, long now) {
         TextView t = Ui.text(this, 12, Ui.body(this), pal.dim);
         t.setLineSpacing(0, 1.1f);
-        StringBuilder b = new StringBuilder();
-        if (d != null && d.updated > 0) b.append(cap(Logic.updated(d.updated, now)));
+        List<String> when = new ArrayList<>();
+        if (d != null && d.updated > 0) when.add(cap(Logic.updated(d.updated, now)));
         long checked = Store.checkedAt(this, p.region);
-        if (checked > 0) b.append(b.length() > 0 ? " · " : "").append("перевірено о\u00A0").append(Logic.hm(checked));
-        if (b.length() > 0) b.append(".\n");
-        b.append("Це графік обленерго, а не фактична наявність світла. Потягніть екран донизу, щоб оновити.");
-        t.setText(b);
+        if (checked > 0) when.add("перевірено о\u00A0" + Logic.hm(checked));
+        t.setText((when.isEmpty() ? "" : String.join(" · ", when) + ".\n")
+                + "Це графік обленерго, а не фактична наявність світла. Потягніть екран донизу, щоб оновити.");
         t.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         return t;
     }

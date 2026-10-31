@@ -8,14 +8,15 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
@@ -27,18 +28,34 @@ import org.json.JSONObject;
  */
 public final class Logic {
     public static final ZoneId KYIV = ZoneId.of("Europe/Kyiv");
-    public static final int OFF = 0, ON = 1, UNKNOWN = 2, MAYBE = 3;
-    public static final long POLL_S = 15 * 60;   // the widget fetches by itself this often
-    public static final long SOON_S = 30 * 60;   // the screen says "soon" this close to a change
-    public static final long LATE_S = 10 * 60;   // a delayed notification still worth showing
-    public static final long STALE_S = 3 * 3600; // no successful check this long: say so
-    public static final int QUIET_FROM_H = 23, QUIET_TO_H = 7;
+    public static final int OFF = 0;
+    public static final int ON = 1;
+    public static final int UNKNOWN = 2;
+    public static final int MAYBE = 3;
+    public static final long POLL_S = 15 * 60L;   // the widget fetches by itself this often
+    public static final long SOON_S = 30 * 60L;   // the screen says "soon" this close to a change
+    public static final long LATE_S = 10 * 60L;   // a delayed notification still worth showing
+    public static final long STALE_S = 3 * 3600L; // no successful check this long: say so
+    public static final int QUIET_FROM_H = 23;
+    public static final int QUIET_TO_H = 7;
+    static final String NO_OUTAGES = "без вимкнень";
+
+    private Logic() {}
+
+    /** A region file this app does not accept: it never replaces good data. */
+    public static final class BadFile extends Exception {
+        BadFile(String why) {
+            super(why);
+        }
+    }
 
     // ---- regions ---------------------------------------------------------------
 
     public static final class Region {
-        public final String id, name, dso;
-        public final String[] urls;
+        public final String id;
+        public final String name;
+        public final String dso;
+        final String[] urls;
 
         Region(String id, String name, String dso, String... urls) {
             this.id = id;
@@ -52,7 +69,7 @@ public final class Logic {
     private static final String Y29 = "https://raw.githubusercontent.com/yaroslav2901/OE_OUTAGE_DATA/main/data/";
 
     /** Open community archives of the oblenergo schedules on GitHub, one JSON format for all. */
-    public static final Region[] REGIONS = {
+    private static final Region[] REGIONS = {
         new Region("kyiv_region", "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
         new Region("vinnytsia", "Вінницька область", "",
                 "https://raw.githubusercontent.com/olnet93/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
@@ -72,6 +89,10 @@ public final class Logic {
         new Region("khmelnytskyi", "Хмельницька область", "", Y29 + "Khmelnytskoblenerho.json"),
         new Region("chernihiv", "Чернігівська область", "", Y29 + "Chernihivoblenergo.json"),
     };
+
+    public static List<Region> regions() {
+        return java.util.Collections.unmodifiableList(java.util.Arrays.asList(REGIONS));
+    }
 
     public static Region region(String id) {
         for (Region r : REGIONS) if (r.id.equals(id)) return r;
@@ -100,12 +121,14 @@ public final class Logic {
 
     /** The deepest nesting of objects and arrays, brackets inside strings not counted. */
     static int nesting(String raw) {
-        int depth = 0, max = 0;
+        int depth = 0;
+        int max = 0;
         boolean text = false;
-        for (int i = 0; i < raw.length(); i++) {
+        int i = 0;
+        while (i < raw.length()) {
             char c = raw.charAt(i);
             if (text) {
-                if (c == '\\') i++;
+                if (c == '\\') i++;  // the escaped character is part of the text
                 else if (c == '"') text = false;
             } else if (c == '"') {
                 text = true;
@@ -114,61 +137,80 @@ public final class Logic {
             } else if (c == '}' || c == ']') {
                 depth--;
             }
+            i++;
         }
         return max;
     }
 
     /** Parse a region file; throws on any shape it does not know, so garbage never replaces good data. */
-    public static Data parse(String raw) throws Exception {
-        if (nesting(raw) > MAX_NESTING) throw new Exception("nested too deep");
-        JSONObject fact = new JSONObject(raw).getJSONObject("fact");
-        Data d = new Data();
-        Object data = fact.get("data");
-        TreeSet<String> groups = new TreeSet<>();
-        if (data instanceof JSONArray) {
-            if (((JSONArray) data).length() > 0) throw new Exception("unknown data list");
-            d.none = true;
-        } else {
-            JSONObject days = (JSONObject) data;
-            if (days.length() > MAX_DAYS) throw new Exception("too many days");
-            for (Iterator<String> it = days.keys(); it.hasNext(); ) {
-                String key = it.next();
-                if (!key.matches("\\d{6,12}")) throw new Exception("bad day " + key);
-                LocalDate date = Instant.ofEpochSecond(Long.parseLong(key)).atZone(KYIV).toLocalDate();
-                JSONObject gs = days.getJSONObject(key);
-                Map<String, String> m = new HashMap<>();
-                for (Iterator<String> g = gs.keys(); g.hasNext(); ) {
-                    String group = g.next();
-                    if (!group.matches(GROUP_NAME)) throw new Exception("bad group " + group);
-                    m.put(group, hours(gs.getJSONObject(group)));
-                    groups.add(group);
-                }
-                d.days.put(date, m);
+    public static Data parse(String raw) throws BadFile {
+        if (nesting(raw) > MAX_NESTING) throw new BadFile("nested too deep");
+        try {
+            JSONObject file = new JSONObject(raw);
+            JSONObject fact = file.getJSONObject("fact");
+            Data d = new Data();
+            TreeSet<String> groups = new TreeSet<>();
+            Object data = fact.get("data");
+            if (data instanceof JSONArray list) {
+                if (list.length() > 0) throw new BadFile("unknown data list");
+                d.none = true;
+            } else if (data instanceof JSONObject days) {
+                readDays(days, d, groups);
+            } else {
+                throw new BadFile("unknown data");
             }
+            if (groups.isEmpty()) presetGroups(file, groups);
+            d.groups = new ArrayList<>(groups);
+            d.updated = updatedAt(fact.optString("update", ""));
+            return d;
+        } catch (JSONException e) {
+            throw new BadFile("not a schedule: " + e.getMessage());
         }
-        if (groups.isEmpty()) {
-            JSONObject preset = new JSONObject(raw).optJSONObject("preset");
-            JSONObject names = preset == null ? null : preset.optJSONObject("sch_names");
-            if (names != null) for (Iterator<String> g = names.keys(); g.hasNext(); ) {
+    }
+
+    private static void readDays(JSONObject days, Data d, Set<String> groups) throws BadFile, JSONException {
+        if (days.length() > MAX_DAYS) throw new BadFile("too many days");
+        for (Iterator<String> it = days.keys(); it.hasNext(); ) {
+            String key = it.next();
+            if (!key.matches("\\d{6,12}")) throw new BadFile("bad day " + key);
+            LocalDate date = Instant.ofEpochSecond(Long.parseLong(key)).atZone(KYIV).toLocalDate();
+            JSONObject gs = days.getJSONObject(key);
+            Map<String, String> m = new HashMap<>();
+            for (Iterator<String> g = gs.keys(); g.hasNext(); ) {
                 String group = g.next();
-                if (group.matches(GROUP_NAME)) groups.add(group);
+                if (!group.matches(GROUP_NAME)) throw new BadFile("bad group " + group);
+                m.put(group, hours(gs.getJSONObject(group)));
+                groups.add(group);
             }
+            d.days.put(date, m);
         }
-        d.groups = new ArrayList<>(groups);
-        String up = fact.optString("update", "");
+    }
+
+    /** No outages published: the queues still come from the preset, for the setup screen. */
+    private static void presetGroups(JSONObject file, Set<String> groups) {
+        JSONObject preset = file.optJSONObject("preset");
+        JSONObject names = preset == null ? null : preset.optJSONObject("sch_names");
+        if (names == null) return;
+        for (Iterator<String> g = names.keys(); g.hasNext(); ) {
+            String group = g.next();
+            if (group.matches(GROUP_NAME)) groups.add(group);
+        }
+    }
+
+    /** When the oblenergo last changed the schedule, 0 when unknown. */
+    private static long updatedAt(String up) {
         for (DateTimeFormatter f : UPDATE_FORMATS) {
             try {
-                d.updated = LocalDateTime.parse(up, f).atZone(KYIV).toEpochSecond();
-                break;
-            } catch (Exception ignored) {
+                return LocalDateTime.parse(up, f).atZone(KYIV).toEpochSecond();
+            } catch (java.time.format.DateTimeParseException ignored) {
                 // try the other format
             }
         }
-        return d;
+        return 0;
     }
 
     /** Hours "1".."24" (or "0".."23") of yes/no/first/second/maybe/mfirst/msecond as 48 slots. */
-    static String hours(JSONObject h) throws Exception {
+    static String hours(JSONObject h) {
         boolean zero = h.has("0");
         StringBuilder b = new StringBuilder(48);
         for (int hour = 0; hour < 24; hour++) {
@@ -196,7 +238,10 @@ public final class Logic {
 
     /** A place the user follows: their own name for it, a region and a queue. */
     public static final class Place {
-        public String id = "", name = "", region = "", group = "";
+        public String id = "";
+        public String name = "";
+        public String region = "";
+        public String group = "";
     }
 
     /** The 48 slots of a day, or null while it is not published. */
@@ -208,7 +253,8 @@ public final class Logic {
     }
 
     public static String timeline(Data d, String group, LocalDate today) {
-        String a = day(d, group, today), b = day(d, group, today.plusDays(1));
+        String a = day(d, group, today);
+        String b = day(d, group, today.plusDays(1));
         return (a != null ? a : repeat('2', 48)) + (b != null ? b : repeat('2', 48));
     }
 
@@ -269,7 +315,9 @@ public final class Logic {
     /** "1 год 05 хв", "42 хв", "менше хвилини", "1 д 3 год" */
     public static String waitText(long s) {
         if (s < 60) return "менше хвилини";
-        long d = s / 86400, h = (s % 86400) / 3600, m = (s % 3600) / 60;
+        long d = s / 86400;
+        long h = (s % 86400) / 3600;
+        long m = (s % 3600) / 60;
         if (d > 0) return d + " д " + h + " год";
         return h > 0 ? String.format(Locale.ROOT, "%d год %02d хв", h, m) : m + " хв";
     }
@@ -289,75 +337,116 @@ public final class Logic {
     /** "графік оновлено сьогодні о 07:10", "… вчора о 20:25", "… 27.10 о 07:10" */
     public static String updated(long updated, long now) {
         if (updated <= 0) return "";
-        long d = dayDiff(updated, now);
-        String day = d == 0 ? "сьогодні" : d == 1 ? "вчора"
-                : String.format(Locale.ROOT, "%02d.%02d", z(updated).getDayOfMonth(), z(updated).getMonthValue());
-        return "графік оновлено " + day + " о " + hm(updated);
+        return "графік оновлено " + dayWord(updated, now) + " о " + hm(updated);
+    }
+
+    private static String dayWord(long t, long now) {
+        long d = dayDiff(t, now);
+        if (d == 0) return "сьогодні";
+        if (d == 1) return "вчора";
+        return String.format(Locale.ROOT, "%02d.%02d", z(t).getDayOfMonth(), z(t).getMonthValue());
     }
 
     // ---- now -------------------------------------------------------------------
 
     public static final class Now {
         public int state = UNKNOWN;
-        public String title = "", big = "", hint = "", then = "";
+        public String title = "";
+        public String big = "";
+        public String hint = "";
+        public String then = "";
         public boolean soon;
         public long change;
+    }
+
+    static int state(char slot) {
+        switch (slot) {
+            case '1': return ON;
+            case '0': return OFF;
+            case '3': return MAYBE;
+            default: return UNKNOWN;
+        }
+    }
+
+    static String title(int state) {
+        switch (state) {
+            case ON: return "Світло є";
+            case OFF: return "Світла немає";
+            case MAYBE: return "Можливе вимкнення";
+            default: return "Графіка немає";
+        }
+    }
+
+    /** "без світла", "світло", "можливе вимкнення": what comes after a change. */
+    private static String coming(char slot) {
+        if (slot == '0') return "без світла";
+        return slot == '1' ? "світло" : "можливе вимкнення";
     }
 
     public static Now now(String tl, LocalDate base, long now, boolean none) {
         Now n = new Now();
         int cur = index(base, now);
         char c = cur >= 0 && cur < tl.length() ? tl.charAt(cur) : '2';
-        if (c == '2') {
-            n.title = "Графіка немає";
+        n.state = state(c);
+        n.title = title(n.state);
+        if (n.state == UNKNOWN) {
             n.big = "ще не опубліковано";
             n.hint = "щойно обленерго його оприлюднить, він з'явиться тут";
-            return n;
-        }
-        n.state = c == '1' ? ON : c == '0' ? OFF : MAYBE;
-        n.title = c == '1' ? "Світло є" : c == '0' ? "Світла немає" : "Можливе вимкнення";
-        if (none) {
-            n.big = "без вимкнень";
+        } else if (none) {
+            n.big = NO_OUTAGES;
             n.hint = "відключень за графіком не заплановано";
-            return n;
+        } else {
+            List<int[]> ch = changesFrom(tl, cur);
+            if (ch.isEmpty()) steady(n, tl, cur, c);
+            else changing(n, ch, c, base, now);
         }
-        List<int[]> ch = changesFrom(tl, cur);
-        if (ch.isEmpty()) {
-            int j = cur;
-            while (j < tl.length() && tl.charAt(j) == c) j++;
-            if (j < tl.length()) {
-                n.big = "до кінця дня";
-                n.hint = "графік на завтра ще не опубліковано";
-            } else {
-                n.big = c == '1' ? "без вимкнень" : "понад добу";
-                n.hint = c == '1' ? "сьогодні й завтра вимкнень немає" : "за графіком і завтра";
-            }
-            return n;
+        return n;
+    }
+
+    /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
+    private static void steady(Now n, String tl, int cur, char c) {
+        int j = cur;
+        while (j < tl.length() && tl.charAt(j) == c) j++;
+        if (j < tl.length()) {
+            n.big = "до кінця дня";
+            n.hint = "графік на завтра ще не опубліковано";
+        } else if (c == '1') {
+            n.big = NO_OUTAGES;
+            n.hint = "сьогодні й завтра вимкнень немає";
+        } else {
+            n.big = "понад добу";
+            n.hint = "за графіком і завтра";
         }
+    }
+
+    private static void changing(Now n, List<int[]> ch, char c, LocalDate base, long now) {
         long change = slotStart(base, ch.get(0)[0]);
         char next = (char) ch.get(0)[1];
         n.change = change;
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
-        String in = " через " + waitText(change - now);
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
-            n.then = "потім " + (next == '0' ? "без світла" : next == '1' ? "світло" : "можливе вимкнення")
-                    + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
+            n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
+        String in = " через " + waitText(change - now);
         if (next == '0') n.hint = "вимкнуть" + in;
         else if (next == '3') n.hint = "можливе вимкнення" + in;
-        else n.hint = c == '0' ? "увімкнуть" + in : "можливе вимкнення закінчиться" + in;
-        return n;
+        else if (c == '0') n.hint = "увімкнуть" + in;
+        else n.hint = "можливе вимкнення закінчиться" + in;
     }
 
     // ---- day lists -------------------------------------------------------------
 
     public static final class Outage {
-        public static final int PAST = 0, NOW = 1, LATER = 2;
-        public String label = "", length = "";
+        public static final int PAST = 0;
+        public static final int NOW = 1;
+        public static final int LATER = 2;
+        public String label = "";
+        public String length = "";
         public int when;
         public boolean maybe;
-        public int from, to;  // slots
+        public int from;
+        public int to;  // slots, end excluded
     }
 
     static String clock(int slot) {
@@ -373,43 +462,52 @@ public final class Logic {
     public static List<Outage> outages(String day, int cur) {
         List<Outage> out = new ArrayList<>();
         if (day == null) return out;
-        for (int i = 0; i < day.length(); ) {
+        int i = 0;
+        while (i < day.length()) {
             char c = day.charAt(i);
-            if (c != '0' && c != '3') {
-                i++;
-                continue;
-            }
             int j = i;
             while (j < day.length() && day.charAt(j) == c) j++;
-            Outage o = new Outage();
-            o.from = i;
-            o.to = j;
-            o.maybe = c == '3';
-            o.label = clock(i) + " – " + clock(j);
-            o.length = length(j - i);
-            o.when = cur < 0 ? Outage.LATER : cur >= j ? Outage.PAST : cur >= i ? Outage.NOW : Outage.LATER;
-            out.add(o);
+            if (c == '0' || c == '3') out.add(outage(i, j, c == '3', cur));
             i = j;
         }
         return out;
+    }
+
+    private static Outage outage(int from, int to, boolean maybe, int cur) {
+        Outage o = new Outage();
+        o.from = from;
+        o.to = to;
+        o.maybe = maybe;
+        o.label = clock(from) + " – " + clock(to);
+        o.length = length(to - from);
+        if (cur >= to) o.when = Outage.PAST;
+        else if (cur >= from) o.when = Outage.NOW;
+        else o.when = Outage.LATER;  // also another day (cur = -1)
+        return o;
     }
 
     public static String dayTotal(String day) {
         if (day == null) return "ще не опубліковано";
         int off = 0;
         for (int i = 0; i < day.length(); i++) if (day.charAt(i) == '0') off++;
-        if (off == 0) return "без вимкнень";
+        if (off == 0) return NO_OUTAGES;
         return "без світла " + length(off);
     }
 
     /** A day for a screen reader: "Сьогодні: без світла 06:00 – 08:00; можливе вимкнення 20:00 – 22:00". */
     public static String describe(String title, String day) {
         if (day == null) return title + ": графік ще не опубліковано";
-        StringBuilder maybe = new StringBuilder();
-        for (Outage o : outages(day, -1)) if (o.maybe) maybe.append(maybe.length() > 0 ? ", " : "").append(o.label);
-        String off = list(day);
-        return title + ": " + (off.isEmpty() ? "без вимкнень" : "без світла " + off)
-                + (maybe.length() > 0 ? "; можливе вимкнення " + maybe : "");
+        String off = list(day, false);
+        String maybe = list(day, true);
+        return title + ": " + (off.isEmpty() ? NO_OUTAGES : "без світла " + off)
+                + (maybe.isEmpty() ? "" : "; можливе вимкнення " + maybe);
+    }
+
+    /** The outages of a day as "06:00 – 08:00, 14:30 – 18:30": certain ones, or possible ones. */
+    static String list(String day, boolean maybe) {
+        List<String> labels = new ArrayList<>();
+        for (Outage o : outages(day, -1)) if (o.maybe == maybe) labels.add(o.label);
+        return String.join(", ", labels);
     }
 
     // ---- notifications ---------------------------------------------------------
@@ -419,18 +517,27 @@ public final class Logic {
      * it comes back. A lead of 0 minutes means at the moment of the change.
      */
     public static final class Alerts {
-        public boolean off = true, on = true;
-        public int leadOff = 30, leadOn = 15;
+        public boolean off = true;
+        public boolean on = true;
+        public int leadOff = 30;
+        public int leadOn = 15;
     }
 
     /** Everything else is opt-in. */
-    public static final boolean DEFAULT_TOMORROW = false, DEFAULT_CHANGES = false, DEFAULT_QUIET = false;
+    public static final boolean DEFAULT_TOMORROW = false;
+    public static final boolean DEFAULT_CHANGES = false;
+    public static final boolean DEFAULT_QUIET = false;
 
     public static final class Event {
-        public static final int SOON_OFF = 0, SOON_ON = 1, AT_OFF = 2, AT_ON = 3;
+        public static final int SOON_OFF = 0;
+        public static final int SOON_ON = 1;
+        public static final int AT_OFF = 2;
+        public static final int AT_ON = 3;
         public int kind;
-        public long at, change;
-        public String place = "", name = "";
+        public long at;
+        public long change;
+        public String place = "";
+        public String name = "";
 
         /** Same event across fetches: a place, a kind, a change. */
         public String key() {
@@ -443,32 +550,27 @@ public final class Logic {
         List<Event> out = new ArrayList<>();
         int from = Math.max(0, index(base, now - LATE_S));
         for (int[] c : changesFrom(tl, from)) {
-            long change = slotStart(base, c[0]);
-            char prev = tl.charAt(c[0] - 1), next = (char) c[1];
-            boolean off = next == '0' && prev != '0' || next == '3' && prev == '1';
-            boolean on = next == '1' && prev == '0';
-            if (!off && !on) continue;
-            if (off ? !a.off : !a.on) continue;
-            int lead = off ? a.leadOff : a.leadOn;
-            if (lead > 0) {
-                if (change > now) add(out, p, off ? Event.SOON_OFF : Event.SOON_ON, change - lead * 60L, change, now);
-            } else {
-                add(out, p, off ? Event.AT_OFF : Event.AT_ON, change, change, now);
-            }
+            Event e = event(p, tl.charAt(c[0] - 1), (char) c[1], slotStart(base, c[0]), a);
+            if (e != null && e.at >= now - LATE_S && (e.at == e.change || e.change > now)) out.add(e);
         }
-        Collections.sort(out, (x, y) -> Long.compare(x.at, y.at));
+        out.sort((x, y) -> Long.compare(x.at, y.at));
         return out;
     }
 
-    private static void add(List<Event> out, Place p, int kind, long at, long change, long now) {
-        if (at < now - LATE_S) return;
+    /** The reminder for one change, or null when it is not a power change or not wanted. */
+    private static Event event(Place p, char prev, char next, long change, Alerts a) {
+        boolean off = next == '0' && prev != '0' || next == '3' && prev == '1';
+        boolean on = next == '1' && prev == '0';
+        if (off ? !a.off : !(on && a.on)) return null;
+        int lead = off ? a.leadOff : a.leadOn;
         Event e = new Event();
-        e.kind = kind;
-        e.at = at;
+        if (lead > 0) e.kind = off ? Event.SOON_OFF : Event.SOON_ON;
+        else e.kind = off ? Event.AT_OFF : Event.AT_ON;
+        e.at = change - lead * 60L;
         e.change = change;
         e.place = p.id;
         e.name = p.name;
-        out.add(e);
+        return e;
     }
 
     /** End of the outage that starts at `change`, or 0 when the data ends first. */
@@ -499,18 +601,15 @@ public final class Logic {
     }
 
     public static final class Note {
-        public static final int PUBLISHED = 0, CHANGED = 1;
+        public static final int PUBLISHED = 0;
+        public static final int CHANGED = 1;
         public int kind;
-        public String title = "", text = "";
+        public String title = "";
+        public String text = "";
     }
 
     static String list(String day) {
-        StringBuilder b = new StringBuilder();
-        for (Outage o : outages(day, -1)) {
-            if (o.maybe) continue;
-            b.append(b.length() > 0 ? ", " : "").append(o.label);
-        }
-        return b.toString();
+        return list(day, false);
     }
 
     static int offCount(String day) {
@@ -521,7 +620,8 @@ public final class Logic {
 
     /** "1 вимкнення", "3 вимкнення", "5 вимкнень" */
     static String outagesWord(int n) {
-        int t = n % 100, u = n % 10;
+        int t = n % 100;
+        int u = n % 10;
         return n + (u >= 1 && u <= 4 && (t < 11 || t > 14) ? " вимкнення" : " вимкнень");
     }
 
@@ -532,27 +632,38 @@ public final class Logic {
         LocalDate today = today(now);
         for (int d = 0; d < 2; d++) {
             LocalDate date = today.plusDays(d);
-            String b = day(before, p.group, date), a = day(after, p.group, date);
-            if (a == null) continue;  // not published, or a glitch of the source
-            String when = d == 0 ? "сьогодні" : "завтра";
-            Note n = new Note();
-            if (b == null) {
-                n.kind = Note.PUBLISHED;
-                n.title = p.name + ": графік на " + when;
-                int k = offCount(a);
-                n.text = k == 0 ? "Відключень не заплановано"
-                        : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a);
-            } else {
-                int from = d == 0 ? index(today, now) : 0;
-                if (a.substring(from).equals(b.substring(from))) continue;
-                n.kind = Note.CHANGED;
-                n.title = p.name + ": графік змінився";
-                String w = d == 0 ? "Сьогодні" : "Завтра";
-                n.text = offCount(a) == 0 ? w + " без вимкнень" : w + " " + dayTotal(a) + ": " + list(a);
-            }
-            out.add(n);
+            Note n = note(p, day(before, p.group, date), day(after, p.group, date), d == 0 ? index(today, now) : 0, d == 0);
+            if (n != null) out.add(n);
         }
         return out;
+    }
+
+    /** One day's note; `from` = the first slot still ahead. Null when nothing worth saying changed. */
+    private static Note note(Place p, String b, String a, int from, boolean today) {
+        if (a == null) return null;  // not published, or a glitch of the source
+        Note n = new Note();
+        if (b == null) {
+            n.kind = Note.PUBLISHED;
+            n.title = p.name + ": графік на " + (today ? "сьогодні" : "завтра");
+            int k = offCount(a);
+            n.text = k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a);
+            return n;
+        }
+        if (a.substring(from).equals(b.substring(from))) return null;
+        n.kind = Note.CHANGED;
+        n.title = p.name + ": графік змінився";
+        String w = today ? "Сьогодні" : "Завтра";
+        n.text = offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a);
+        return n;
+    }
+
+    /**
+     * Whether a background check should go to the network: not when the source answered less than
+     * a poll ago (minus 2 minutes of slack), so the alarm and the periodic job never both wake the
+     * radio. A region that failed keeps its old time and is tried again.
+     */
+    static boolean dueForFetch(long checkedAt, long now) {
+        return checkedAt <= 0 || now < checkedAt || now - checkedAt >= POLL_S - 120;
     }
 
     /** When some text on screen next changes by itself: a "soon" threshold, a change, midnight, a poll. */
@@ -589,7 +700,8 @@ public final class Logic {
     // ---- widget ----------------------------------------------------------------
 
     /** One row (2 x 1 and wider), or with a bar of the next 24 hours when there is room. */
-    public static final int W_ROW = 0, W_FULL = 1;
+    public static final int W_ROW = 0;
+    public static final int W_FULL = 1;
 
     /** The places a widget shows: those chosen for it ("p1,p3"), in the app's order; all when none is left. */
     public static List<Place> widgetPlaces(List<Place> all, String chosen) {

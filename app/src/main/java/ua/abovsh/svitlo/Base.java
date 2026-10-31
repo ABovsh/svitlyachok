@@ -115,6 +115,15 @@ abstract class Base extends Activity {
         return b;
     }
 
+    /** A small grey line under a box. */
+    TextView note(String s) {
+        TextView t = Ui.text(this, 13, Ui.body(this), pal.dim);
+        t.setLineSpacing(0, 1.1f);
+        t.setText(s);
+        t.setPadding(Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6), 0);
+        return t;
+    }
+
     /** A switch row: a title, a line under it, the switch. */
     View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
         LinearLayout r = Ui.row(this);

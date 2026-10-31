@@ -360,6 +360,8 @@ public final class Logic {
         public String big = "";
         public String hint = "";
         public String then = "";
+        public String since = "";
+        public String already = "";
         public boolean soon;
         public long change;
         public int next = UNKNOWN;
@@ -390,6 +392,10 @@ public final class Logic {
     }
 
     public static Now now(String tl, LocalDate base, long now, boolean none) {
+        return now(tl, base, now, none, null);
+    }
+
+    public static Now now(String tl, LocalDate base, long now, boolean none, String yesterday) {
         Now n = new Now();
         int cur = index(base, now);
         char c = cur >= 0 && cur < tl.length() ? tl.charAt(cur) : '2';
@@ -405,8 +411,32 @@ public final class Logic {
             List<int[]> ch = changesFrom(tl, cur);
             if (ch.isEmpty()) steady(n, tl, cur, c);
             else changing(n, ch, c, base, now);
+            since(n, tl, cur, c, yesterday, base, now);
         }
         return n;
+    }
+
+    /**
+     * "з 14:30" and "уже 3 год 08 хв": when the present state began. A state from midnight looks
+     * into yesterday; without yesterday, or the same all yesterday too, the start is not known.
+     */
+    private static void since(Now n, String tl, int cur, char c, String yesterday, LocalDate base, long now) {
+        int i = cur;
+        while (i > 0 && tl.charAt(i - 1) == c) i--;
+        long start;
+        String day = "";
+        if (i > 0) {
+            start = slotStart(base, i);
+        } else {
+            if (yesterday == null || yesterday.length() != 48) return;
+            int j = 48;
+            while (j > 0 && yesterday.charAt(j - 1) == c) j--;
+            if (j == 0) return;
+            start = slotStart(base.minusDays(1), j);
+            if (j < 48) day = " учора";
+        }
+        n.since = "з " + hm(start) + day;
+        n.already = "уже " + waitText(now - start);
     }
 
     /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
@@ -435,7 +465,9 @@ public final class Logic {
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
             n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
-        String in = " через " + waitText(change - now);
+        String at = until(change, now);
+        // another day: the day and the clock; today: how long, and the clock
+        String in = at.startsWith("завтра") ? " завтра о " + hm(change) : " через " + waitText(change - now) + " (" + at + ")";
         if (next == '0') n.hint = "вимкнуть" + in;
         else if (next == '3') n.hint = "можливе вимкнення" + in;
         else if (c == '0') n.hint = "увімкнуть" + in;
@@ -701,11 +733,26 @@ public final class Logic {
         return checkedAt <= 0 || now < checkedAt || now - checkedAt >= 120;
     }
 
-    /** The words under a shared picture: the region and queue, where to get the app; no place name. */
-    static String shareText(Place p) {
-        Region r = region(p.region);
-        return "Графік відключень: " + (r == null ? p.region : r.name) + ", черга " + queue(p.group)
-                + ". Застосунок «Світлячок»: " + REPO.substring(0, REPO.length() - 1);
+    /** The words under a shared picture: where to get the app; the picture says the rest. */
+    static final String SHARE_TEXT = "Завантажити застосунок «Світлячок»: https://github.com/ABovsh/svitlyachok";
+
+    /**
+     * The place as notifications name it: with one place a name tells nothing, so it is left out;
+     * from the second place on every notification says which place it is about.
+     */
+    static Place inNotices(Place p, int places) {
+        if (places > 1) return p;
+        Place q = new Place();
+        q.id = p.id;
+        q.region = p.region;
+        q.group = p.group;
+        return q;
+    }
+
+    /** "🔴 Дім · Скоро вимкнуть світло", or "🔴 Скоро вимкнуть світло" for a place with no name. */
+    private static String headed(String mark, String name, String what) {
+        if (name.isEmpty()) return mark + Character.toUpperCase(what.charAt(0)) + what.substring(1);
+        return mark + name + " · " + what;
     }
 
     /** Everything else is opt-in. */
@@ -795,7 +842,7 @@ public final class Logic {
         int state = OFF;
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
-        n.title = mark(state) + e.name + " · " + eventWhat(e.kind, maybe);
+        n.title = headed(mark(state), e.name, eventWhat(e.kind, maybe));
         n.text = eventWhen(e, end, now);
         if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
@@ -867,14 +914,14 @@ public final class Logic {
         Note n = new Note();
         if (b == null) {
             n.kind = Note.PUBLISHED;
-            n.title = SCHEDULE_MARK + p.name + " · графік на " + (today ? "сьогодні" : "завтра");
+            n.title = headed(SCHEDULE_MARK, p.name, "графік на " + (today ? "сьогодні" : "завтра"));
             int k = offCount(a);
             n.text = k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a);
             return n;
         }
         if (a.substring(from).equals(b.substring(from))) return null;
         n.kind = Note.CHANGED;
-        n.title = SCHEDULE_MARK + p.name + " · графік змінився";
+        n.title = headed(SCHEDULE_MARK, p.name, "графік змінився");
         String w = today ? "Сьогодні" : "Завтра";
         n.text = offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a);
         return n;

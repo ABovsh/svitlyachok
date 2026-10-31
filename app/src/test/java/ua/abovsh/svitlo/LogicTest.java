@@ -132,7 +132,7 @@ public class LogicTest {
         assertEquals(Logic.ON, n.state);
         assertEquals("Світло є", n.title);
         assertEquals("до 14:30", n.big);
-        assertEquals("вимкнуть через 4 год 30 хв", n.hint);
+        assertEquals("вимкнуть через 4 год 30 хв (14:30)", n.hint);
         assertEquals(Logic.OFF, n.next);  // the hint takes the colour of what comes
         assertFalse(n.soon);
     }
@@ -141,7 +141,7 @@ public class LogicTest {
     public void soonOff() throws Exception {
         Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(14, 10), false);
         assertTrue(n.soon);
-        assertEquals("вимкнуть через 20 хв", n.hint);
+        assertEquals("вимкнуть через 20 хв (14:30)", n.hint);
     }
 
     @Test
@@ -150,7 +150,7 @@ public class LogicTest {
         assertEquals(Logic.OFF, n.state);
         assertEquals("Світла немає", n.title);
         assertEquals("до 18:30", n.big);
-        assertEquals("увімкнуть через 3 год 30 хв", n.hint);
+        assertEquals("увімкнуть через 3 год 30 хв (18:30)", n.hint);
         assertEquals(Logic.ON, n.next);
     }
 
@@ -167,7 +167,7 @@ public class LogicTest {
     public void untilMidnightAndTomorrow() throws Exception {
         Logic.Now n = Logic.now(tl(WITH_TOMORROW), OCT30, at(20, 0), false);
         assertEquals("до 24:00", n.big);
-        assertEquals("вимкнуть через 4 год 00 хв", n.hint);
+        assertEquals("вимкнуть через 4 год 00 хв (24:00)", n.hint);
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
         assertEquals("до завтра 06:00", Logic.now(later, OCT30, at(20, 0), false).big);
     }
@@ -372,10 +372,8 @@ public class LogicTest {
 
     @Test
     public void aSharedPictureSaysWhereToGetTheApp() {
-        String s = Logic.shareText(home());
-        assertEquals("Графік відключень: Київська область, черга 1.1. Застосунок «Світлячок»: "
-                + "https://github.com/ABovsh/svitlyachok", s);
-        assertFalse(s.contains("Дім"));  // the place's own name stays on the phone
+        // the picture says everything; the words only where to get the app, no place
+        assertEquals("Завантажити застосунок «Світлячок»: https://github.com/ABovsh/svitlyachok", Logic.SHARE_TEXT);
     }
 
     @Test
@@ -757,5 +755,57 @@ public class LogicTest {
         assertEquals(Logic.W_ROW, Logic.widgetForm(300, 70));    // 4 x 1
         assertEquals(Logic.W_FULL, Logic.widgetForm(300, 130));  // 4 x 2: with the next 24 hours
         assertEquals(Logic.W_ROW, Logic.widgetForm(130, 130));   // 2 x 2: too narrow for the bar
+    }
+
+    // ---- 1.3: the card says since when; one place needs no name in notifications ------
+
+    @Test
+    public void theCardSaysSinceWhenAndHowLong() throws Exception {
+        Logic.Now on = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false, null);
+        assertEquals("з 08:00", on.since);
+        assertEquals("уже 2 год 00 хв", on.already);
+        Logic.Now off = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false, null);
+        assertEquals("з 14:30", off.since);
+        assertEquals("уже 30 хв", off.already);
+        // a run from midnight: yesterday tells when it began; without it nothing is guessed
+        Logic.Now early = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
+        assertEquals("", early.since);
+        assertEquals("", early.already);
+        String lateOn = repeat('0', 44) + repeat('1', 4);
+        Logic.Now fromYesterday = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, lateOn);
+        assertEquals("з 22:00 учора", fromYesterday.since);
+        assertEquals("уже 5 год 00 хв", fromYesterday.already);
+        assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('0', 48)).since);
+        // the same all yesterday: longer than a day, the start is not known
+        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48)).since);
+        // no schedule, or no outages at all: nothing to count from
+        assertEquals("", Logic.now(repeat('2', 96), OCT30, at(12, 0), false, null).since);
+        assertEquals("", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
+    }
+
+    @Test
+    public void theHintEndsWithTheClockTime() throws Exception {
+        String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
+        // another day: the day and the clock, a count of hours would not fit the line
+        assertEquals("вимкнуть завтра о 06:00", Logic.now(later, OCT30, at(20, 0), false).hint);
+    }
+
+    @Test
+    public void onePlaceNeedsNoNameInNotifications() throws Exception {
+        assertEquals("", Logic.inNotices(home(), 1).name);
+        assertEquals("Дім", Logic.inNotices(home(), 2).name);
+        assertEquals("Дім", home().name);  // the place itself keeps its name
+        Logic.Place only = Logic.inNotices(home(), 1);
+        String t = tl(TODAY_ONLY);
+        Logic.Event e = Logic.events(only, t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
+        assertEquals("p1", e.place);
+        Logic.Notice n = Logic.eventText(e, t, OCT30, at(14, 2));
+        assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", n.title);
+        assertEquals("о 14:30, через 28 хв", n.text);
+        List<Logic.Note> tomorrow = Logic.notes(only, data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
+        assertEquals("\uD83D\uDCC5 Графік на завтра", tomorrow.get(0).title);
+        String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
+        Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}"));
+        assertEquals("\uD83D\uDCC5 Графік змінився", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
     }
 }

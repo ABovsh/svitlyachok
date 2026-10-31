@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * "Поділитися": the schedule of a place as a picture, for a messenger the person picks. The
- * picture names the region and queue, not the place; the words under it say where the app is.
+ * "Поділитися": one day of a place as a picture, for a messenger the person picks. The picture
+ * names the region and queue, not the place; the words under it say where to get the app.
  * The app sends nothing itself: the picture goes through Android's own share sheet.
  */
 final class Share {
@@ -29,10 +29,10 @@ final class Share {
 
     private Share() {}
 
-    static void send(Activity a, Logic.Place p) {
+    static void send(Activity a, Logic.Place p, LocalDate day) {
         try {
             File f = picture(a);
-            Bitmap bm = draw(a, p, Sync.now());
+            Bitmap bm = draw(a, p, day, Sync.now());
             try (OutputStream out = new FileOutputStream(f)) {
                 bm.compress(Bitmap.CompressFormat.PNG, 100, out);
             }
@@ -41,7 +41,7 @@ final class Share {
             Intent send = new Intent(Intent.ACTION_SEND)
                     .setType("image/png")
                     .putExtra(Intent.EXTRA_STREAM, uri)
-                    .putExtra(Intent.EXTRA_TEXT, Logic.shareText(p))
+                    .putExtra(Intent.EXTRA_TEXT, Logic.SHARE_TEXT)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             send.setClipData(ClipData.newRawUri("", uri));
             a.startActivity(Intent.createChooser(send, "Поділитися графіком"));
@@ -57,8 +57,8 @@ final class Share {
         return new File(dir, FILE);
     }
 
-    /** Today and tomorrow of one place, as on the main screen, on a picture 1080 px wide. */
-    static Bitmap draw(Context c, Logic.Place p, long now) {
+    /** One day of one place, as on the main screen, on a picture 1080 px wide. */
+    static Bitmap draw(Context c, Logic.Place p, LocalDate day, long now) {
         Ui.Pal pal = Ui.pal(c);
         int w = Math.round(W * Sheet.S);
         Bitmap tall = Bitmap.createBitmap(w, Math.round(900 * Sheet.S), Bitmap.Config.ARGB_8888);
@@ -67,22 +67,18 @@ final class Share {
         Sheet sh = new Sheet(c, new Brush(pal, pal.card).on(cv), w);
         float s = Sheet.S;
         Logic.Data d = Store.data(c, p.region);
-        LocalDate base = Logic.today(now);
         Logic.Region r = Logic.region(p.region);
 
         float y = sh.line("Черга " + Logic.queue(p.group), 22 * s, sh.text(Ui.display(c), 22, pal.text));
-        y = sh.line((r == null ? "" : r.name + " · ") + Ui.date(base), y + 6 * s, sh.text(Ui.body(c), 13, pal.muted));
+        if (r != null) y = sh.line(r.name, y + 6 * s, sh.text(Ui.body(c), 13, pal.muted));
         y += 18 * s;
 
-        int cur = Logic.index(base, now);
-        float nowRel = cur + (Logic.z(now).getMinute() % 30) / 30f;
-        y = sh.day("Сьогодні", Logic.day(d, p.group, base), cur, nowRel, y);
-        sh.b.p.setColor(pal.line);
-        cv.drawRect(sh.left, y + 14 * s, sh.right, y + 15 * s, sh.b.p);
-        y += 29 * s;
-        LocalDate t = base.plusDays(1);
-        y = sh.day("Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
-                Logic.day(d, p.group, t), -1, -1, y);
+        // the date in words: the picture is read later, when "today" is another day
+        String date = Ui.date(day);
+        boolean today = day.equals(Logic.today(now));
+        int cur = today ? Logic.index(day, now) : -1;
+        float nowRel = today ? cur + (Logic.z(now).getMinute() % 30) / 30f : -1;
+        y = sh.day(Character.toUpperCase(date.charAt(0)) + date.substring(1), Logic.day(d, p.group, day), cur, nowRel, y);
 
         y = sh.legend(y + 24 * s) + 18 * s;
         y = sh.line("Це графік обленерго, а не фактична наявність світла.", y, sh.text(Ui.body(c), 11.5f, pal.dim));

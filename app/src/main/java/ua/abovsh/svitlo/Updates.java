@@ -23,7 +23,6 @@ final class Updates {
     private static final String VERSION = "upd_version";
     private static final String CHECKED = "upd_checked";
     private static final String DISMISSED = "upd_dismissed";
-    private static final String ENABLED = "upd_enabled";
 
     private Updates() {}
 
@@ -31,15 +30,7 @@ final class Updates {
         return c.getSharedPreferences("updates", Context.MODE_PRIVATE);
     }
 
-    static boolean enabled(Context c) {
-        return p(c).getBoolean(ENABLED, true);
-    }
-
-    static void setEnabled(Context c, boolean on) {
-        p(c).edit().putBoolean(ENABLED, on).apply();
-    }
-
-    /** The newer release the user has not put off, or null. */
+    /** The newer release the user has not skipped, or null. */
     static Logic.Release offered(Context c) {
         Logic.Release r = latest(c);
         if (r == null || r.version.equals(p(c).getString(DISMISSED, ""))) return null;
@@ -57,7 +48,7 @@ final class Updates {
         }
     }
 
-    /** "Later": this version is not offered on the main screen again; a newer one will be. */
+    /** "Пропустити цю версію": not offered on the main screen again; a newer one will be. */
     static void dismiss(Context c, String version) {
         p(c).edit().putString(DISMISSED, version).apply();
     }
@@ -65,7 +56,8 @@ final class Updates {
     /** On opening the app: check in the background when due, then `done` on that thread. */
     static void checkIfDue(Context c, Runnable done) {
         Context app = c.getApplicationContext();
-        if (!enabled(app) || !Logic.dueForUpdateCheck(p(app).getLong(CHECKED, 0), Sync.now())) return;
+        // always on: a skipped version stays skipped, a newer one is offered again
+        if (!Logic.dueForUpdateCheck(p(app).getLong(CHECKED, 0), Sync.now())) return;
         new Thread(() -> {
             check(app);
             done.run();

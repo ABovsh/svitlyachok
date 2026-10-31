@@ -190,10 +190,11 @@ final class Sync {
     }
 
     static void notifyNotes(Context c, String region, Logic.Data before, Logic.Data after, long now) {
-        for (Logic.Place p : Prefs.places(c)) {
+        List<Logic.Place> places = Prefs.places(c);
+        for (Logic.Place p : places) {
             if (!p.region.equals(region)) continue;
             Logic.Alerts a = Prefs.alerts(c, p.id);
-            for (Logic.Note n : Logic.notes(p, before, after, now)) {
+            for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
                 boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
                 if (!wanted) continue;
                 post(c, p.id, CH_SCHEDULE, n.title, n.text);
@@ -206,11 +207,12 @@ final class Sync {
         List<Object[]> out = new ArrayList<>();
         LocalDate base = Logic.today(now);
         Set<String> fired = Prefs.fired(c);
-        for (Logic.Place p : Prefs.places(c)) {
+        List<Logic.Place> places = Prefs.places(c);
+        for (Logic.Place p : places) {
             Logic.Alerts a = Prefs.alerts(c, p.id);
             if (!a.off && !a.on) continue;
             String tl = timeline(c, p, base);
-            for (Logic.Event e : Logic.events(p, tl, base, now, a)) {
+            for (Logic.Event e : Logic.events(Logic.inNotices(p, places.size()), tl, base, now, a)) {
                 if (!fired.contains(e.key())) out.add(new Object[] {e, tl});
             }
         }
@@ -236,11 +238,11 @@ final class Sync {
         List<Logic.Place> ps = Prefs.places(c);
         Logic.Place at = ps.isEmpty() ? null : ps.get(0);
         for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) at = p;
-        String name = at == null ? "Дім" : at.name;
+        String name = at == null || ps.size() < 2 ? "" : at.name + " · ";
         String id = at == null ? "" : at.id;
         long gone = now() + 600;
-        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + " · Скоро вимкнуть світло", false, gone), true);
-        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + name + " · Скоро увімкнуть світло", true, gone), true);
+        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + "Скоро вимкнуть світло", false, gone), true);
+        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + name + "Скоро увімкнуть світло", true, gone), true);
     }
 
     private static Logic.Notice sample(String title, boolean on, long until) {

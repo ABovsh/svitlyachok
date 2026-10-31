@@ -167,12 +167,10 @@ public class SettingsActivity extends Base {
     private void updatesSection() {
         page.addView(heading("Оновлення"));
         LinearLayout u = box();
-        u.addView(toggle("Перевіряти нові версії", "Коли ви відкриваєте застосунок, не частіше двох разів на день",
-                Updates.enabled(this), on -> Updates.setEnabled(this, on)), fill());
-        u.addView(divider());
         u.addView(updateRow(), fill());
         page.addView(u, fill());
-        page.addView(note("Застосунок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
+        page.addView(note("Коли ви відкриваєте застосунок, не частіше двох разів на день, він питає GitHub лише, "
+                + "яка версія остання. Що встановлювати і коли, вирішуєте ви; непотрібну версію можна пропустити."));
     }
 
     private void helpSection() {
@@ -310,13 +308,5 @@ public class SettingsActivity extends Base {
         } catch (Exception ignored) {
             // very old firmware
         }
-    }
-
-    private TextView note(String s) {
-        TextView t = Ui.text(this, 13, Ui.body(this), pal.dim);
-        t.setLineSpacing(0, 1.1f);
-        t.setText(s);
-        t.setPadding(Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6), 0);
-        return t;
     }
 }

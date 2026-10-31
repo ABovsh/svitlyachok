@@ -60,6 +60,7 @@ public class SetupActivity extends Base {
         regions.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
         page.addView(regions, fill());
         fillRegions();
+        page.addView(note("Місто Київ поки не підтримується: його графік публікується в іншому форматі."));
 
         page.addView(heading("Черга"));
         LinearLayout qbox = box();

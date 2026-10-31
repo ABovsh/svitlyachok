@@ -200,7 +200,7 @@ public class MainActivity extends Base {
         if (update != null) body.addView(updateCard(update), gap(10));
         boolean many = places.size() > 1;
         if (many) body.addView(tiles(places, p, base, now), gap(10));
-        body.addView(hero(p, d, tl, base, now, many), gap(10));
+        body.addView(hero(p, d, tl, base, now), gap(10));
         View stale = stale(p, d, now);
         if (stale != null) body.addView(stale, gap(10));
         body.addView(schedule(p, d, base, cur, nowRel), gap(10));
@@ -357,7 +357,7 @@ public class MainActivity extends Base {
         return t;
     }
 
-    private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now, boolean many) {
+    private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
         Logic.Now n = Logic.now(tl, base, now, d != null && d.none, yesterday(p, d, base));
         if (d == null) {
             n.title = "Завантажую графік";
@@ -399,8 +399,8 @@ public class MainActivity extends Base {
 
         card.setContentDescription("Зараз за графіком: " + n.title
                 + (n.since.isEmpty() ? "" : " " + n.since + ", " + n.already) + ", " + n.hint);
-        if (many) since(words, n);
-        else words.addView(now(n), withTop(10));
+        // the same card for one place or several: with one place there are no tiles above it
+        since(words, n);
         hint(card, n);
         return card;
     }
@@ -414,8 +414,8 @@ public class MainActivity extends Base {
 
     /** "Світло є з 14:30" in the colour of the state, "уже 3 год 08 хв" under it. */
     private void since(LinearLayout card, Logic.Now n) {
-        if (n.state == Logic.UNKNOWN) return;
-        TextView t = Ui.text(this, 17, Ui.heavy(this), pal.status(n.state));
+        int colour = n.state == Logic.UNKNOWN ? pal.text : pal.status(n.state);
+        TextView t = Ui.text(this, 17, Ui.heavy(this), colour);
         t.setText(n.since.isEmpty() ? n.title : n.title + " " + n.since);
         card.addView(t, withTop(8));
         if (n.already.isEmpty()) return;
@@ -423,41 +423,6 @@ public class MainActivity extends Base {
         a.setText(n.already);
         a.setPadding(0, Ui.dp(this, 2), 0, 0);
         card.addView(a, fill());
-    }
-
-    /** The bulb and the state in big letters: for a single place (the tiles show it otherwise). */
-    private View now(Logic.Now n) {
-        LinearLayout main = Ui.row(this);
-        BulbView bulb = new BulbView(this, pal);
-        bulb.set(n.state);
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 76), Ui.dp(this, 76));
-        bl.rightMargin = Ui.dp(this, 16);
-        main.addView(bulb, bl);
-        LinearLayout words = Ui.column(this);
-        TextView eyebrow = Ui.text(this, 11, Ui.heavy(this), pal.muted);
-        eyebrow.setText("ЗАРАЗ ЗА ГРАФІКОМ");
-        eyebrow.setLetterSpacing(0.12f);
-        words.addView(eyebrow);
-        TextView title = Ui.text(this, 22, Ui.display(this), pal.status(n.state));
-        title.setText(n.title);
-        title.setPadding(0, Ui.dp(this, 6), 0, 0);
-        words.addView(title);
-        // since when: the time it ends is in the line under the card
-        String big = n.since.isEmpty() ? n.big : n.since;
-        if (!big.isEmpty()) {
-            TextView b = Ui.text(this, 26, Ui.display(this), pal.text);
-            b.setText(big);
-            b.setPadding(0, Ui.dp(this, 6), 0, 0);
-            words.addView(b);
-        }
-        if (!n.already.isEmpty()) {
-            TextView a = Ui.text(this, 14, Ui.bold(this), pal.muted);
-            a.setText(n.already);
-            a.setPadding(0, Ui.dp(this, 2), 0, 0);
-            words.addView(a);
-        }
-        main.addView(words, weight());
-        return main;
     }
 
     private LinearLayout.LayoutParams withTop(int dp) {

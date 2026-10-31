@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar: a lit bulb with rays (the power is coming back). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,6.5a5,5 0,0 0,-3 9v1.5h6v-1.5a5,5 0,0 0,-3 -9z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M9.5,18h5v1.2a1,1 0,0 1,-1 1h-3a1,1 0,0 1,-1 -1z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M12,1.8v2.2M4.6,4.8l1.6,1.6M19.4,4.8l-1.6,1.6M2.5,11.5h2.2M19.3,11.5h2.2" />
+</vector>

@@ -2,9 +2,12 @@ package ua.abovsh.svitlo;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -77,6 +80,7 @@ final class Prefs {
         List<Logic.Place> list = places(c);
         list.removeIf(pl -> pl.id.equals(id));
         savePlaces(c, list);
+        h(c).edit().remove(id).apply();
         if (id.equals(current(c))) setCurrent(c, "");
     }
 
@@ -101,6 +105,37 @@ final class Prefs {
 
     static void setMuted(Context c, String place, boolean v) {
         p(c).edit().putBoolean("mute_" + place, v).apply();
+    }
+
+    // ---- history -------------------------------------------------------------------
+
+    private static SharedPreferences h(Context c) {
+        return c.getSharedPreferences("history", Context.MODE_PRIVATE);
+    }
+
+    /** The schedules seen for one place, by day ({"2026-10-30": "1111…"}), for the statistics. */
+    static Map<LocalDate, String> history(Context c, String place) {
+        Map<LocalDate, String> out = new HashMap<>();
+        try {
+            JSONObject o = new JSONObject(h(c).getString(place, "{}"));
+            for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) {
+                String day = it.next();
+                out.put(LocalDate.parse(day), o.getString(day));
+            }
+        } catch (Exception ignored) {
+            // nothing readable: the statistics start again
+        }
+        return out;
+    }
+
+    static void saveHistory(Context c, String place, Map<LocalDate, String> days) {
+        JSONObject o = new JSONObject();
+        try {
+            for (Map.Entry<LocalDate, String> e : days.entrySet()) o.put(e.getKey().toString(), e.getValue());
+        } catch (Exception ignored) {
+            return;
+        }
+        h(c).edit().putString(place, o.toString()).apply();
     }
 
     // ---- widgets -------------------------------------------------------------------

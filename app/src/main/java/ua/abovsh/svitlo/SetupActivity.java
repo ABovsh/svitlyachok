@@ -213,7 +213,7 @@ public class SetupActivity extends Base {
             LocalDate base = Logic.today(now);
             String day = Logic.day(d, group, base);
             TextView t = Ui.text(this, 14, Ui.bold(this), pal.text);
-            t.setText("Сьогодні в черзі " + Logic.queue(group) + ": " + Logic.dayTotal(day));
+            t.setText("Сьогодні в черзі " + Logic.queue(group) + ": " + Logic.dayLight(day));
             t.setPadding(Ui.dp(this, 4), Ui.dp(this, 14), 0, 0);
             preview.addView(t, fill());
             if (day != null) {

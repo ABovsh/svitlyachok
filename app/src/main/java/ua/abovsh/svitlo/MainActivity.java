@@ -440,21 +440,48 @@ public class MainActivity extends Base {
         LocalDate t = base.plusDays(1);
         day(card, p, "Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
                 Logic.day(d, p.group, t), -1, -1);
+        card.addView(statsButton(), withTop(14));
         return card;
     }
 
+    /** "Статистика за тиждень і місяць ›": the light of past days as bars. */
+    private View statsButton() {
+        LinearLayout b = Ui.row(this);
+        b.setGravity(Gravity.CENTER_VERTICAL);
+        b.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10));
+        b.setBackground(Ui.round(pal.raised, Ui.px(this, 16)));
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_stats);
+        icon.setColorFilter(pal.onText, PorterDuff.Mode.SRC_IN);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22));
+        il.rightMargin = Ui.dp(this, 10);
+        b.addView(icon, il);
+        TextView t = Ui.text(this, 14, Ui.heavy(this), pal.text);
+        t.setText("Статистика за тиждень і місяць");
+        b.addView(t, weight());
+        ImageView go = new ImageView(this);
+        go.setImageResource(R.drawable.ic_chevron);
+        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
+        b.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24)));
+        b.setContentDescription("Статистика за тиждень і місяць");
+        b.setOnClickListener(v -> startActivity(new Intent(this, StatsActivity.class)));
+        return b;
+    }
+
     private void day(LinearLayout card, Logic.Place p, String title, String slots, int cur, float nowRel) {
-        LinearLayout head = Ui.row(this);
+        // the title and how long there is light; on a narrow screen the second goes under the first
+        FlowRow head = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 6));
         TextView t = Ui.text(this, 16, Ui.display(this), pal.text);
         t.setText(title);
-        head.addView(t, weight());
+        head.addView(t);
         if (slots != null) {
-            String total = Logic.dayTotal(slots);
-            boolean clean = total.equals("без вимкнень");
-            TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.text);
-            tot.setText(total);
+            String light = Logic.dayLight(slots);
+            boolean clean = light.equals(Logic.NO_OUTAGES);
+            TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
+            tot.setText(light);
             tot.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
-            tot.setBackground(Ui.round(clean ? pal.on : pal.raised, Ui.px(this, 100)));
+            tot.setBackground(Ui.round(clean ? pal.on : Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f), Ui.px(this, 100)));
             head.addView(tot);
         }
         head.setContentDescription(Logic.describe(title, slots));
@@ -534,7 +561,7 @@ public class MainActivity extends Base {
         long checked = Store.checkedAt(this, p.region);
         if (checked > 0) when.add("перевірено о\u00A0" + Logic.hm(checked));
         t.setText((when.isEmpty() ? "" : String.join(" · ", when) + ".\n")
-                + "Це графік обленерго, а не фактична наявність світла. Потягніть екран донизу, щоб оновити.");
+                + "Це графік обленерго, а не фактична наявність світла. Новий графік з'являється сам.");
         t.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         return t;
     }

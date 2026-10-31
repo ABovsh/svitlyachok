@@ -114,17 +114,23 @@ final class WidgetArt {
         float tx = f.pad + bulb + Math.max(8 * s, bulb * 0.18f);
         float tw = f.w - tx - f.pad * 0.8f;
         float ts = Math.max(12f, Math.min(19f, f.h / s * (full ? 0.15f : 0.24f))) * s;
-        // with several places the name comes first: a widget must say whose schedule it shows
-        boolean head = m.many && rowH >= 62 * s;
+        // with several places the name is always there: a widget must say whose schedule it shows
+        boolean head = m.many;
         boolean then = !n.then.isEmpty() && rowH >= (head ? 84 : 62) * s;
         Ui.Pal pal = b.pal;
-        Paint ph = fit(text(Ui.bold(c), ts * 0.68f, pal.muted, Paint.Align.LEFT), m.place.name, tw);
+        Paint ph = fit(text(Ui.heavy(c), ts * 0.8f, Ui.fade(pal.text, 0.8f), Paint.Align.LEFT), m.place.name, tw);
         Paint pt = fit(text(Ui.heavy(c), ts, pal.status(n.state), Paint.Align.LEFT), n.title, tw);
         Paint pb = fit(text(Ui.display(c), ts * 1.05f, pal.text, Paint.Align.LEFT), n.big, tw);
         Paint pn = fit(text(Ui.bold(c), ts * 0.68f, n.soon ? pal.maybeText : pal.muted, Paint.Align.LEFT), n.then, tw);
         float g = ts * 0.32f;
         float block = (head ? ph.getTextSize() + g : 0) + pt.getTextSize()
                 + (n.big.isEmpty() ? 0 : g + pb.getTextSize()) + (then ? g + pn.getTextSize() : 0);
+        if (block > rowH * 0.94f) {  // a low widget: every line shrinks alike, none is dropped
+            float k = rowH * 0.94f / block;
+            for (Paint p : new Paint[] {ph, pt, pb, pn}) p.setTextSize(p.getTextSize() * k);
+            g *= k;
+            block *= k;
+        }
         float y = f.pad + (rowH - block) / 2f;
         if (head) y = line(b, m.place.name, tx, y, ph) + g;
         y = line(b, n.title, tx, y, pt);

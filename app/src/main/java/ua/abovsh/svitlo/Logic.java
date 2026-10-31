@@ -494,6 +494,89 @@ public final class Logic {
         return "без світла " + length(off);
     }
 
+    static final int HISTORY_DAYS = 31;
+
+    /** "зі світлом 18 год · 75 %": the positive side of a day, as a share of all 24 hours. */
+    public static String dayLight(String day) {
+        if (day == null) return "ще не опубліковано";
+        int on = count(day, '1');
+        if (on == day.length()) return NO_OUTAGES;
+        return "зі світлом " + length(on) + " · " + Math.round(on * 100f / day.length()) + " %";
+    }
+
+    private static int count(String day, char c) {
+        int n = 0;
+        for (int i = 0; i < day.length(); i++) if (day.charAt(i) == c) n++;
+        return n;
+    }
+
+    /** One day of the statistics, in half hours; `known` is false when no schedule was seen. */
+    public static final class DayStat {
+        public LocalDate date;
+        public boolean known;
+        public int on;
+        public int off;
+        public int maybe;
+    }
+
+    /**
+     * The schedules the phone has seen, by day: the latest one of each day is kept, from a month
+     * ago to tomorrow. The sources publish only today and tomorrow, so this is the only history.
+     */
+    public static Map<LocalDate, String> remember(Map<LocalDate, String> hist, LocalDate date, String slots, LocalDate today) {
+        Map<LocalDate, String> out = new HashMap<>();
+        LocalDate oldest = today.minusDays(HISTORY_DAYS - 1L);
+        LocalDate newest = today.plusDays(1);
+        for (Map.Entry<LocalDate, String> e : hist.entrySet()) {
+            if (!e.getKey().isBefore(oldest) && !e.getKey().isAfter(newest)) out.put(e.getKey(), e.getValue());
+        }
+        if (slots != null && slots.length() == 48 && !date.isBefore(oldest) && !date.isAfter(newest)) out.put(date, slots);
+        return out;
+    }
+
+    /** The last `days` days up to today (a month at most), oldest first. */
+    public static List<DayStat> window(Map<LocalDate, String> hist, LocalDate today, int days) {
+        int n = Math.min(days, HISTORY_DAYS);
+        List<DayStat> out = new ArrayList<>();
+        for (int i = n - 1; i >= 0; i--) {
+            DayStat d = new DayStat();
+            d.date = today.minusDays(i);
+            String slots = hist.get(d.date);
+            if (slots != null) {
+                d.known = true;
+                d.on = count(slots, '1');
+                d.off = count(slots, '0');
+                d.maybe = count(slots, '3');
+            }
+            out.add(d);
+        }
+        return out;
+    }
+
+    /** "У середньому 18 год 20 хв зі світлом на день · 76 %" over the days with a schedule. */
+    public static String average(List<DayStat> w) {
+        int days = 0;
+        int on = 0;
+        int all = 0;
+        for (DayStat d : w) {
+            if (!d.known) continue;
+            days++;
+            on += d.on;
+            all += d.on + d.off + d.maybe;
+        }
+        if (days == 0 || all == 0) return "";
+        return "У середньому " + hoursMinutes(Math.round(on * 30f / days)) + " зі світлом на день · "
+                + Math.round(on * 100f / all) + " %";
+    }
+
+    /** "18 год 20 хв", "18 год", "45 хв" */
+    static String hoursMinutes(int minutes) {
+        int h = minutes / 60;
+        int m = minutes % 60;
+        if (h == 0) return m + " хв";
+        return m == 0 ? h + " год" : h + " год " + m + " хв";
+    }
+
     /** A day for a screen reader: "Сьогодні: без світла 06:00 – 08:00; можливе вимкнення 20:00 – 22:00". */
     public static String describe(String title, String day) {
         if (day == null) return title + ": графік ще не опубліковано";

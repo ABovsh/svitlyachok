@@ -418,6 +418,51 @@ public class LogicTest {
         assertTrue(url.endsWith("%D0%A1%D0%B2%D1%96%D1%82%D0%BB%D1%8F%D1%87%D0%BE%D0%BA+1.2.0%0AAndroid+15"));
     }
 
+    // ---- light in hours, history, statistics ---------------------------------
+
+    @Test
+    public void aDaySaysHowLongThereIsLight() {
+        assertEquals("зі світлом 18 год · 75 %", Logic.dayLight(DAY_11));          // off 06-08 and 14:30-18:30
+        assertEquals("зі світлом 22 год 30 хв · 94 %", Logic.dayLight("000" + repeat('1', 45)));
+        assertEquals("без вимкнень", Logic.dayLight(repeat('1', 48)));
+        assertEquals("ще не опубліковано", Logic.dayLight(null));
+        assertEquals("зі світлом 0 год · 0 %", Logic.dayLight(repeat('0', 48)));
+    }
+
+    @Test
+    public void historyKeepsAMonthAndTomorrow() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        h = Logic.remember(h, OCT30, DAY_11, OCT30);
+        h = Logic.remember(h, OCT30.plusDays(1), repeat('1', 48), OCT30);     // tomorrow, planned
+        h = Logic.remember(h, OCT30.plusDays(2), repeat('1', 48), OCT30);     // beyond tomorrow: not a schedule
+        h = Logic.remember(h, OCT30, null, OCT30);                           // nothing published: kept
+        h = Logic.remember(h, OCT30.minusDays(30), DAY_11, OCT30);            // 31 days ago, counting today: kept
+        h = Logic.remember(h, OCT30.minusDays(31), DAY_11, OCT30);            // older: not kept
+        assertEquals(3, h.size());
+        assertEquals(DAY_11, h.get(OCT30));
+        assertFalse(h.containsKey(OCT30.minusDays(31)));
+        h = Logic.remember(h, OCT30, repeat('0', 48), OCT30);                // a change of today replaces it
+        assertEquals(repeat('0', 48), h.get(OCT30));
+    }
+
+    @Test
+    public void aWeekIsSevenBarsEndingToday() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        h.put(OCT30, DAY_11);                       // 18 h of light
+        h.put(OCT30.minusDays(1), repeat('1', 48)); // 24 h
+        h.put(OCT30.plusDays(1), repeat('0', 48));  // tomorrow is not in the past week
+        List<Logic.DayStat> w = Logic.window(h, OCT30, 7);
+        assertEquals(7, w.size());
+        assertEquals(OCT30.minusDays(6), w.get(0).date);
+        assertEquals(OCT30, w.get(6).date);
+        assertFalse(w.get(0).known);
+        assertEquals(36, w.get(6).on);               // halves
+        assertEquals(12, w.get(6).off);
+        assertEquals("У середньому 21 год зі світлом на день · 88 %", Logic.average(w));
+        assertEquals(31, Logic.window(h, OCT30, 40).size());  // a month at most
+        assertEquals("", Logic.average(Logic.window(new java.util.HashMap<>(), OCT30, 7)));
+    }
+
     @Test
     public void onlyOffAndOnAreOnByDefault() {
         Logic.Alerts a = new Logic.Alerts();

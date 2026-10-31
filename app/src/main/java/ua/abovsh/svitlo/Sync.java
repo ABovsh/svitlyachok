@@ -61,8 +61,21 @@ final class Sync {
             if (r == Store.FAILED) ok = false;
             if (r == Store.NEW) notifyNotes(c, region, before, Store.data(c, region), now);
         }
+        rememberDays(c, now);
         apply(c);
         return ok;
+    }
+
+    /** Today's and tomorrow's schedule of every place into its history; written only when it changed. */
+    static void rememberDays(Context c, long now) {
+        LocalDate today = Logic.today(now);
+        for (Logic.Place p : Prefs.places(c)) {
+            Logic.Data d = Store.data(c, p.region);
+            Map<LocalDate, String> before = Prefs.history(c, p.id);
+            Map<LocalDate, String> after = Logic.remember(before, today, Logic.day(d, p.group, today), today);
+            after = Logic.remember(after, today.plusDays(1), Logic.day(d, p.group, today.plusDays(1)), today);
+            if (!after.equals(before)) Prefs.saveHistory(c, p.id, after);
+        }
     }
 
     /** Redraw from the cache and re-arm alarms; no network. */
@@ -96,15 +109,24 @@ final class Sync {
                 NotificationManager.IMPORTANCE_LOW));
     }
 
+    static final int RED = 0xFFE5484D;
+    static final int GREEN = 0xFF2DB86C;
+    private static final int GOLD = 0xFFF5B000;
+
     static void post(Context c, int id, String channel, String title, String text) {
+        post(c, id, channel, title, text, R.drawable.ic_notify, GOLD);
+    }
+
+    /** `icon` and `colour` tell off from on before a word is read: Samsung paints the circle with it. */
+    static void post(Context c, int id, String channel, String title, String text, int icon, int colour) {
         ensureChannels(c);
         long now = now();
         if (Prefs.quietNights(c) && Logic.quiet(now)) channel = CH_QUIET;
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Notification n = new Notification.Builder(c, channel)
-                .setSmallIcon(R.drawable.ic_notify)
-                .setColor(0xFFF5B000)
-                .setContentTitle(title)
+                .setSmallIcon(icon)
+                .setColor(colour)
+                .setContentTitle(tinted(title, colour))
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setWhen(now * 1000)
@@ -118,6 +140,22 @@ final class Sync {
         } catch (SecurityException ignored) {
             // notifications not allowed: the app still works
         }
+    }
+
+    /**
+     * A coloured mark at the start of a reminder: most phones drop text colours in notifications,
+     * a coloured circle stays. Red — the power goes off, green — it comes back.
+     */
+    static String mark(boolean on) {
+        return on ? "\uD83D\uDFE2 " : "\uD83D\uDD34 ";
+    }
+
+    /** The title in the colour of its kind, where the phone keeps colours in notifications. */
+    private static CharSequence tinted(String title, int colour) {
+        if (colour == GOLD) return title;
+        android.text.SpannableString s = new android.text.SpannableString(title);
+        s.setSpan(new android.text.style.ForegroundColorSpan(colour), 0, title.length(), 0);
+        return s;
     }
 
     static int placeNo(Context c, String id) {
@@ -162,13 +200,18 @@ final class Sync {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now + 30) break;
             String[] t = Logic.eventText(e, (String) x[1], base, now);
-            post(c, 200 + placeNo(c, e.place) * 4 + e.kind, CH_REMIND, t[0], t[1]);
+            boolean on = e.kind == Logic.Event.SOON_ON || e.kind == Logic.Event.AT_ON;
+            post(c, 200 + placeNo(c, e.place) * 4 + e.kind, CH_REMIND, mark(on) + t[0], t[1],
+                    on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off, on ? GREEN : RED);
             Prefs.addFired(c, e.key(), now);
         }
     }
 
     static void testNotification(Context c) {
-        post(c, 999, CH_REMIND, "Сповіщення працюють", "Так виглядатимуть нагадування Світлячка");
+        post(c, 998, CH_REMIND, mark(false) + "Скоро вимкнуть світло", "Пробне нагадування · так виглядає попередження про вимкнення",
+                R.drawable.ic_notify_off, RED);
+        post(c, 999, CH_REMIND, mark(true) + "Скоро увімкнуть світло", "Пробне нагадування · так виглядає попередження про світло",
+                R.drawable.ic_notify_on, GREEN);
     }
 
     // ---- widget --------------------------------------------------------------------

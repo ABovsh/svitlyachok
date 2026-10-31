@@ -30,7 +30,7 @@ final class BarView extends View {
         barH = Ui.dp(c, 14);
         labelH = Ui.dp(c, 16);
         tp.setTypeface(Ui.bold(c));
-        tp.setTextSize(Ui.dp(c, 10.5f));
+        tp.setTextSize(Ui.px(c, 10.5f));
         tp.setTextAlign(Paint.Align.CENTER);
         tp.setColor(pal.dim);
     }
@@ -50,7 +50,7 @@ final class BarView extends View {
     @Override
     protected void onDraw(Canvas cv) {
         if (slots == null) return;
-        float w = getWidth();
+        float w = (float) getWidth();
         float top = Ui.px(getContext(), 3);
         float sw = w / 48f;
         box.set(0, top, w, top + barH);

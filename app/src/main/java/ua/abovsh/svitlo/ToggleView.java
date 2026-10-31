@@ -45,10 +45,10 @@ final class ToggleView extends View {
 
     @Override
     protected void onDraw(Canvas cv) {
-        float w = getWidth();
-        float h = getHeight();
+        float w = (float) getWidth();
+        float h = (float) getHeight();
         float r = h / 2f;
-        float pad = Ui.dp(getContext(), 4);
+        float pad = Ui.px(getContext(), 4);
         p.setColor(on ? pal.accent : pal.raised);
         box.set(0, 0, w, h);
         cv.drawRoundRect(box, r, r, p);

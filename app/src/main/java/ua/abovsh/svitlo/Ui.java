@@ -142,6 +142,10 @@ final class Ui {
     }
 
     /** dp as whole pixels, for layout. */
+    static int dp(Context c, int v) {
+        return dp(c, (float) v);
+    }
+
     static int dp(Context c, float v) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
                 c.getResources().getDisplayMetrics()));
@@ -173,14 +177,14 @@ final class Ui {
 
     /** A card; with a tint, a soft glow of that colour from the top. */
     static Drawable card(Context c, Pal p, int tint) {
-        float r = dp(c, 28);
+        float r = px(c, 28);
         GradientDrawable base = round(p.card, r);
         if (!p.dark) base.setStroke(dp(c, 1), p.line);
         if (tint == 0) return base;
         GradientDrawable glow = new GradientDrawable();
         glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
         glow.setGradientCenter(0.5f, 0f);
-        glow.setGradientRadius(dp(c, 340));
+        glow.setGradientRadius(px(c, 340));
         glow.setColors(new int[] {(tint & 0x00FFFFFF) | (p.glow << 24), 0x00000000});
         glow.setCornerRadius(r);
         return new LayerDrawable(new Drawable[] {base, glow});
@@ -206,7 +210,7 @@ final class Ui {
         t.setGravity(Gravity.CENTER);
         t.setMaxLines(1);
         t.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
-        t.setBackground(round(chosen ? p.accent : p.raised, dp(c, 100)));
+        t.setBackground(round(chosen ? p.accent : p.raised, px(c, 100)));
         return t;
     }
 

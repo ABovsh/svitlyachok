@@ -86,7 +86,7 @@ public class SetupActivity extends Base {
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         name.setImeOptions(EditorInfo.IME_ACTION_DONE);
         name.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
-        name.setBackground(Ui.round(pal.raised, Ui.dp(this, 16)));
+        name.setBackground(Ui.round(pal.raised, Ui.px(this, 16)));
         nbox.addView(name, fill());
         FlowRow quick = new FlowRow(this, Ui.dp(this, 8));
         for (String n : NAMES) {
@@ -133,7 +133,7 @@ public class SetupActivity extends Base {
         logo.setOutlineProvider(new android.view.ViewOutlineProvider() {
             @Override
             public void getOutline(View v, android.graphics.Outline o) {
-                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), Ui.dp(SetupActivity.this, 20));
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), Ui.px(SetupActivity.this, 20));
             }
         });
         w.addView(logo, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, 72)));

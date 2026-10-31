@@ -113,7 +113,7 @@ final class WidgetArt {
         Brush b = new Brush(pal, pal.card).on(new Canvas(bm));
         float r = Math.min(24 * s, f.h / 2.6f);
         b.p.setColor((pal.card & 0x00FFFFFF) | 0xF5000000);
-        b.r.set(0, 0, f.w, f.h);
+        b.r.set(0f, 0f, (float) f.w, (float) f.h);
         b.cv.drawRoundRect(b.r, r, r, b.p);
         if (m == null) {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);

@@ -73,7 +73,7 @@ final class BulbView extends View {
 
     @Override
     protected void onDraw(Canvas cv) {
-        float size = Math.min(getWidth(), getHeight());
+        float size = (float) Math.min(getWidth(), getHeight());
         draw(b.on(cv), state, getWidth() / 2f, getHeight() / 2f, size, glow);
     }
 

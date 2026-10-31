@@ -71,7 +71,7 @@ public class MainActivity extends Base {
         logo.setPadding(lp, lp, lp, lp);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TL_BR, new int[] {0xFFFFDD7A, 0xFFF5A800});
-        g.setCornerRadius(Ui.dp(this, 12));
+        g.setCornerRadius(Ui.px(this, 12));
         logo.setBackground(g);
         logo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         r.addView(logo, new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38)));
@@ -203,7 +203,7 @@ public class MainActivity extends Base {
         t.setGravity(Gravity.CENTER_VERTICAL);
         t.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
         android.graphics.drawable.GradientDrawable bg = Ui.round(
-                Ui.blend(pal.card, Ui.fade(pal.fill(n.state), pal.dark ? 0.14f : 0.10f)), Ui.dp(this, 20));
+                Ui.blend(pal.card, Ui.fade(pal.fill(n.state), pal.dark ? 0.14f : 0.10f)), Ui.px(this, 20));
         bg.setStroke(Ui.dp(this, chosen ? 2 : 1), chosen ? pal.text : pal.line);
         t.setBackground(bg);
         BulbView bulb = new BulbView(this, pal);
@@ -312,7 +312,7 @@ public class MainActivity extends Base {
             TextView hint = Ui.text(this, 15, Ui.bold(this), n.soon ? pal.accentInk : pal.text);
             hint.setText(n.hint);
             hint.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-            hint.setBackground(Ui.round(n.soon ? pal.maybe : pal.raised, Ui.dp(this, 100)));
+            hint.setBackground(Ui.round(n.soon ? pal.maybe : pal.raised, Ui.px(this, 100)));
             LinearLayout.LayoutParams hl = wrap();
             hl.topMargin = Ui.dp(this, card.getChildCount() > 1 ? 14 : 6);  // closer under the place line
             card.addView(hint, hl);
@@ -336,7 +336,7 @@ public class MainActivity extends Base {
                     render();
                 });
         b.setColorFilter(muted ? pal.dim : pal.text, PorterDuff.Mode.SRC_IN);
-        if (muted) b.setBackground(Ui.outline(pal.line, Ui.dp(this, 100), Ui.dp(this, 1)));
+        if (muted) b.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1)));
         return b;
     }
 
@@ -349,7 +349,7 @@ public class MainActivity extends Base {
                 + Logic.updated(checked, now).replace("графік оновлено ", "") + ".");
         t.setLineSpacing(0, 1.1f);
         t.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
-        t.setBackground(Ui.outline(pal.maybeText, Ui.dp(this, 22), Ui.dp(this, 1)));
+        t.setBackground(Ui.outline(pal.maybeText, Ui.px(this, 22), Ui.dp(this, 1)));
         return t;
     }
 
@@ -382,7 +382,7 @@ public class MainActivity extends Base {
             TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.text);
             tot.setText(total);
             tot.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
-            tot.setBackground(Ui.round(clean ? pal.on : pal.raised, Ui.dp(this, 100)));
+            tot.setBackground(Ui.round(clean ? pal.on : pal.raised, Ui.px(this, 100)));
             head.addView(tot);
         }
         head.setContentDescription(Logic.describe(title, slots));
@@ -425,9 +425,9 @@ public class MainActivity extends Base {
         TextView c = Ui.text(this, 14, Ui.heavy(this), now ? pal.ink : pal.text);
         c.setText((now ? "зараз " : "") + (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–"));
         c.setPadding(Ui.dp(this, 11), Ui.dp(this, 6), Ui.dp(this, 11), Ui.dp(this, 6));
-        if (now) c.setBackground(Ui.round(o.maybe ? pal.maybe : pal.off, Ui.dp(this, 100)));
-        else if (o.maybe) c.setBackground(Ui.outline(pal.maybe, Ui.dp(this, 100), Ui.dp(this, 1.5f)));
-        else c.setBackground(Ui.round(Ui.fade(pal.off, pal.dark ? 0.22f : 0.12f), Ui.dp(this, 100)));
+        if (now) c.setBackground(Ui.round(o.maybe ? pal.maybe : pal.off, Ui.px(this, 100)));
+        else if (o.maybe) c.setBackground(Ui.outline(pal.maybe, Ui.px(this, 100), Ui.dp(this, 1.5f)));
+        else c.setBackground(Ui.round(Ui.fade(pal.off, pal.dark ? 0.22f : 0.12f), Ui.px(this, 100)));
         if (o.when == Logic.Outage.PAST) c.setAlpha(0.45f);
         String when = "";
         if (o.when == Logic.Outage.PAST) when = ", минуло";

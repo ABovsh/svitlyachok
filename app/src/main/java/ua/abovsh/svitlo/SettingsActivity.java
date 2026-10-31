@@ -60,7 +60,7 @@ public class SettingsActivity extends Base {
             plus.setImageResource(R.drawable.ic_plus);
             plus.setColorFilter(pal.accentInk, PorterDuff.Mode.SRC_IN);
             plus.setScaleType(ImageView.ScaleType.CENTER);
-            plus.setBackground(Ui.round(pal.accent, Ui.dp(this, 100)));
+            plus.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
             LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 36));
             pl.rightMargin = Ui.dp(this, 14);
             add.addView(plus, pl);
@@ -183,7 +183,7 @@ public class SettingsActivity extends Base {
                     rebuild();
                 });
         bell.setColorFilter(muted ? pal.dim : pal.text, PorterDuff.Mode.SRC_IN);
-        if (muted) bell.setBackground(Ui.outline(pal.line, Ui.dp(this, 100), Ui.dp(this, 1)));
+        if (muted) bell.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1)));
         r.addView(bell);
         ImageView go = new ImageView(this);
         go.setImageResource(R.drawable.ic_chevron);

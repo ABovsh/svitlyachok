@@ -103,7 +103,7 @@ abstract class Base extends Activity {
         b.setImageResource(icon);
         b.setColorFilter(pal.text, PorterDuff.Mode.SRC_IN);
         b.setScaleType(ImageView.ScaleType.CENTER);
-        b.setBackground(Ui.round(pal.raised, Ui.dp(this, 100)));
+        b.setBackground(Ui.round(pal.raised, Ui.px(this, 100)));
         b.setContentDescription(desc);
         b.setOnClickListener(l);
         b.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
@@ -152,7 +152,7 @@ abstract class Base extends Activity {
         b.setText(s);
         b.setGravity(Gravity.CENTER);
         b.setMinHeight(Ui.dp(this, 54));
-        b.setBackground(Ui.round(pal.accent, Ui.dp(this, 100)));
+        b.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
         b.setOnClickListener(l);
         return b;
     }

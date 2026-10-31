@@ -139,10 +139,6 @@ final class Sync {
     }
 
     /**
-     * A reminder's bulb and colour tell off from on before a word is read: Samsung paints the
-     * circle with it. `n.until`: when the notice stops being true it goes by itself.
-     */
-    /**
      * One notification per place (Logic.slot): a new one replaces the last of that place, so a
      * phone holds at most one per place. A tap opens that place.
      */
@@ -150,6 +146,10 @@ final class Sync {
         show(c, Logic.slot(place), place, channel, n, reminder);
     }
 
+    /**
+     * A reminder's bulb and colour tell off from on before a word is read: Samsung paints the
+     * circle with it. `n.until`: when the notice stops being true it goes by itself.
+     */
     private static void show(Context c, int id, String place, String channel, Logic.Notice n, boolean reminder) {
         int icon = R.drawable.ic_notify;
         int colour = GOLD;

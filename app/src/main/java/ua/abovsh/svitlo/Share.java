@@ -31,7 +31,7 @@ final class Share {
 
     static void send(Activity a, Logic.Place p) {
         try {
-            File f = file(a);
+            File f = picture(a);
             Bitmap bm = draw(a, p, Sync.now());
             try (OutputStream out = new FileOutputStream(f)) {
                 bm.compress(Bitmap.CompressFormat.PNG, 100, out);
@@ -51,7 +51,7 @@ final class Share {
     }
 
     /** The one file the provider serves, in the app's own cache. */
-    static File file(Context c) {
+    static File picture(Context c) {
         File dir = new File(c.getCacheDir(), "share");
         if (!dir.isDirectory() && !dir.mkdirs()) return new File(c.getCacheDir(), FILE);
         return new File(dir, FILE);
@@ -60,157 +60,173 @@ final class Share {
     /** Today and tomorrow of one place, as on the main screen, on a picture 1080 px wide. */
     static Bitmap draw(Context c, Logic.Place p, long now) {
         Ui.Pal pal = Ui.pal(c);
-        float s = 3f;
-        int w = Math.round(W * s);
-        Bitmap tall = Bitmap.createBitmap(w, Math.round(900 * s), Bitmap.Config.ARGB_8888);
+        int w = Math.round(W * Sheet.S);
+        Bitmap tall = Bitmap.createBitmap(w, Math.round(900 * Sheet.S), Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(tall);
         cv.drawColor(pal.card);
-        Brush b = new Brush(pal, pal.card).on(cv);
+        Sheet sh = new Sheet(c, new Brush(pal, pal.card).on(cv), w);
+        float s = Sheet.S;
         Logic.Data d = Store.data(c, p.region);
         LocalDate base = Logic.today(now);
         Logic.Region r = Logic.region(p.region);
-        float pad = 20 * s;
-        float right = w - pad;
 
-        float y = 22 * s;
-        Paint title = text(Ui.display(c), 22 * s, pal.text);
-        Paint sub = text(Ui.body(c), 13 * s, pal.muted);
-        y = line(cv, "Черга " + Logic.queue(p.group), pad, y, title);
-        y = line(cv, (r == null ? "" : r.name + " · ") + Ui.date(base), pad, y + 6 * s, sub);
+        float y = sh.line("Черга " + Logic.queue(p.group), 22 * s, sh.text(Ui.display(c), 22, pal.text));
+        y = sh.line((r == null ? "" : r.name + " · ") + Ui.date(base), y + 6 * s, sh.text(Ui.body(c), 13, pal.muted));
         y += 18 * s;
 
         int cur = Logic.index(base, now);
         float nowRel = cur + (Logic.z(now).getMinute() % 30) / 30f;
-        y = day(c, b, "Сьогодні", Logic.day(d, p.group, base), cur, nowRel, pad, right, y, s);
-        b.p.setColor(pal.line);
-        cv.drawRect(pad, y + 14 * s, right, y + 15 * s, b.p);
+        y = sh.day("Сьогодні", Logic.day(d, p.group, base), cur, nowRel, y);
+        sh.b.p.setColor(pal.line);
+        cv.drawRect(sh.left, y + 14 * s, sh.right, y + 15 * s, sh.b.p);
         y += 29 * s;
         LocalDate t = base.plusDays(1);
-        y = day(c, b, "Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
-                Logic.day(d, p.group, t), -1, -1, pad, right, y, s);
+        y = sh.day("Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
+                Logic.day(d, p.group, t), -1, -1, y);
 
-        y += 24 * s;
-        y = legend(c, b, pad, right, y, s);
-        y += 18 * s;
-        Paint foot = text(Ui.body(c), 11.5f * s, pal.dim);
-        y = line(cv, "Це графік обленерго, а не фактична наявність світла.", pad, y, foot);
-        Paint link = text(Ui.heavy(c), 13 * s, pal.accentText);
-        y = line(cv, "Світлячок · github.com/ABovsh/svitlyachok", pad, y + 6 * s, link);
+        y = sh.legend(y + 24 * s) + 18 * s;
+        y = sh.line("Це графік обленерго, а не фактична наявність світла.", y, sh.text(Ui.body(c), 11.5f, pal.dim));
+        y = sh.line("Світлячок · github.com/ABovsh/svitlyachok", y + 6 * s, sh.text(Ui.heavy(c), 13, pal.accentText));
         // drawn on a tall sheet, then cut to what was used
         Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 22 * s)));
         tall.recycle();
         return out;
     }
 
-    /** A day: its title and the light to expect, the bar with hours, the outages as chips. */
-    private static float day(Context c, Brush b, String title, String slots, int cur, float nowRel,
-            float left, float right, float y, float s) {
-        Ui.Pal pal = b.pal;
-        Canvas cv = b.cv;
-        Paint head = text(Ui.display(c), 16 * s, pal.text);
-        float top = y;
-        y = line(cv, title, left, y, head);
-        if (slots == null) {
-            return line(cv, "Графік ще не опубліковано", left, y + 8 * s, text(Ui.body(c), 14 * s, pal.muted));
-        }
-        // "очікується 17 год світла · 71 %" in a green pill at the right, level with the title
-        String light = Logic.dayLight(slots);
-        Paint lp = text(Ui.heavy(c), 12.5f * s, pal.onText);
-        float lw = lp.measureText(light) + 20 * s;
-        float lh = 26 * s;
-        float lt = top + (head.getTextSize() - lh) / 2f;
-        if (left + head.measureText(title) + 10 * s + lw > right) {  // narrow: under the title
-            lt = y + 6 * s;
-            y = lt + lh;
-            b.r.set(left, lt, left + lw, lt + lh);
-        } else {
-            b.r.set(right - lw, lt, right, lt + lh);
-        }
-        b.p.setColor(Ui.blend(pal.card, Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f)));
-        cv.drawRoundRect(b.r, lh / 2, lh / 2, b.p);
-        cv.drawText(light, b.r.left + 10 * s, b.r.centerY() + lp.getTextSize() * 0.36f, lp);
+    /** The picture being drawn: its canvas and margins, at 3 pixels to a dp. */
+    private static final class Sheet {
+        static final float S = 3f;
+        final Context c;
+        final Brush b;
+        final Ui.Pal pal;
+        final float left;
+        final float right;
 
-        float barTop = y + 12 * s;
-        RectF bar = new RectF(left, barTop, right, barTop + 14 * s);
-        BarView.runs(b, slots, 0, 48, 0, bar, 2 * s);
-        Paint lab = text(Ui.bold(c), 10.5f * s, pal.dim);
-        lab.setTextAlign(Paint.Align.CENTER);
-        float sw = bar.width() / 48f;
-        for (int hr = 0; hr <= 24; hr += 6) {
-            String l = String.format(Locale.ROOT, "%02d", hr);
-            float half = lab.measureText(l) / 2;
-            cv.drawText(l, Math.max(left + half, Math.min(right - half, left + hr * 2 * sw)), bar.bottom + 15 * s, lab);
+        Sheet(Context c, Brush b, int width) {
+            this.c = c;
+            this.b = b;
+            this.pal = b.pal;
+            left = 20 * S;
+            right = width - 20 * S;
         }
-        if (nowRel >= 0 && nowRel <= 48) {  // now, as a white stroke
-            float x = left + nowRel * sw;
-            b.p.setColor(pal.card);
-            b.r.set(x - 2.5f * s, bar.top - 3 * s, x + 2.5f * s, bar.bottom + 3 * s);
-            cv.drawRoundRect(b.r, 2.5f * s, 2.5f * s, b.p);
-            b.p.setColor(pal.text);
-            b.r.set(x - 1.2f * s, bar.top - 2 * s, x + 1.2f * s, bar.bottom + 2 * s);
-            cv.drawRoundRect(b.r, 1.2f * s, 1.2f * s, b.p);
-        }
-        y = bar.bottom + 20 * s;
 
-        List<Logic.Outage> list = Logic.outages(slots, cur);
-        Paint chip = text(Ui.heavy(c), 14 * s, pal.text);
-        float x = left;
-        float ch = 30 * s;
-        float cy = y + 8 * s;
-        for (Logic.Outage o : list) {
-            boolean now = o.when == Logic.Outage.NOW;
-            String label = (now ? "зараз " : "") + (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–");
-            float cw = chip.measureText(label) + 22 * s;
-            if (x > left && x + cw > right) {
-                x = left;
-                cy += ch + 6 * s;
-            }
-            b.r.set(x, cy, x + cw, cy + ch);
-            if (now) {
-                b.p.setColor(o.maybe ? pal.maybe : pal.off);
-            } else if (o.maybe) {
-                b.p.setColor(Ui.fade(pal.maybe, 0.35f));
+        /** A day: its title and the light to expect, the bar with hours, the outages as chips. */
+        float day(String title, String slots, int cur, float nowRel, float top) {
+            Paint head = text(Ui.display(c), 16, pal.text);
+            float y = line(title, top, head);
+            if (slots == null) return line("Графік ще не опубліковано", y + 8 * S, text(Ui.body(c), 14, pal.muted));
+            y = light(Logic.dayLight(slots), head.measureText(title), top, head.getTextSize(), y);
+            y = bar(slots, nowRel, y + 12 * S);
+            return chips(Logic.outages(slots, cur), y);
+        }
+
+        /** "очікується 17 год світла · 71 %" in a green pill at the right, level with the title. */
+        private float light(String light, float titleWidth, float top, float titleSize, float y) {
+            Paint lp = text(Ui.heavy(c), 12.5f, pal.onText);
+            float lw = lp.measureText(light) + 20 * S;
+            float lh = 26 * S;
+            float lt = top + (titleSize - lh) / 2f;
+            if (left + titleWidth + 10 * S + lw > right) {  // narrow: under the title
+                lt = y + 6 * S;
+                y = lt + lh;
+                b.r.set(left, lt, left + lw, lt + lh);
             } else {
-                b.p.setColor(Ui.blend(pal.card, Ui.fade(pal.off, pal.dark ? 0.24f : 0.14f)));
+                b.r.set(right - lw, lt, right, lt + lh);
             }
-            cv.drawRoundRect(b.r, ch / 2, ch / 2, b.p);
-            chip.setColor(now ? pal.ink : pal.text);
-            chip.setAlpha(o.when == Logic.Outage.PAST ? 120 : 255);
-            cv.drawText(label, x + 11 * s, cy + ch / 2 + chip.getTextSize() * 0.36f, chip);
-            x += cw + 6 * s;
+            b.p.setColor(Ui.blend(pal.card, Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f)));
+            b.cv.drawRoundRect(b.r, lh / 2, lh / 2, b.p);
+            b.cv.drawText(light, b.r.left + 10 * S, b.r.centerY() + lp.getTextSize() * 0.36f, lp);
+            return y;
         }
-        return list.isEmpty() ? y : cy + ch;
-    }
 
-    /** What the colours mean, wrapping to a second line on the narrow picture. */
-    private static float legend(Context c, Brush b, float left, float right, float y, float s) {
-        Paint t = text(Ui.bold(c), 12 * s, b.pal.muted);
-        String[][] items = {{"1", "світло є"}, {"0", "світла немає"}, {"3", "можливе вимкнення"}};
-        float x = left;
-        for (String[] it : items) {
-            if (x > left && x + 24 * s + t.measureText(it[1]) > right) {
-                x = left;
-                y += 22 * s;
+        /** The day's bar with the hours under it and, for today, a white stroke at now. */
+        private float bar(String slots, float nowRel, float top) {
+            RectF bar = new RectF(left, top, right, top + 14 * S);
+            BarView.runs(b, slots, 0, 48, 0, bar, 2 * S);
+            Paint lab = text(Ui.bold(c), 10.5f, pal.dim);
+            lab.setTextAlign(Paint.Align.CENTER);
+            float sw = bar.width() / 48f;
+            for (int hr = 0; hr <= 24; hr += 6) {
+                String l = String.format(Locale.ROOT, "%02d", hr);
+                float half = lab.measureText(l) / 2;
+                b.cv.drawText(l, Math.max(left + half, Math.min(right - half, left + hr * 2 * sw)), bar.bottom + 15 * S, lab);
             }
-            b.r.set(x, y + 2 * s, x + 18 * s, y + 12 * s);
-            BarView.runs(b, it[0], 0, 1, 0, b.r, 0);
-            x += 24 * s;
-            b.cv.drawText(it[1], x, y + 11.5f * s, t);
-            x += t.measureText(it[1]) + 16 * s;
+            if (nowRel >= 0 && nowRel <= 48) {
+                float x = left + nowRel * sw;
+                b.p.setColor(pal.card);
+                b.r.set(x - 2.5f * S, bar.top - 3 * S, x + 2.5f * S, bar.bottom + 3 * S);
+                b.cv.drawRoundRect(b.r, 2.5f * S, 2.5f * S, b.p);
+                b.p.setColor(pal.text);
+                b.r.set(x - 1.2f * S, bar.top - 2 * S, x + 1.2f * S, bar.bottom + 2 * S);
+                b.cv.drawRoundRect(b.r, 1.2f * S, 1.2f * S, b.p);
+            }
+            return bar.bottom + 20 * S;
         }
-        return y + 16 * s;
-    }
 
-    private static float line(Canvas cv, String s, float x, float y, Paint p) {
-        cv.drawText(s, x, y + p.getTextSize() * 0.8f, p);
-        return y + p.getTextSize();
-    }
+        /** The outages as chips: the one going on now filled red, the past ones faded. */
+        private float chips(List<Logic.Outage> list, float y) {
+            if (list.isEmpty()) return y;
+            Paint chip = text(Ui.heavy(c), 14, pal.text);
+            float x = left;
+            float ch = 30 * S;
+            float cy = y + 8 * S;
+            for (Logic.Outage o : list) {
+                boolean now = o.when == Logic.Outage.NOW;
+                String label = (now ? "зараз " : "") + (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–");
+                float cw = chip.measureText(label) + 22 * S;
+                if (x > left && x + cw > right) {
+                    x = left;
+                    cy += ch + 6 * S;
+                }
+                b.r.set(x, cy, x + cw, cy + ch);
+                b.p.setColor(chipColour(o, now));
+                b.cv.drawRoundRect(b.r, ch / 2, ch / 2, b.p);
+                chip.setColor(now ? pal.ink : pal.text);
+                chip.setAlpha(o.when == Logic.Outage.PAST ? 120 : 255);
+                b.cv.drawText(label, x + 11 * S, cy + ch / 2 + chip.getTextSize() * 0.36f, chip);
+                x += cw + 6 * S;
+            }
+            return cy + ch;
+        }
 
-    private static Paint text(android.graphics.Typeface tf, float size, int colour) {
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setTypeface(tf);
-        p.setTextSize(size);
-        p.setColor(colour);
-        return p;
+        private int chipColour(Logic.Outage o, boolean now) {
+            if (now) return o.maybe ? pal.maybe : pal.off;
+            if (o.maybe) return Ui.fade(pal.maybe, 0.35f);
+            return Ui.blend(pal.card, Ui.fade(pal.off, pal.dark ? 0.24f : 0.14f));
+        }
+
+        /** What the colours mean, wrapping to a second line on the narrow picture. */
+        float legend(float y) {
+            Paint t = text(Ui.bold(c), 12, pal.muted);
+            String[][] items = {{"1", "світло є"}, {"0", "світла немає"}, {"3", "можливе вимкнення"}};
+            float x = left;
+            for (String[] it : items) {
+                if (x > left && x + 24 * S + t.measureText(it[1]) > right) {
+                    x = left;
+                    y += 22 * S;
+                }
+                b.r.set(x, y + 2 * S, x + 18 * S, y + 12 * S);
+                BarView.runs(b, it[0], 0, 1, 0, b.r, 0);
+                x += 24 * S;
+                b.cv.drawText(it[1], x, y + 11.5f * S, t);
+                x += t.measureText(it[1]) + 16 * S;
+            }
+            return y + 16 * S;
+        }
+
+        /** A line of text whose top is at y, from the left margin; returns the y under it. */
+        float line(String s, float y, Paint p) {
+            b.cv.drawText(s, left, y + p.getTextSize() * 0.8f, p);
+            return y + p.getTextSize();
+        }
+
+        /** A paint for text of `sizeDp`. */
+        Paint text(android.graphics.Typeface tf, float sizeDp, int colour) {
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            p.setTypeface(tf);
+            p.setTextSize(sizeDp * S);
+            p.setColor(colour);
+            return p;
+        }
     }
 }

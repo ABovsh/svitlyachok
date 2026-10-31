@@ -34,7 +34,7 @@ public class ShareProvider extends ContentProvider {
     @Override
     public ParcelFileDescriptor openFile(Uri u, String mode) throws FileNotFoundException {
         if (!ours(u) || !"r".equals(mode)) throw new FileNotFoundException(u.toString());
-        return ParcelFileDescriptor.open(Share.file(getContext()), ParcelFileDescriptor.MODE_READ_ONLY);
+        return ParcelFileDescriptor.open(Share.picture(getContext()), ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
     @Override
@@ -46,7 +46,7 @@ public class ShareProvider extends ContentProvider {
     @Override
     public Cursor query(Uri u, String[] projection, String selection, String[] args, String order) {
         if (!ours(u)) return null;
-        File f = Share.file(getContext());
+        File f = Share.picture(getContext());
         MatrixCursor c = new MatrixCursor(new String[] {OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE});
         c.addRow(new Object[] {"svitlyachok-grafik.png", f.length()});
         return c;

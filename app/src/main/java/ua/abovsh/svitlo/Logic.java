@@ -795,27 +795,29 @@ public final class Logic {
         int state = OFF;
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
-        String head = mark(state) + e.name + " · ";
-        switch (e.kind) {
-            case Event.SOON_OFF:
-                n.title = head + (maybe ? "Можливе вимкнення" : "Скоро вимкнуть світло");
-                n.text = "о " + hm(e.change) + ", через " + waitText(Math.max(0, e.change - now));
-                break;
-            case Event.SOON_ON:
-                n.title = head + "Скоро увімкнуть світло";
-                n.text = "о " + hm(e.change) + ", через " + waitText(Math.max(0, e.change - now));
-                break;
-            case Event.AT_OFF:
-                n.title = head + (maybe ? "Можливе вимкнення за графіком" : "Вимкнення за графіком");
-                n.text = end > 0 ? "до " + until(end, e.change) : "за графіком";
-                break;
-            default:
-                n.title = head + "Світло має з'явитися";
-                n.text = "за графіком з " + hm(e.change);
-        }
+        n.title = mark(state) + e.name + " · " + eventWhat(e.kind, maybe);
+        n.text = eventWhen(e, end, now);
         if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
+    }
+
+    private static String eventWhat(int kind, boolean maybe) {
+        switch (kind) {
+            case Event.SOON_OFF: return maybe ? "Можливе вимкнення" : "Скоро вимкнуть світло";
+            case Event.SOON_ON: return "Скоро увімкнуть світло";
+            case Event.AT_OFF: return maybe ? "Можливе вимкнення за графіком" : "Вимкнення за графіком";
+            default: return "Світло має з'явитися";
+        }
+    }
+
+    /** "о 18:30, через 15 хв" ahead; at the moment, until when it lasts or since when. */
+    private static String eventWhen(Event e, long end, long now) {
+        if (e.kind == Event.SOON_OFF || e.kind == Event.SOON_ON) {
+            return "о " + hm(e.change) + ", через " + waitText(Math.max(0, e.change - now));
+        }
+        if (e.kind == Event.AT_ON) return "за графіком з " + hm(e.change);
+        return end > 0 ? "до " + until(end, e.change) : "за графіком";
     }
 
     /** A calendar first: a schedule, not a change of power. */

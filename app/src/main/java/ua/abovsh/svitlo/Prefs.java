@@ -17,6 +17,7 @@ final class Prefs {
     static final int MAX_PLACES = 4;
     static final int[] LEADS_OFF = {0, 10, 15, 30, 60};
     static final int[] LEADS_ON = {0, 5, 10, 15, 30};
+    private static final String ALERTS = "alerts_";
 
     private Prefs() {}
 
@@ -81,7 +82,7 @@ final class Prefs {
         list.removeIf(pl -> pl.id.equals(id));
         savePlaces(c, list);
         h(c).edit().remove(id).apply();
-        p(c).edit().remove("alerts_" + id).remove("mute_" + id).apply();
+        p(c).edit().remove(ALERTS + id).remove("mute_" + id).apply();
         if (id.equals(current(c))) setCurrent(c, "");
     }
 
@@ -156,11 +157,11 @@ final class Prefs {
 
     /** What one place notifies about; a place from before 1.3 takes the old common settings. */
     static Logic.Alerts alerts(Context c, String place) {
-        return Logic.alertsFrom(p(c).getString("alerts_" + place, null), common(c), muted(c, place));
+        return Logic.alertsFrom(p(c).getString(ALERTS + place, null), common(c), muted(c, place));
     }
 
     static void setAlerts(Context c, String place, Logic.Alerts a) {
-        p(c).edit().putString("alerts_" + place, Logic.alertsJson(a)).apply();
+        p(c).edit().putString(ALERTS + place, Logic.alertsJson(a)).apply();
     }
 
     /** The settings of 1.0–1.2, shared by all places; null when none were ever changed. */

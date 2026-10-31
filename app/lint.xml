@@ -15,4 +15,7 @@
     <issue id="UnusedAttribute" severity="ignore" />
     <!-- The resource compiler still wants adaptive icons in mipmap-anydpi-v26. -->
     <issue id="ObsoleteSdkInt" severity="ignore" />
+    <!-- The target Android level is raised deliberately, after testing on that version, not
+         whenever a newer one appears: CI's online lint would otherwise fail on release day. -->
+    <issue id="OldTargetApi" severity="ignore" />
 </lint>

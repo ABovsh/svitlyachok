@@ -11,3 +11,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Major versions of the build tools are migrations, done by hand with an emulator check.
+    ignore:
+      - dependency-name: "com.android.application"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "gradle-wrapper"
+        update-types: ["version-update:semver-major"]

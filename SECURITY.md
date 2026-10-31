@@ -1,8 +1,10 @@
 # Безпека
 
-Знайшли вразливість? Не відкривайте публічний issue — надішліть приватне повідомлення через
-[Security advisories](https://github.com/ABovsh/svitlyachok/security/advisories/new) цього
-репозиторію. Опишіть, що саме й як відтворити.
+Знайшли вразливість? Не відкривайте публічний issue — повідомте приватно через форму GitHub
+[«Report a vulnerability»](https://github.com/ABovsh/svitlyachok/security/advisories/new) цього
+репозиторію: повідомлення бачить лише власник репозиторію. Опишіть вразливість і кроки, як її
+відтворити.
 
-Підтримується лише остання версія зі сторінки
-[випусків](https://github.com/ABovsh/svitlyachok/releases/latest).
+Виправлення виходять лише в новій версії, попередні окремо не оновлюються. Остання версія — на
+сторінці [випусків](https://github.com/ABovsh/svitlyachok/releases/latest); про неї повідомляє
+картка на головному екрані застосунку.

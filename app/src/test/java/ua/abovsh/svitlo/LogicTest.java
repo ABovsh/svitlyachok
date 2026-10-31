@@ -381,6 +381,36 @@ public class LogicTest {
     }
 
     @Test
+    public void aReportSaysWhatAFixNeeds() {
+        Logic.ReportInfo r = new Logic.ReportInfo();
+        r.version = "1.2.0";
+        r.android = "15";
+        r.api = 35;
+        r.phone = "Samsung SM-A155F";
+        r.places = Arrays.asList(home());
+        r.notifications = true;
+        r.alerts = new Logic.Alerts();
+        r.alerts.on = false;
+        r.batteryUnlimited = false;
+        r.checked = at(9, 0);
+        r.now = at(10, 0);
+        r.widgets = 2;
+        assertEquals("Світлячок 1.2.0\n"
+                + "Android 15 (API 35), Samsung SM-A155F\n"
+                + "Місця: Київська область, черга 1.1\n"
+                + "Сповіщення: дозволені; вимкнення — за 15 хв, увімкнення — вимкнено\n"
+                + "Обмеження батареї: є\n"
+                + "Графік перевірено: сьогодні о 09:00\n"
+                + "Віджетів: 2", Logic.reportText(r));
+        r.checked = 0;
+        r.notifications = false;
+        r.alerts.leadOff = 0;
+        String s = Logic.reportText(r);
+        assertTrue(s.contains("Сповіщення: вимкнені в телефоні; вимкнення — одразу"));
+        assertTrue(s.contains("Графік перевірено: ще ні"));
+    }
+
+    @Test
     public void aReportOpensAPrefilledIssueOfThisRepository() {
         String url = Logic.issueLink("Світлячок 1.2.0\nAndroid 15");
         assertTrue(url.startsWith("https://github.com/ABovsh/svitlyachok/issues/new?template=problem.yml&details="));

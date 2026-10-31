@@ -764,6 +764,39 @@ public final class Logic {
         return String.join("; ", out);
     }
 
+    /** What a problem report says about the app and the phone. */
+    public static final class ReportInfo {
+        public String version = "";
+        public String android = "";
+        public int api;
+        public String phone = "";
+        public List<Place> places = new ArrayList<>();
+        public boolean notifications;
+        public Alerts alerts = new Alerts();
+        public boolean batteryUnlimited;
+        public long checked;
+        public long now;
+        public int widgets;
+    }
+
+    /** The technical lines of a problem report: versions, phone, regions and queues, notifications. */
+    public static String reportText(ReportInfo r) {
+        return "Світлячок " + r.version + "\n"
+                + "Android " + r.android + " (API " + r.api + "), " + r.phone + "\n"
+                + "Місця: " + placesSummary(r.places) + "\n"
+                + "Сповіщення: " + (r.notifications ? "дозволені" : "вимкнені в телефоні")
+                + "; вимкнення — " + leadWords(r.alerts.off, r.alerts.leadOff)
+                + ", увімкнення — " + leadWords(r.alerts.on, r.alerts.leadOn) + "\n"
+                + "Обмеження батареї: " + (r.batteryUnlimited ? "немає" : "є") + "\n"
+                + "Графік перевірено: " + (r.checked > 0 ? dayWord(r.checked, r.now) + " о " + hm(r.checked) : "ще ні") + "\n"
+                + "Віджетів: " + r.widgets;
+    }
+
+    private static String leadWords(boolean on, int minutes) {
+        if (!on) return "вимкнено";
+        return minutes == 0 ? "одразу" : "за " + minutes + " хв";
+    }
+
     /** A new issue in this repository with the technical details already in the form. */
     public static String issueLink(String details) {
         try {

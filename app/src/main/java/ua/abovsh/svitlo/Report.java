@@ -18,25 +18,19 @@ final class Report {
 
     /** Version, phone, regions and queues (never the place names), notification state, last check. */
     static String details(Context c) {
-        Logic.Alerts a = Prefs.alerts(c);
-        boolean allowed = c.getSystemService(NotificationManager.class).areNotificationsEnabled();
-        boolean unlimited = c.getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(c.getPackageName());
-        long checked = Sync.checkedAt(c);
-        return "Світлячок " + BuildConfig.VERSION_NAME + "\n"
-                + "Android " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + "), "
-                + Build.MANUFACTURER + " " + Build.MODEL + "\n"
-                + "Місця: " + Logic.placesSummary(Prefs.places(c)) + "\n"
-                + "Сповіщення: " + (allowed ? "дозволені" : "вимкнені в телефоні")
-                + "; вимкнення — " + lead(a.off, a.leadOff) + ", увімкнення — " + lead(a.on, a.leadOn) + "\n"
-                + "Обмеження батареї: " + (unlimited ? "немає" : "є") + "\n"
-                + "Графік перевірено: " + (checked > 0 ? Logic.updated(checked, Sync.now()).replace("графік оновлено ", "")
-                        : "ще ні") + "\n"
-                + "Віджетів: " + Widgets.ids(c).length;
-    }
-
-    private static String lead(boolean on, int minutes) {
-        if (!on) return "вимкнено";
-        return minutes == 0 ? "одразу" : "за " + minutes + " хв";
+        Logic.ReportInfo r = new Logic.ReportInfo();
+        r.version = BuildConfig.VERSION_NAME;
+        r.android = Build.VERSION.RELEASE;
+        r.api = Build.VERSION.SDK_INT;
+        r.phone = Build.MANUFACTURER + " " + Build.MODEL;
+        r.places = Prefs.places(c);
+        r.notifications = c.getSystemService(NotificationManager.class).areNotificationsEnabled();
+        r.alerts = Prefs.alerts(c);
+        r.batteryUnlimited = c.getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(c.getPackageName());
+        r.checked = Sync.checkedAt(c);
+        r.now = Sync.now();
+        r.widgets = Widgets.ids(c).length;
+        return Logic.reportText(r);
     }
 
     static void onGitHub(Activity a) {

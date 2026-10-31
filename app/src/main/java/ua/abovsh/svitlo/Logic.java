@@ -359,6 +359,7 @@ public final class Logic {
         public String title = "";
         public String big = "";
         public String hint = "";
+        public String hintIn = "";
         public String then = "";
         public String since = "";
         public String already = "";
@@ -403,10 +404,10 @@ public final class Logic {
         n.title = title(n.state);
         if (n.state == UNKNOWN) {
             n.big = NOT_PUBLISHED;
-            n.hint = "щойно обленерго його оприлюднить, він з'явиться тут";
+            n.hint = "Щойно обленерго його оприлюднить, він з'явиться тут";
         } else if (none) {
             n.big = NO_OUTAGES;
-            n.hint = "відключень за графіком не заплановано";
+            n.hint = "Відключень за графіком не заплановано";
         } else {
             List<int[]> ch = changesFrom(tl, cur);
             if (ch.isEmpty()) steady(n, tl, cur, c);
@@ -418,7 +419,8 @@ public final class Logic {
 
     /**
      * "з 14:30" and "уже 3 год 08 хв": when the present state began. A state from midnight looks
-     * into yesterday; without yesterday, or the same all yesterday too, the start is not known.
+     * into yesterday; without yesterday the start is not known, the same all yesterday too is
+     * "уже понад добу".
      */
     private static void since(Now n, String tl, int cur, char c, String yesterday, LocalDate base, long now) {
         int i = cur;
@@ -431,7 +433,11 @@ public final class Logic {
             if (yesterday == null || yesterday.length() != 48) return;
             int j = 48;
             while (j > 0 && yesterday.charAt(j - 1) == c) j--;
-            if (j == 0 || yesterday.charAt(j - 1) == '2') return;  // all day, or hours without a schedule
+            if (j == 0) {  // the same all yesterday too: when it began is not known, only that it is long
+                n.already = "уже понад добу";
+                return;
+            }
+            if (yesterday.charAt(j - 1) == '2') return;  // hours without a schedule
             start = slotStart(base.minusDays(1), j);
             if (j < 48) day = " учора";
         }
@@ -445,13 +451,13 @@ public final class Logic {
         while (j < tl.length() && tl.charAt(j) == c) j++;
         if (j < tl.length()) {
             n.big = "до кінця дня";
-            n.hint = "графік на завтра ще не опубліковано";
+            n.hint = "Графік на завтра ще не опубліковано";
         } else if (c == '1') {
             n.big = NO_OUTAGES;
-            n.hint = "сьогодні й завтра вимкнень немає";
+            n.hint = "Сьогодні й завтра вимкнень немає";
         } else {
             n.big = "понад добу";
-            n.hint = "за графіком і завтра";
+            n.hint = "За графіком і завтра";
         }
     }
 
@@ -465,14 +471,14 @@ public final class Logic {
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
             n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
-        // the clock first, how long in brackets: "о 22:30 (через 1 год 44 хв)"
+        // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
-        String in = (at.startsWith("завтра") ? " завтра о " + hm(change) : " о " + at)
-                + " (через " + waitText(change - now) + ")";
-        if (next == '0') n.hint = "вимкнуть" + in;
-        else if (next == '3') n.hint = "можливе вимкнення" + in;
-        else if (c == '0') n.hint = "увімкнуть" + in;
-        else n.hint = "можливе вимкнення закінчиться" + in;
+        String when = at.startsWith("завтра") ? " завтра о " + hm(change) : " о " + at;
+        if (next == '0') n.hint = "Вимкнуть" + when;
+        else if (next == '3') n.hint = "Можливо вимкнуть" + when;
+        else if (c == '0') n.hint = "Увімкнуть" + when;
+        else n.hint = "Буде світло" + when;
+        n.hintIn = "(через " + waitText(change - now) + ")";
     }
 
     // ---- day lists -------------------------------------------------------------
@@ -1122,5 +1128,146 @@ public final class Logic {
 
     public static int widgetForm(int wDp, int hDp) {
         return wDp >= 200 && hDp >= 110 ? W_FULL : W_ROW;
+    }
+
+    // ---- the place card and the bar of a day ---------------------------------------
+
+    /** The line of the present: "Світло є з 14:30". */
+    public static String nowLine(Now n) {
+        return n.since.isEmpty() ? n.title : n.title + " " + n.since;
+    }
+
+    /** What follows it, smaller: "(уже 3 год 08 хв)". */
+    public static String nowLineIn(Now n) {
+        return n.already.isEmpty() ? "" : "(" + n.already + ")";
+    }
+
+    /** The same in fewer letters, for a line that does not fit: "Світло є вже 1 д 15 год". */
+    public static String nowLineShort(Now n) {
+        return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
+    }
+
+    /** Hours inside a run of the bar, to tenths: "3,5г", "4г". */
+    public static String barHours(int halves) {
+        return (halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5") + "г";
+    }
+
+    /** How much light a day brings, from the longest form to the shortest that fits. */
+    public static List<String> dayLights(String day) {
+        List<String> out = new ArrayList<>();
+        if (day == null) {
+            out.add(NOT_PUBLISHED);
+            return out;
+        }
+        int on = count(day, '1');
+        if (on == day.length()) {
+            out.add(NO_OUTAGES);
+            return out;
+        }
+        String hours = length(on) + " світла";
+        String share = Math.round(on * 100f / day.length()) + " %";
+        out.add(hours + " · " + share);
+        out.add(hours);
+        out.add(share);
+        return out;
+    }
+
+    /**
+     * How close to a change the card lights its last line: as early as the place's reminder for
+     * it; without a reminder, or one at the very moment, half an hour.
+     */
+    public static long soonS(Alerts a, int next) {
+        int lead = -1;
+        if (next == ON) {
+            if (a.on) lead = a.leadOn;
+        } else if (a.off) {
+            lead = a.leadOff;
+        }
+        return lead > 0 ? lead * 60L : SOON_S;
+    }
+
+    /** A clock time under the bar: its slot (0..48), what begins there, its centre. */
+    public static final class Label {
+        public int slot;
+        public int kind;  // OFF, ON, MAYBE, or UNKNOWN for a plain grey hour
+        public float x;
+    }
+
+    /**
+     * The clock times under the bar of a day, `width` wide, each label `labelW` wide with `gap`
+     * between: the next change and the next outage with its end always (moved aside if they are close),
+     * then the later changes, the past ones, and grey hours 00, 24, 12, 06, 18 where there is room.
+     * `cur` is the slot of now, -1 for a day that is not today.
+     */
+    public static List<Label> barLabels(String day, int cur, float width, float labelW, float gap) {
+        List<int[]> ch = new ArrayList<>();  // slot, kind
+        int i = 0;
+        while (i < day.length()) {
+            char c = day.charAt(i);
+            int j = i;
+            while (j < day.length() && day.charAt(j) == c) j++;
+            if (c == '0' || c == '3') {
+                ch.add(new int[] {i, state(c)});
+                char after = j < day.length() ? day.charAt(j) : '1';
+                if (after == '1') ch.add(new int[] {j, ON});
+            }
+            i = j;
+        }
+        List<int[]> order = new ArrayList<>();
+        int[] next = null;
+        int[] nextOff = null;
+        for (int[] c : ch) {
+            if (c[0] <= cur) continue;
+            if (next == null) next = c;
+            if (nextOff == null && c[1] != ON) nextOff = c;
+        }
+        if (next != null) order.add(next);
+        if (nextOff != null && nextOff != next) order.add(nextOff);
+        int off = ch.indexOf(nextOff);  // and when that outage ends
+        if (off >= 0 && off + 1 < ch.size() && ch.get(off + 1)[1] == ON) order.add(ch.get(off + 1));
+        int must = order.size();
+        for (int[] c : ch) if (c[0] > cur && !order.contains(c)) order.add(c);
+        for (int k = ch.size() - 1; k >= 0; k--) if (ch.get(k)[0] <= cur) order.add(ch.get(k));
+        for (int h : new int[] {0, 48, 24, 12, 36}) order.add(new int[] {h, UNKNOWN});
+        List<Label> out = new ArrayList<>();
+        float half = labelW / 2;
+        float sw = width / 48f;
+        for (int k = 0; k < order.size(); k++) {
+            int[] c = order.get(k);
+            if (has(out, c[0])) continue;
+            float x = clampX(c[0] * sw, half, width);
+            if (k < must) x = aside(out, x, labelW + gap, half, width);
+            if (!free(out, x, labelW + gap)) continue;
+            Label l = new Label();
+            l.slot = c[0];
+            l.kind = c[1];
+            l.x = x;
+            out.add(l);
+        }
+        return out;
+    }
+
+    private static float clampX(float x, float half, float width) {
+        return Math.max(half, Math.min(width - half, x));
+    }
+
+    private static boolean has(List<Label> l, int slot) {
+        for (Label x : l) if (x.slot == slot) return true;
+        return false;
+    }
+
+    private static boolean free(List<Label> l, float x, float span) {
+        for (Label o : l) if (Math.abs(o.x - x) < span - 0.01f) return false;
+        return true;
+    }
+
+    /** A label that must be shown, moved away from the one it touches, by at most its own width. */
+    private static float aside(List<Label> l, float x, float span, float half, float width) {
+        for (Label o : l) {
+            if (Math.abs(o.x - x) >= span) continue;
+            float moved = clampX(x >= o.x ? o.x + span : o.x - span, half, width);
+            if (Math.abs(moved - x) <= span && free(l, moved, span)) return moved;
+        }
+        return x;
     }
 }

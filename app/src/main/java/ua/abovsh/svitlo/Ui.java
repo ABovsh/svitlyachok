@@ -141,6 +141,11 @@ final class Ui {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics());
     }
 
+    /** sp as exact pixels: text drawn by hand grows with the system font size too. */
+    static float sp(Context c, float v) {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, v, c.getResources().getDisplayMetrics());
+    }
+
     /** dp as whole pixels, for layout. */
     static int dp(Context c, int v) {
         return dp(c, (float) v);
@@ -269,5 +274,24 @@ final class Ui {
     /** "п'ятниця, 30 жовтня" */
     static String date(java.time.LocalDate d) {
         return DAYS[d.getDayOfWeek().getValue() - 1] + ", " + d.getDayOfMonth() + " " + MONTHS[d.getMonthValue() - 1];
+    }
+
+    /** A typeface for part of a text: the words heavy, the brackets after them lighter. */
+    static final class Face extends android.text.style.MetricAffectingSpan {
+        private final Typeface face;
+
+        Face(Typeface face) {
+            this.face = face;
+        }
+
+        @Override
+        public void updateDrawState(android.text.TextPaint p) {
+            p.setTypeface(face);
+        }
+
+        @Override
+        public void updateMeasureState(android.text.TextPaint p) {
+            p.setTypeface(face);
+        }
     }
 }

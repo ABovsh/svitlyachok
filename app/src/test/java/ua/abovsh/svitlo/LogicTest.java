@@ -132,7 +132,8 @@ public class LogicTest {
         assertEquals(Logic.ON, n.state);
         assertEquals("Світло є", n.title);
         assertEquals("до 14:30", n.big);
-        assertEquals("вимкнуть о 14:30 (через 4 год 30 хв)", n.hint);
+        assertEquals("Вимкнуть о 14:30", n.hint);
+        assertEquals("(через 4 год 30 хв)", n.hintIn);
         assertEquals(Logic.OFF, n.next);  // the hint takes the colour of what comes
         assertFalse(n.soon);
     }
@@ -141,7 +142,8 @@ public class LogicTest {
     public void soonOff() throws Exception {
         Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(14, 10), false);
         assertTrue(n.soon);
-        assertEquals("вимкнуть о 14:30 (через 20 хв)", n.hint);
+        assertEquals("Вимкнуть о 14:30", n.hint);
+        assertEquals("(через 20 хв)", n.hintIn);
     }
 
     @Test
@@ -150,7 +152,7 @@ public class LogicTest {
         assertEquals(Logic.OFF, n.state);
         assertEquals("Світла немає", n.title);
         assertEquals("до 18:30", n.big);
-        assertEquals("увімкнуть о 18:30 (через 3 год 30 хв)", n.hint);
+        assertEquals("Увімкнуть о 18:30", n.hint);
         assertEquals(Logic.ON, n.next);
     }
 
@@ -159,7 +161,8 @@ public class LogicTest {
         Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(20, 0), false);
         assertEquals(Logic.ON, n.state);
         assertEquals("до кінця дня", n.big);
-        assertEquals("графік на завтра ще не опубліковано", n.hint);
+        assertEquals("Графік на завтра ще не опубліковано", n.hint);
+        assertEquals("", n.hintIn);
         assertEquals(Logic.UNKNOWN, n.next);
     }
 
@@ -167,7 +170,7 @@ public class LogicTest {
     public void untilMidnightAndTomorrow() throws Exception {
         Logic.Now n = Logic.now(tl(WITH_TOMORROW), OCT30, at(20, 0), false);
         assertEquals("до 24:00", n.big);
-        assertEquals("вимкнуть о 24:00 (через 4 год 00 хв)", n.hint);
+        assertEquals("Вимкнуть о 24:00", n.hint);
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
         assertEquals("до завтра 06:00", Logic.now(later, OCT30, at(20, 0), false).big);
     }
@@ -177,7 +180,7 @@ public class LogicTest {
         Logic.Now n = Logic.now(tl(feed("[]")), OCT30, at(12, 0), true);
         assertEquals(Logic.ON, n.state);
         assertEquals("без вимкнень", n.big);
-        assertEquals("відключень за графіком не заплановано", n.hint);
+        assertEquals("Відключень за графіком не заплановано", n.hint);
     }
 
     @Test
@@ -781,7 +784,9 @@ public class LogicTest {
         assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
         assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
         // the same all yesterday: longer than a day, the start is not known
-        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48)).since);
+        Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
+        assertEquals("", allDay.since);
+        assertEquals("уже понад добу", allDay.already);
         // no schedule, or no outages at all: nothing to count from
         assertEquals("", Logic.now(repeat('2', 96), OCT30, at(12, 0), false, null).since);
         assertEquals("", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
@@ -790,7 +795,9 @@ public class LogicTest {
     @Test
     public void theHintSaysTheClockTimeThenHowLong() throws Exception {
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
-        assertEquals("вимкнуть завтра о 06:00 (через 10 год 00 хв)", Logic.now(later, OCT30, at(20, 0), false).hint);
+        Logic.Now n = Logic.now(later, OCT30, at(20, 0), false);
+        assertEquals("Вимкнуть завтра о 06:00", n.hint);
+        assertEquals("(через 10 год 00 хв)", n.hintIn);
     }
 
     @Test
@@ -826,5 +833,102 @@ public class LogicTest {
         assertFalse(Logic.trustedDownload("https://evil.example/objects.githubusercontent.com/x"));
         assertFalse(Logic.trustedDownload("https://objects.githubusercontent.com.evil.example/x"));
         assertFalse(Logic.trustedDownload(null));
+    }
+
+    // ---- 1.4: three lines in the place card, a bar with clock times ---------------------
+
+    @Test
+    public void theNextLineSaysWhatComesWithACapital() throws Exception {
+        String t = DAY_11 + repeat('1', 48);
+        // a possible outage ahead, and the end of one
+        String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 68);
+        assertEquals("Можливо вимкнуть о 10:00", Logic.now(maybe, OCT30, at(9, 0), false).hint);
+        assertEquals("Буде світло о 14:00", Logic.now(maybe, OCT30, at(11, 0), false).hint);
+        assertEquals("(через 3 год 00 хв)", Logic.now(maybe, OCT30, at(11, 0), false).hintIn);
+        assertEquals("Сьогодні й завтра вимкнень немає", Logic.now(repeat('1', 96), OCT30, at(9, 0), false).hint);
+        assertEquals("За графіком і завтра", Logic.now(repeat('0', 96), OCT30, at(9, 0), false).hint);
+        assertEquals("Увімкнуть о 18:30", Logic.now(t, OCT30, at(15, 0), false).hint);
+    }
+
+    @Test
+    public void theCurrentLineHasAFullAndAShortForm() throws Exception {
+        Logic.Now on = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false, null);
+        assertEquals("Світло є з 08:00", Logic.nowLine(on));
+        assertEquals("(уже 2 год 00 хв)", Logic.nowLineIn(on));
+        assertEquals("Світло є вже 2 год 00 хв", Logic.nowLineShort(on));
+        Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
+        assertEquals("Світло є", Logic.nowLine(allDay));
+        assertEquals("(уже понад добу)", Logic.nowLineIn(allDay));
+        Logic.Now unknown = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
+        assertEquals("Світло є", Logic.nowLine(unknown));
+        assertEquals("", Logic.nowLineIn(unknown));
+        assertEquals("Світло є", Logic.nowLineShort(unknown));
+    }
+
+    @Test
+    public void hoursInsideTheBarToTenths() {
+        assertEquals("3,5г", Logic.barHours(7));
+        assertEquals("4г", Logic.barHours(8));
+        assertEquals("0,5г", Logic.barHours(1));
+        assertEquals("24г", Logic.barHours(48));
+    }
+
+    @Test
+    public void theLightOfADayInShorterForms() {
+        assertEquals(Arrays.asList("18 год світла · 75 %", "18 год світла", "75 %"), Logic.dayLights(DAY_11));
+        assertEquals(Arrays.asList("без вимкнень"), Logic.dayLights(repeat('1', 48)));
+    }
+
+    @Test
+    public void theHighlightComesWithTheReminderOfThePlace() {
+        Logic.Alerts a = new Logic.Alerts();
+        a.leadOff = 15;
+        a.leadOn = 10;
+        assertEquals(15 * 60L, Logic.soonS(a, Logic.OFF));
+        assertEquals(15 * 60L, Logic.soonS(a, Logic.MAYBE));
+        assertEquals(10 * 60L, Logic.soonS(a, Logic.ON));
+        a.on = false;  // no reminder: the usual half an hour
+        assertEquals(Logic.SOON_S, Logic.soonS(a, Logic.ON));
+        a.leadOff = 0;  // a reminder at the very moment: still the usual half an hour ahead
+        assertEquals(Logic.SOON_S, Logic.soonS(a, Logic.OFF));
+    }
+
+    @Test
+    public void barLabelsAlwaysShowTheNextChangeAndTheNextOutage() {
+        // today: off 02-05:30, 09-13, 15:30-17, 18:30-22; now 10:30; 318 dp wide, labels 30 dp
+        String day = repeat('1', 4) + repeat('0', 7) + repeat('1', 7) + repeat('0', 8) + repeat('1', 5)
+                + repeat('0', 3) + repeat('1', 3) + repeat('0', 7) + repeat('1', 4);
+        List<Logic.Label> l = Logic.barLabels(day, 21, 318, 30, 5);
+        assertEquals(26, l.get(0).slot);  // 13:00, the next change
+        assertEquals(Logic.ON, l.get(0).kind);
+        assertEquals(31, l.get(1).slot);  // 15:30, the next outage: shown even 2.5 hours after 13:00
+        assertEquals(Logic.OFF, l.get(1).kind);
+        assertTrue(has(l, 34));           // 17:00, when it ends
+        assertTrue(has(l, 4));            // 02:00, past: shown while there is room
+        for (int i = 0; i < l.size(); i++) {  // never on top of each other, never past the edges
+            assertTrue(l.get(i).x >= 15 && l.get(i).x <= 318 - 15);
+            for (int j = i + 1; j < l.size(); j++) assertTrue(Math.abs(l.get(i).x - l.get(j).x) >= 35 - 0.01f);
+        }
+        // an outage to the end of the day: power back at 24:00; one from midnight starts at 00:00
+        List<Logic.Label> t = Logic.barLabels(repeat('0', 4) + repeat('1', 36) + repeat('3', 8), -1, 318, 30, 5);
+        assertEquals(Logic.OFF, kind(t, 0));
+        assertEquals(Logic.ON, kind(t, 4));
+        assertEquals(Logic.MAYBE, kind(t, 40));
+        assertEquals(Logic.ON, kind(t, 48));
+        // no outages: only the grey hours
+        List<Logic.Label> clean = Logic.barLabels(repeat('1', 48), 10, 318, 30, 5);
+        assertEquals(Logic.UNKNOWN, kind(clean, 0));
+        assertEquals(Logic.UNKNOWN, kind(clean, 48));
+        assertEquals(5, clean.size());  // 00, 06, 12, 18, 24
+    }
+
+    private static boolean has(List<Logic.Label> l, int slot) {
+        for (Logic.Label x : l) if (x.slot == slot) return true;
+        return false;
+    }
+
+    private static int kind(List<Logic.Label> l, int slot) {
+        for (Logic.Label x : l) if (x.slot == slot) return x.kind;
+        return -99;
     }
 }

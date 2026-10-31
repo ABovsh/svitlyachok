@@ -6,12 +6,10 @@ import android.view.ViewGroup;
 
 /**
  * Chips left to right, wrapping to the next line when they do not fit, each centred on its line.
- * Spread: when all fit on one line, the last one sits at the right edge.
  */
 final class FlowRow extends ViewGroup {
     private final int gap;
     private final int rowGap;
-    private boolean spread;
     private int[] lines = new int[1];  // the height of each line; a line per child at most
 
     FlowRow(Context c, int gap) {
@@ -28,10 +26,6 @@ final class FlowRow extends ViewGroup {
     public void onViewAdded(View child) {
         super.onViewAdded(child);
         if (lines.length < getChildCount() + 1) lines = new int[getChildCount() + 1];
-    }
-
-    void spread() {
-        spread = true;
     }
 
     @Override
@@ -61,8 +55,7 @@ final class FlowRow extends ViewGroup {
         int x = 0;
         int y = 0;
         int row = 0;
-        int n = getChildCount();
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
             int w = v.getMeasuredWidth();
             if (x > 0 && x + w > max) {
@@ -70,7 +63,7 @@ final class FlowRow extends ViewGroup {
                 y += lines[row] + rowGap;
                 row++;
             }
-            int left = spread && row == 0 && i == n - 1 && i > 0 ? max - w : x;
+            int left = x;
             int top = y + (lines[row] - v.getMeasuredHeight()) / 2;
             v.layout(left, top, left + w, top + v.getMeasuredHeight());
             x += w + gap;

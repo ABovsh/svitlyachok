@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -33,8 +34,16 @@ public class MainActivity extends Base {
     private int percent;
     private TextView getButton;
 
-    /** The round buttons of the place card, dp. */
+    /** The round buttons of the header, dp. */
     private static final int HERO_BUTTON = 44;
+    /** The round buttons of the place card, dp. */
+    private static final int PLACE_BUTTON = 34;
+    /** The status lines of the place card: the largest size, the size under which a line takes
+     *  its shorter form, the least, all sp; and the brackets, as a share of the size. */
+    private static final float STATUS_MAX = 24;
+    private static final float STATUS_SHORT = 16;
+    private static final float STATUS_MIN = 12;
+    private static final float STATUS_IN = 0.75f;
     private TextView sub;
     private String shown = "";
     private View addWidget;
@@ -382,52 +391,167 @@ public class MainActivity extends Base {
         return t;
     }
 
+    /**
+     * Three lines: the place with its buttons, what is now and what comes next. The two status
+     * lines share the largest size at which both fit, so the card never grows.
+     */
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
         Logic.Now n = Logic.now(tl, base, now, d != null && d.none, yesterday(p, d, base));
         if (d == null) {
             n.title = "Завантажую графік";
             n.big = "";
-            n.hint = "інтернет потрібен лише для першого завантаження";
+            n.hint = "Інтернет потрібен лише для першого завантаження";
+            n.hintIn = "";
         }
         int tint = n.state == Logic.UNKNOWN ? 0 : pal.fill(n.state);
-        // the words on the left; on the right, round buttons: notifications and statistics;
-        // under both, across the whole card, what comes next
         LinearLayout card = Ui.column(this);
-        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 14));
+        // the sides are padded per line: the last line fills to 4 dp from the edge when lit
+        int pad = Ui.dp(this, 7);
+        card.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), Ui.dp(this, 12));
         card.setBackground(Ui.card(this, pal, tint));
-        LinearLayout top = Ui.row(this);
-        top.setBaselineAligned(false);
-        top.setGravity(Gravity.TOP);  // the words start level with the bell, however tall the buttons
-        card.addView(top, fill());
-        LinearLayout words = Ui.column(this);
-        top.addView(words, weight());
-        LinearLayout buttons = Ui.column(this);
-        buttons.addView(bell(p), new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
-        View stats = iconButton(R.drawable.ic_stats, "Статистика за тиждень і місяць",
-                v -> startActivity(new Intent(this, StatsActivity.class)));
-        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON));
-        sl.topMargin = Ui.dp(this, 8);
-        buttons.addView(stats, sl);
-        LinearLayout.LayoutParams bl = wrap();
-        bl.leftMargin = Ui.dp(this, 8);
-        top.addView(buttons, bl);
 
-        TextView where = Ui.text(this, 14, Ui.bold(this), pal.muted);
+        // the place, and at the right its statistics and notifications
+        LinearLayout top = Ui.row(this);
+        top.setPadding(pad, 0, pad, 0);
+        card.addView(top, fill());
+        TextView where = Ui.text(this, 19, Ui.heavy(this), pal.text);
         android.text.SpannableStringBuilder w = new android.text.SpannableStringBuilder(p.name);
-        w.setSpan(new android.text.style.ForegroundColorSpan(pal.text), 0, p.name.length(), 0);
+        int from = w.length();
         w.append(" · черга ").append(Logic.queue(p.group));
+        w.setSpan(new android.text.style.ForegroundColorSpan(pal.muted), from, w.length(), 0);
+        w.setSpan(new android.text.style.AbsoluteSizeSpan(14, true), from, w.length(), 0);
+        w.setSpan(new Ui.Face(Ui.bold(this)), from, w.length(), 0);
         where.setText(w);
         where.setMaxLines(1);
         where.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        where.setPadding(0, Ui.dp(this, 11), 0, 0);  // level with the middle of the bell
-        words.addView(where, fill());
+        top.addView(where, weight());
+        View stats = iconButton(R.drawable.ic_stats, "Статистика за тиждень і місяць",
+                v -> startActivity(new Intent(this, StatsActivity.class)));
+        top.addView(small(stats, 6));
+        top.addView(small(bell(p), 6));
+
+        boolean soon = n.next != Logic.UNKNOWN && n.change > now
+                && n.change - now <= Logic.soonS(Prefs.alerts(this, p.id), n.next);
+        TextView present = status();
+        TextView next = status();
+        int nowColour = n.state == Logic.UNKNOWN ? pal.text : pal.status(n.state);
+        int nextColour;
+        int inColour = pal.muted;
+        if (n.next != Logic.UNKNOWN) {
+            nextColour = Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f));
+        } else {  // nothing changes: "no outages" in green, "not published yet" in grey
+            nextColour = n.hint.startsWith("Графік") || n.state == Logic.UNKNOWN ? pal.muted : nowColour;
+        }
+        present.setPadding(pad, 0, pad, 0);
+        next.setPadding(pad, 0, pad, 0);
+        if (soon) {  // the reminder time has come: the line in the colour of what comes
+            nextColour = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+            inColour = Ui.fade(nextColour, 0.85f);
+            next.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 11)));
+        }
+        String[][] nowForms = {{Logic.nowLine(n), Logic.nowLineIn(n)}, {Logic.nowLineShort(n), ""}};
+        String[][] nextForms = {{n.hint, n.hintIn}, {n.hint, ""}};
+        LinearLayout.LayoutParams pl = fill();
+        pl.topMargin = Ui.dp(this, 4);
+        card.addView(present, pl);
+        LinearLayout.LayoutParams nl = fill();
+        nl.topMargin = Ui.dp(this, 2);
+        card.addView(next, nl);
+        int finalNext = nextColour;
+        int finalIn = inColour;
+        present.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> {
+            if (r - l != or - ol) present.post(() -> fit(present, nowForms, nowColour, pal.muted,
+                    next, nextForms, finalNext, finalIn));
+        });
 
         card.setContentDescription("Зараз за графіком: " + n.title
-                + (n.since.isEmpty() ? "" : " " + n.since + ", " + n.already) + (n.hint.isEmpty() ? "" : ", " + n.hint));
-        // the same card for one place or several: with one place there are no tiles above it
-        since(words, n);
-        hint(card, n);
+                + (n.since.isEmpty() ? "" : " " + n.since) + (n.already.isEmpty() ? "" : ", " + n.already)
+                + (n.hint.isEmpty() ? "" : ". " + n.hint) + (n.hintIn.isEmpty() ? "" : " " + n.hintIn));
         return card;
+    }
+
+    /** A round button of the place card, a little smaller than those of the header. */
+    private View small(View b, int gap) {
+        int size = Ui.dp(this, PLACE_BUTTON);
+        if (b instanceof ImageView) {
+            ((ImageView) b).setScaleType(ImageView.ScaleType.FIT_CENTER);
+            int in = Ui.dp(this, 8);
+            b.setPadding(in, in, in, in);
+        }
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(size, size);
+        l.leftMargin = Ui.dp(this, gap);
+        b.setLayoutParams(l);
+        return b;
+    }
+
+    private TextView status() {
+        TextView t = Ui.text(this, 20, Ui.heavy(this), pal.text);
+        t.setMaxLines(1);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setIncludeFontPadding(false);
+        // the height of the largest size: the card keeps its height whatever the words
+        t.setMinHeight(Math.round(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+                STATUS_MAX * 1.45f, getResources().getDisplayMetrics())));
+        return t;
+    }
+
+    /**
+     * Both status lines at one size: the largest, up to STATUS_MAX sp, at which each fits; a line
+     * that would fall under STATUS_SHORT sp takes its shorter form first.
+     */
+    private void fit(TextView a, String[][] aForms, int aColour, int aIn,
+                     TextView b, String[][] bForms, int bColour, int bIn) {
+        float width = (float) a.getWidth() - a.getPaddingLeft() - a.getPaddingRight();
+        if (width <= 0) return;
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        float max = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_MAX, dm);
+        float shortAt = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_SHORT, dm);
+        float least = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_MIN, dm);
+        android.text.TextPaint tp = new android.text.TextPaint(a.getPaint());
+        String[] af = form(tp, aForms, width, max, shortAt);
+        String[] bf = form(tp, bForms, width, max, shortAt);
+        float size = Math.max(least, Math.min(largest(tp, af, width, max), largest(tp, bf, width, max)));
+        a.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size);
+        b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size);
+        a.setText(styled(af, aColour, aIn));
+        b.setText(styled(bf, bColour, bIn));
+    }
+
+    private String[] form(android.text.TextPaint tp, String[][] forms, float width, float max, float shortAt) {
+        for (String[] f : forms) if (largest(tp, f, width, max) >= shortAt) return f;
+        return forms[forms.length - 1];
+    }
+
+    /** The largest size, in half-sp steps from `max`, at which the words and the smaller brackets fit. */
+    private float largest(android.text.TextPaint tp, String[] f, float width, float max) {
+        float step = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 0.5f,
+                getResources().getDisplayMetrics());
+        for (float s = max; s > step; s -= step) {
+            tp.setTypeface(Ui.heavy(this));
+            tp.setTextSize(s);
+            float w = tp.measureText(f[0]);
+            if (!f[1].isEmpty()) {
+                tp.setTypeface(Ui.body(this));
+                tp.setTextSize(s * STATUS_IN);
+                w += tp.measureText(" " + f[1]);
+            }
+            if (w <= width) return s;
+        }
+        return step;
+    }
+
+    /** "Світло є з 14:30" in the colour of the state, " (уже 3 год 08 хв)" smaller and grey. */
+    private CharSequence styled(String[] f, int colour, int in) {
+        android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder(f[0]);
+        s.setSpan(new android.text.style.ForegroundColorSpan(colour), 0, s.length(), 0);
+        if (!f[1].isEmpty()) {
+            int from = s.length();
+            s.append(" ").append(f[1]);
+            s.setSpan(new android.text.style.ForegroundColorSpan(in), from, s.length(), 0);
+            s.setSpan(new android.text.style.RelativeSizeSpan(STATUS_IN), from, s.length(), 0);
+            s.setSpan(new Ui.Face(Ui.body(this)), from, s.length(), 0);
+        }
+        return s;
     }
 
     /** Yesterday of a place: from the source while it still has it, else from the statistics. */
@@ -435,53 +559,6 @@ public class MainActivity extends Base {
         LocalDate y = base.minusDays(1);
         String day = Logic.day(d, p.group, y);
         return day != null ? day : Prefs.history(this, p.id).get(y);
-    }
-
-    /** "Світло є з 14:30" in the colour of the state, "уже 3 год 08 хв" under it. */
-    private void since(LinearLayout card, Logic.Now n) {
-        int colour = n.state == Logic.UNKNOWN ? pal.text : pal.status(n.state);
-        TextView t = Ui.text(this, 17, Ui.heavy(this), colour);
-        t.setText(n.since.isEmpty() ? n.title : n.title + " " + n.since);
-        card.addView(t, withTop(8));
-        if (n.already.isEmpty()) return;
-        TextView a = Ui.text(this, 14, Ui.bold(this), pal.muted);
-        a.setText(n.already);
-        a.setPadding(0, Ui.dp(this, 2), 0, 0);
-        card.addView(a, fill());
-    }
-
-    private LinearLayout.LayoutParams withTop(int dp) {
-        LinearLayout.LayoutParams l = fill();
-        l.topMargin = Ui.dp(this, dp);
-        return l;
-    }
-
-    /**
-     * "вимкнуть через 1 год 37 хв (21:00)" in a pill, in the colour of what comes: reddish before
-     * an outage, greenish before power; under 30 minutes the pill fills with that colour.
-     */
-    private void hint(LinearLayout card, Logic.Now n) {
-        if (n.hint.isEmpty()) return;
-        boolean known = n.next != Logic.UNKNOWN;
-        // the colour of what comes, softened towards the text: a hint, not an alarm
-        int colour = known ? Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f)) : pal.text;
-        int bg = pal.raised;
-        if (known && n.soon) {
-            colour = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
-            bg = pal.fill(n.next);
-        } else if (known) {
-            bg = Ui.blend(pal.raised, Ui.fade(pal.fill(n.next), pal.dark ? 0.16f : 0.12f));
-        }
-        TextView hint = Ui.text(this, 15, Ui.bold(this), colour);
-        hint.setText(n.hint);
-        // one line: on a narrow screen or with large fonts the letters get smaller, not the line longer
-        hint.setMaxLines(1);
-        hint.setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
-        hint.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8));
-        hint.setBackground(Ui.round(bg, Ui.px(this, 14)));
-        LinearLayout.LayoutParams hl = wrap();
-        hl.topMargin = Ui.dp(this, 8);
-        card.addView(hint, hl);
     }
 
     /** The place's notifications: crossed out when none is on; a tap opens them. */
@@ -528,21 +605,42 @@ public class MainActivity extends Base {
     }
 
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
-        // the title and how much light to expect, at the right edge; on a narrow screen it goes under
-        FlowRow head = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 6));
-        head.spread();
+        // the title; at the right how much light to expect, as long as it fits, and the day to send
+        LinearLayout head = Ui.row(this);
         TextView t = Ui.text(this, 16, Ui.display(this), pal.text);
         t.setText(title);
+        t.setMaxLines(1);
         head.addView(t);
+        FrameLayout room = new FrameLayout(this);
+        head.addView(room, weight());
         if (slots != null) {
-            String light = Logic.dayLight(slots);
-            boolean clean = light.equals(Logic.NO_OUTAGES);
+            List<String> light = Logic.dayLights(slots);
+            boolean clean = light.get(0).equals(Logic.NO_OUTAGES);
             TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
-            tot.setText(light);
-            tot.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
+            tot.setMaxLines(1);
+            tot.setText(light.get(0));
+            tot.setPadding(Ui.dp(this, 9), Ui.dp(this, 4), Ui.dp(this, 9), Ui.dp(this, 4));
             int tint = Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f);
             tot.setBackground(Ui.round(clean ? pal.on : tint, Ui.px(this, 100)));
-            head.addView(tot);
+            FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
+            tl.leftMargin = Ui.dp(this, 8);
+            room.addView(tot, tl);
+            room.addOnLayoutChangeListener((v, l, tp, r, bt, ol, ot, or, ob) -> {
+                if (r - l == or - ol) return;
+                float space = r - l - tl.leftMargin - tot.getPaddingLeft() - tot.getPaddingRight();
+                for (String s : light) {
+                    if (tot.getPaint().measureText(s) <= space || s.equals(light.get(light.size() - 1))) {
+                        String pick = s;
+                        tot.post(() -> {
+                            tot.setText(pick);
+                            tot.setVisibility(tot.getPaint().measureText(pick) <= space ? View.VISIBLE : View.INVISIBLE);
+                        });
+                        break;
+                    }
+                }
+            });
+            head.addView(shareButton(p, date, title));
         }
         head.setContentDescription(Logic.describe(title, slots));
         card.addView(head, fill());
@@ -560,28 +658,80 @@ public class MainActivity extends Base {
         bar.set(slots, cur >= 0 ? nowRel : -1);
         bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams bl = fill();
-        bl.topMargin = Ui.dp(this, 8);
+        bl.topMargin = Ui.dp(this, 6);
         card.addView(bar, bl);
 
-        // the outages, and at the right the day as a picture to send
-        LinearLayout row = Ui.row(this);
-        row.setGravity(Gravity.TOP);
-        FlowRow chips = new FlowRow(this, Ui.dp(this, 6));
-        for (Logic.Outage o : Logic.outages(slots, cur)) chips.addView(chip(o));
-        row.addView(chips, weight());
-        row.addView(shareButton(p, date, title));
+        List<Logic.Outage> outages = Logic.outages(slots, cur);
+        if (outages.isEmpty()) return;
         LinearLayout.LayoutParams cl = fill();
         cl.topMargin = Ui.dp(this, 8);
-        card.addView(row, cl);
+        card.addView(chips(outages), cl);
+    }
+
+    /**
+     * The outages as one row that scrolls sideways: it opens at the outage now or the next one,
+     * the past ones to the left; arrows show that there is more and move by one outage.
+     */
+    private View chips(List<Logic.Outage> outages) {
+        LinearLayout row = Ui.row(this);
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroll.setHorizontalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(Ui.dp(this, 28));
+        LinearLayout line = Ui.row(this);
+        scroll.addView(line);
+        View first = null;
+        for (Logic.Outage o : outages) {
+            View c = chip(o);
+            LinearLayout.LayoutParams l = wrap();
+            if (line.getChildCount() > 0) l.leftMargin = Ui.dp(this, 6);
+            line.addView(c, l);
+            if (first == null && o.when != Logic.Outage.PAST) first = c;
+        }
+        ImageView back = arrow(true);
+        ImageView more = arrow(false);
+        row.addView(back);
+        row.addView(scroll, weight());
+        row.addView(more);
+        Runnable arrows = () -> {
+            back.setVisibility(scroll.canScrollHorizontally(-1) ? View.VISIBLE : View.GONE);
+            more.setVisibility(scroll.canScrollHorizontally(1) ? View.VISIBLE : View.GONE);
+        };
+        scroll.setOnScrollChangeListener((v, x, y, ox, oy) -> arrows.run());
+        int step = Ui.dp(this, 110);
+        back.setOnClickListener(v -> scroll.smoothScrollBy(-step, 0));
+        more.setOnClickListener(v -> scroll.smoothScrollBy(step, 0));
+        View open = first;
+        scroll.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l == or - ol) return;
+            scroll.post(() -> {
+                if (open != null) scroll.scrollTo(open.getLeft(), 0);
+                arrows.run();
+            });
+        });
+        return row;
+    }
+
+    private ImageView arrow(boolean back) {
+        ImageView a = iconButton(R.drawable.ic_chevron, back ? "Попередні вимкнення" : "Наступні вимкнення", null);
+        if (back) a.setRotation(180);
+        a.setScaleType(ImageView.ScaleType.CENTER);
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 30));
+        if (back) l.rightMargin = Ui.dp(this, 6);
+        else l.leftMargin = Ui.dp(this, 6);
+        a.setLayoutParams(l);
+        a.setVisibility(View.GONE);
+        return a;
     }
 
     /** A small round button at the end of a day's title: this day as a picture, to send. */
     private View shareButton(Logic.Place p, LocalDate date, String title) {
         ImageView b = iconButton(R.drawable.ic_share, "Поділитися графіком: " + title, v -> Share.send(this, p, date));
         b.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        int pad = Ui.dp(this, 9);
+        int pad = Ui.dp(this, 8);
         b.setPadding(pad, pad, pad, pad);
-        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 36));
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 32));
         l.leftMargin = Ui.dp(this, 8);
         b.setLayoutParams(l);
         return b;
@@ -593,15 +743,15 @@ public class MainActivity extends Base {
         return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
 
-    /** "06:00 – 08:00": filled red now, amber outline for a possible outage, faded when past. */
+    /** "06:00–08:00": filled now, tinted later (red, amber for a possible outage), faded when past. */
     private View chip(Logic.Outage o) {
         boolean now = o.when == Logic.Outage.NOW;
-        TextView c = Ui.text(this, 14, Ui.heavy(this), now ? pal.ink : pal.text);
-        c.setText((now ? "зараз " : "") + (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–"));
-        c.setPadding(Ui.dp(this, 11), Ui.dp(this, 6), Ui.dp(this, 11), Ui.dp(this, 6));
-        if (now) c.setBackground(Ui.round(o.maybe ? pal.maybe : pal.off, Ui.px(this, 100)));
-        else if (o.maybe) c.setBackground(Ui.outline(pal.maybe, Ui.px(this, 100), Ui.dp(this, 1.5f)));
-        else c.setBackground(Ui.round(Ui.fade(pal.off, pal.dark ? 0.22f : 0.12f), Ui.px(this, 100)));
+        int fill = o.maybe ? pal.maybe : pal.off;
+        int ink = o.maybe ? pal.accentInk : pal.ink;
+        TextView c = Ui.text(this, 15, Ui.heavy(this), now ? ink : (o.maybe ? pal.maybeText : pal.offText));
+        c.setText(o.label.replace(" – ", "–"));
+        c.setPadding(Ui.dp(this, 12), Ui.dp(this, 7), Ui.dp(this, 12), Ui.dp(this, 7));
+        c.setBackground(Ui.round(now ? fill : Ui.fade(fill, pal.dark ? 0.22f : 0.14f), Ui.px(this, 12)));
         if (o.when == Logic.Outage.PAST) c.setAlpha(0.45f);
         String when = "";
         if (o.when == Logic.Outage.PAST) when = ", минуло";

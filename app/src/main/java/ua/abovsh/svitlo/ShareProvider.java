@@ -32,7 +32,7 @@ public class ShareProvider extends ContentProvider {
     private File file(Uri u) {
         if (!AUTHORITY.equals(u.getAuthority())) return null;
         if (("/" + Share.FILE).equals(u.getPath())) return Share.picture(getContext());
-        if (("/" + Updates.APK).equals(u.getPath())) return Updates.apk(getContext());
+        if (("/" + Updates.APK).equals(u.getPath())) return Updates.updateFile(getContext());
         return null;
     }
 

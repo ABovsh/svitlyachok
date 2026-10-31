@@ -106,7 +106,7 @@ final class Updates {
     }
 
     /** The one downloaded APK, in the app's own cache. */
-    static File apk(Context c) {
+    static File updateFile(Context c) {
         File dir = new File(c.getCacheDir(), "update");
         if (!dir.isDirectory() && !dir.mkdirs()) return new File(c.getCacheDir(), APK);
         return new File(dir, APK);
@@ -117,7 +117,7 @@ final class Updates {
      * GitHub's file hosts. Kept only if it is this app in exactly that version; else null.
      */
     static File download(Context c, Logic.Release r, IntConsumer percent) {
-        File f = apk(c);
+        File f = updateFile(c);
         String url = r.apk;
         try {
             for (int hop = 0; hop < 5; hop++) {
@@ -161,7 +161,10 @@ final class Updates {
                 if (got > MAX_APK) return false;
                 out.write(buf, 0, n);
                 int p = total > 0 ? (int) (got * 100 / total) : 0;
-                if (p != shown) percent.accept(shown = p);
+                if (p != shown) {
+                    shown = p;
+                    percent.accept(p);
+                }
             }
         }
         return total <= 0 || got == total;
@@ -176,7 +179,11 @@ final class Updates {
     }
 
     private static void deleteQuietly(File f) {
-        if (f.exists() && !f.delete()) f.deleteOnExit();
+        try {
+            java.nio.file.Files.deleteIfExists(f.toPath());
+        } catch (IOException e) {
+            f.deleteOnExit();
+        }
     }
 
     /**
@@ -234,7 +241,7 @@ final class Updates {
             p(a).edit().putBoolean(WAITING, false).apply();
             return;
         }
-        if (apk(a).isFile()) install(a);
+        if (updateFile(a).isFile()) install(a);
         else p(a).edit().putBoolean(WAITING, false).apply();
     }
 

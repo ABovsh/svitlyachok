@@ -425,22 +425,21 @@ public final class Logic {
     private static void since(Now n, String tl, int cur, char c, String yesterday, LocalDate base, long now) {
         int i = cur;
         while (i > 0 && tl.charAt(i - 1) == c) i--;
-        long start;
-        String day = "";
         if (i > 0) {
-            start = slotStart(base, i);
-        } else {
-            if (yesterday == null || yesterday.length() != 48) return;
-            int j = 48;
-            while (j > 0 && yesterday.charAt(j - 1) == c) j--;
-            if (j == 0) {  // the same all yesterday too: when it began is not known, only that it is long
-                n.already = "уже понад добу";
-                return;
-            }
-            if (yesterday.charAt(j - 1) == '2') return;  // hours without a schedule
-            start = slotStart(base.minusDays(1), j);
-            if (j < 48) day = " учора";
+            began(n, slotStart(base, i), "", now);
+            return;
         }
+        if (yesterday == null || yesterday.length() != 48) return;
+        int j = 48;
+        while (j > 0 && yesterday.charAt(j - 1) == c) j--;
+        if (j == 0) {  // the same all yesterday too: when it began is not known, only that it is long
+            n.already = "уже понад добу";
+        } else if (yesterday.charAt(j - 1) != '2') {  // not after hours without a schedule
+            began(n, slotStart(base.minusDays(1), j), j < 48 ? " учора" : "", now);
+        }
+    }
+
+    private static void began(Now n, long start, String day, long now) {
         n.since = "з " + hm(start) + day;
         n.already = "уже " + waitText(now - start);
     }
@@ -1200,32 +1199,9 @@ public final class Logic {
      * `cur` is the slot of now, -1 for a day that is not today.
      */
     public static List<Label> barLabels(String day, int cur, float width, float labelW, float gap) {
-        List<int[]> ch = new ArrayList<>();  // slot, kind
-        int i = 0;
-        while (i < day.length()) {
-            char c = day.charAt(i);
-            int j = i;
-            while (j < day.length() && day.charAt(j) == c) j++;
-            if (c == '0' || c == '3') {
-                ch.add(new int[] {i, state(c)});
-                char after = j < day.length() ? day.charAt(j) : '1';
-                if (after == '1') ch.add(new int[] {j, ON});
-            }
-            i = j;
-        }
+        List<int[]> ch = changes(day);
         List<int[]> order = new ArrayList<>();
-        int[] next = null;
-        int[] nextOff = null;
-        for (int[] c : ch) {
-            if (c[0] <= cur) continue;
-            if (next == null) next = c;
-            if (nextOff == null && c[1] != ON) nextOff = c;
-        }
-        if (next != null) order.add(next);
-        if (nextOff != null && nextOff != next) order.add(nextOff);
-        int off = ch.indexOf(nextOff);  // and when that outage ends
-        if (off >= 0 && off + 1 < ch.size() && ch.get(off + 1)[1] == ON) order.add(ch.get(off + 1));
-        int must = order.size();
+        int must = mustShow(ch, cur, order);
         for (int[] c : ch) if (c[0] > cur && !order.contains(c)) order.add(c);
         for (int k = ch.size() - 1; k >= 0; k--) if (ch.get(k)[0] <= cur) order.add(ch.get(k));
         for (int h : new int[] {0, 48, 24, 12, 36}) order.add(new int[] {h, UNKNOWN});
@@ -1234,17 +1210,49 @@ public final class Logic {
         float sw = width / 48f;
         for (int k = 0; k < order.size(); k++) {
             int[] c = order.get(k);
-            if (has(out, c[0])) continue;
             float x = clampX(c[0] * sw, half, width);
             if (k < must) x = aside(out, x, labelW + gap, half, width);
-            if (!free(out, x, labelW + gap)) continue;
-            Label l = new Label();
-            l.slot = c[0];
-            l.kind = c[1];
-            l.x = x;
-            out.add(l);
+            if (!has(out, c[0]) && free(out, x, labelW + gap)) {
+                Label l = new Label();
+                l.slot = c[0];
+                l.kind = c[1];
+                l.x = x;
+                out.add(l);
+            }
         }
         return out;
+    }
+
+    /** Where a run of an outage begins (OFF or MAYBE) and where the power comes back after it (ON). */
+    private static List<int[]> changes(String day) {
+        List<int[]> ch = new ArrayList<>();  // slot, kind
+        int i = 0;
+        while (i < day.length()) {
+            char c = day.charAt(i);
+            int j = i;
+            while (j < day.length() && day.charAt(j) == c) j++;
+            if (c == '0' || c == '3') {
+                ch.add(new int[] {i, state(c)});
+                if (j >= day.length() || day.charAt(j) == '1') ch.add(new int[] {j, ON});
+            }
+            i = j;
+        }
+        return ch;
+    }
+
+    /** The next change, the next outage and its end, into `order`; how many they are. */
+    private static int mustShow(List<int[]> ch, int cur, List<int[]> order) {
+        int[] next = null;
+        int[] nextOff = null;
+        for (int[] c : ch) {
+            if (c[0] > cur && next == null) next = c;
+            if (c[0] > cur && nextOff == null && c[1] != ON) nextOff = c;
+        }
+        if (next != null) order.add(next);
+        if (nextOff != null && nextOff != next) order.add(nextOff);
+        int off = ch.indexOf(nextOff);
+        if (off >= 0 && off + 1 < ch.size() && ch.get(off + 1)[1] == ON) order.add(ch.get(off + 1));
+        return order.size();
     }
 
     private static float clampX(float x, float half, float width) {

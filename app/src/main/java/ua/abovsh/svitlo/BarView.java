@@ -57,22 +57,47 @@ final class BarView extends View {
     @Override
     protected void onDraw(Canvas cv) {
         if (slots == null) return;
-        Context c = getContext();
         float w = (float) getWidth();
         float sw = w / 48f;
-        float top = knob;
+        float top = (float) knob;
         box.set(0, top, w, top + barH);
-        float r = Ui.px(c, 10);
+        float r = Ui.px(getContext(), 10);
         clip.reset();
         clip.addRoundRect(box, r, r, Path.Direction.CW);
         cv.save();
         cv.clipPath(clip);
+        fills(cv, sw, top);
+        lines(cv, sw, top);
+        if (nowRel > 0) {  // the past of today, veiled
+            p.setColor(Ui.fade(pal.card, pal.dark ? 0.5f : 0.45f));
+            cv.drawRect(0, top, Math.min(w, nowRel * sw), top + barH, p);
+        }
+        cv.restore();
+        int i = 0;
+        while (i < 48) {
+            int j = end(i);
+            if (at(slots, i) != '2') runHours(cv, i, j, sw, top);
+            i = j;
+        }
+        clocks(cv, w, sw, top);
+        if (nowRel >= 0 && nowRel <= 48) marker(cv, nowRel * sw, top);
+    }
+
+    /** Where the run starting at slot i ends. */
+    private int end(int i) {
+        char ch = at(slots, i);
+        int j = i;
+        while (j < 48 && at(slots, j) == ch) j++;
+        return j;
+    }
+
+    /** Each run in its colour, softened over the card; a possible outage striped. */
+    private void fills(Canvas cv, float sw, float top) {
         p.setStyle(Paint.Style.FILL);
         int i = 0;
         while (i < 48) {
             char ch = at(slots, i);
-            int j = i;
-            while (j < 48 && at(slots, j) == ch) j++;
+            int j = end(i);
             p.setColor(Ui.blend(pal.card, Ui.fade(pal.fill(Logic.state(ch)), 0.82f)));
             cv.drawRect(i * sw, top, j * sw, top + barH, p);
             if (ch == '3') {
@@ -81,10 +106,16 @@ final class BarView extends View {
             }
             i = j;
         }
-        // a thin line every hour, a little stronger every six; a darker one between runs
+    }
+
+    /** A thin line every hour, a little stronger every six; a darker one between runs. */
+    private void lines(Canvas cv, float sw, float top) {
+        Context c = getContext();
+        int hour = pal.dark ? 0x1EFFFFFF : 0x1CFFFFFF;
+        int six = pal.dark ? 0x38FFFFFF : 0x30FFFFFF;
         p.setStrokeWidth(Math.max(1f, Ui.px(c, 0.8f)));
         for (int h = 1; h < 24; h++) {
-            p.setColor(pal.dark ? (h % 6 == 0 ? 0x38FFFFFF : 0x1EFFFFFF) : (h % 6 == 0 ? 0x30FFFFFF : 0x1CFFFFFF));
+            p.setColor(h % 6 == 0 ? six : hour);
             cv.drawLine(h * 2 * sw, top, h * 2 * sw, top + barH, p);
         }
         p.setStrokeWidth(Ui.px(c, 1.2f));
@@ -92,55 +123,40 @@ final class BarView extends View {
         for (int k = 1; k < 48; k++) {
             if (at(slots, k) != at(slots, k - 1)) cv.drawLine(k * sw, top, k * sw, top + barH, p);
         }
-        if (nowRel > 0) {  // the past of today, veiled
-            p.setColor(Ui.fade(pal.card, pal.dark ? 0.5f : 0.45f));
-            cv.drawRect(0, top, Math.min(w, nowRel * sw), top + barH, p);
-        }
-        cv.restore();
-        runHours(cv, sw, top);
-        clocks(cv, w, sw, top);
-        if (nowRel >= 0 && nowRel <= 48) {
-            float x = nowRel * sw;
-            float rr = Ui.px(c, 1.5f);
-            p.setColor(pal.card);
-            mark.set(x - rr - 1, top - Ui.px(c, 2), x + rr + 1, top + barH + Ui.px(c, 2));
-            cv.drawRoundRect(mark, rr, rr, p);
-            p.setColor(pal.text);
-            mark.set(x - rr, top - Ui.px(c, 2), x + rr, top + barH + Ui.px(c, 2));
-            cv.drawRoundRect(mark, rr, rr, p);
-            cv.drawCircle(x, top - Ui.px(c, 2), Ui.px(c, 5), p);
-        }
     }
 
-    /** "3,5г" inside every run that has room; in the run of now, on its part still ahead. */
-    private void runHours(Canvas cv, float sw, float top) {
+    /** Now: a white line across the bar with a dot on top. */
+    private void marker(Canvas cv, float x, float top) {
         Context c = getContext();
-        float room = Ui.px(c, 8);
-        float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;
-        int i = 0;
-        while (i < 48) {
-            char ch = at(slots, i);
-            int j = i;
-            while (j < 48 && at(slots, j) == ch) j++;
-            if (ch != '2') {
-                String t = Logic.barHours(j - i);
-                float tw = hours.measureText(t);
-                float x0 = i * sw;
-                float x1 = j * sw;
-                float nx = nowRel * sw;
-                if (nowRel > i && nowRel < j) {
-                    if (x1 - nx >= tw + room) x0 = nx;
-                    else if (nx - x0 >= tw + room) x1 = nx;
-                }
-                if (x1 - x0 >= tw + room) {
-                    int ink = ch == '3' ? pal.accentInk : 0xFFFFFFFF;
-                    boolean past = nowRel >= j || nowRel > i && x1 <= nowRel * sw + 0.5f;
-                    hours.setColor(past ? Ui.fade(ink, 0.5f) : ink);
-                    cv.drawText(t, (x0 + x1) / 2f, base, hours);
-                }
-            }
-            i = j;
+        float rr = Ui.px(c, 1.5f);
+        float out = Ui.px(c, 2);
+        p.setColor(pal.card);
+        mark.set(x - rr - 1, top - out, x + rr + 1, top + barH + out);
+        cv.drawRoundRect(mark, rr, rr, p);
+        p.setColor(pal.text);
+        mark.set(x - rr, top - out, x + rr, top + barH + out);
+        cv.drawRoundRect(mark, rr, rr, p);
+        cv.drawCircle(x, top - out, Ui.px(c, 5), p);
+    }
+
+    /** "3,5г" inside a run [i, j) that has room; in the run of now, on its part still ahead. */
+    private void runHours(Canvas cv, int i, int j, float sw, float top) {
+        float room = Ui.px(getContext(), 8);
+        String t = Logic.barHours(j - i);
+        float tw = hours.measureText(t) + room;
+        float x0 = i * sw;
+        float x1 = j * sw;
+        float nx = nowRel * sw;
+        if (nowRel > i && nowRel < j) {
+            if (x1 - nx >= tw) x0 = nx;
+            else if (nx - x0 >= tw) x1 = nx;
         }
+        if (x1 - x0 < tw) return;
+        int ink = at(slots, i) == '3' ? pal.accentInk : 0xFFFFFFFF;
+        boolean past = x1 <= nx + 0.5f;
+        hours.setColor(past ? Ui.fade(ink, 0.5f) : ink);
+        float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;
+        cv.drawText(t, (x0 + x1) / 2f, base, hours);
     }
 
     /** The clock times of the changes under the bar, each with a short tick at its exact place. */

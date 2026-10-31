@@ -430,51 +430,75 @@ public class MainActivity extends Base {
         top.addView(small(stats, 6));
         top.addView(small(bell(p), 6));
 
-        boolean soon = n.next != Logic.UNKNOWN && n.change > now
-                && n.change - now <= Logic.soonS(Prefs.alerts(this, p.id), n.next);
-        TextView present = status();
-        TextView next = status();
-        int nowColour = n.state == Logic.UNKNOWN ? pal.text : pal.status(n.state);
-        int nextColour;
-        int inColour = pal.muted;
-        if (n.next != Logic.UNKNOWN) {
-            nextColour = Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f));
-        } else {  // nothing changes: "no outages" in green, "not published yet" in grey
-            nextColour = n.hint.startsWith("Графік") || n.state == Logic.UNKNOWN ? pal.muted : nowColour;
-        }
-        present.setPadding(pad, 0, pad, 0);
-        next.setPadding(pad, 0, pad, 0);
-        if (soon) {  // the reminder time has come: the line in the colour of what comes
-            nextColour = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
-            inColour = Ui.fade(nextColour, 0.85f);
-            next.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 11)));
-        }
-        String[][] nowForms = {{Logic.nowLine(n), Logic.nowLineIn(n)}, {Logic.nowLineShort(n), ""}};
-        String[][] nextForms = {{n.hint, n.hintIn}, {n.hint, ""}};
+        Line present = presentLine(n, pad);
+        Line next = nextLine(p, n, now, pad);
         LinearLayout.LayoutParams pl = fill();
         pl.topMargin = Ui.dp(this, 4);
-        card.addView(present, pl);
+        card.addView(present.view, pl);
         LinearLayout.LayoutParams nl = fill();
         nl.topMargin = Ui.dp(this, 2);
-        card.addView(next, nl);
-        int finalNext = nextColour;
-        int finalIn = inColour;
-        present.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> {
-            if (r - l != or - ol) present.post(() -> fit(present, nowForms, nowColour, pal.muted,
-                    next, nextForms, finalNext, finalIn));
+        card.addView(next.view, nl);
+        present.view.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, or, ob) -> {
+            if (r - l != or - ol) v.post(() -> fit(present, next));
         });
-
-        card.setContentDescription("Зараз за графіком: " + n.title
-                + (n.since.isEmpty() ? "" : " " + n.since) + (n.already.isEmpty() ? "" : ", " + n.already)
-                + (n.hint.isEmpty() ? "" : ". " + n.hint) + (n.hintIn.isEmpty() ? "" : " " + n.hintIn));
+        card.setContentDescription(describe(n));
         return card;
+    }
+
+    /** A status line of the place card: its forms from the longest, its colours. */
+    private static final class Line {
+        TextView view;
+        String[][] forms;
+        int colour;
+        int in;
+    }
+
+    /** "Світло є з 14:30 (уже 3 год 08 хв)" in the colour of the state. */
+    private Line presentLine(Logic.Now n, int pad) {
+        Line l = new Line();
+        l.view = status();
+        l.view.setPadding(pad, 0, pad, 0);
+        l.forms = new String[][] {{Logic.nowLine(n), Logic.nowLineIn(n)}, {Logic.nowLineShort(n), ""}};
+        l.colour = n.state == Logic.UNKNOWN ? pal.text : pal.status(n.state);
+        l.in = pal.muted;
+        return l;
+    }
+
+    /**
+     * "Вимкнуть о 21:00 (через 1 год 51 хв)" in the colour of what comes; when the reminder time
+     * of the place has come, the whole line fills with that colour.
+     */
+    private Line nextLine(Logic.Place p, Logic.Now n, long now, int pad) {
+        Line l = new Line();
+        l.view = status();
+        l.view.setPadding(pad, 0, pad, 0);
+        l.forms = new String[][] {{n.hint, n.hintIn}, {n.hint, ""}};
+        l.in = pal.muted;
+        if (n.next == Logic.UNKNOWN) {  // nothing changes: "no outages" in green, "not published yet" in grey
+            boolean grey = n.hint.startsWith("Графік") || n.state == Logic.UNKNOWN;
+            l.colour = grey ? pal.muted : pal.status(n.state);
+            return l;
+        }
+        l.colour = Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f));
+        if (n.change > now && n.change - now <= Logic.soonS(Prefs.alerts(this, p.id), n.next)) {
+            l.colour = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+            l.in = Ui.fade(l.colour, 0.85f);
+            l.view.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 11)));
+        }
+        return l;
+    }
+
+    private static String describe(Logic.Now n) {
+        return "Зараз за графіком: " + n.title
+                + (n.since.isEmpty() ? "" : " " + n.since) + (n.already.isEmpty() ? "" : ", " + n.already)
+                + (n.hint.isEmpty() ? "" : ". " + n.hint) + (n.hintIn.isEmpty() ? "" : " " + n.hintIn);
     }
 
     /** A round button of the place card, a little smaller than those of the header. */
     private View small(View b, int gap) {
         int size = Ui.dp(this, PLACE_BUTTON);
-        if (b instanceof ImageView) {
-            ((ImageView) b).setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if (b instanceof ImageView image) {
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             int in = Ui.dp(this, 8);
             b.setPadding(in, in, in, in);
         }
@@ -490,8 +514,7 @@ public class MainActivity extends Base {
         t.setGravity(Gravity.CENTER_VERTICAL);
         t.setIncludeFontPadding(false);
         // the height of the largest size: the card keeps its height whatever the words
-        t.setMinHeight(Math.round(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
-                STATUS_MAX * 1.45f, getResources().getDisplayMetrics())));
+        t.setMinHeight(Math.round(Ui.sp(this, STATUS_MAX * 1.45f)));
         return t;
     }
 
@@ -499,22 +522,19 @@ public class MainActivity extends Base {
      * Both status lines at one size: the largest, up to STATUS_MAX sp, at which each fits; a line
      * that would fall under STATUS_SHORT sp takes its shorter form first.
      */
-    private void fit(TextView a, String[][] aForms, int aColour, int aIn,
-                     TextView b, String[][] bForms, int bColour, int bIn) {
-        float width = (float) a.getWidth() - a.getPaddingLeft() - a.getPaddingRight();
+    private void fit(Line a, Line b) {
+        TextView v = a.view;
+        float width = (float) v.getWidth() - v.getPaddingLeft() - v.getPaddingRight();
         if (width <= 0) return;
-        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-        float max = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_MAX, dm);
-        float shortAt = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_SHORT, dm);
-        float least = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, STATUS_MIN, dm);
-        android.text.TextPaint tp = new android.text.TextPaint(a.getPaint());
-        String[] af = form(tp, aForms, width, max, shortAt);
-        String[] bf = form(tp, bForms, width, max, shortAt);
-        float size = Math.max(least, Math.min(largest(tp, af, width, max), largest(tp, bf, width, max)));
-        a.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size);
-        b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size);
-        a.setText(styled(af, aColour, aIn));
-        b.setText(styled(bf, bColour, bIn));
+        float max = Ui.sp(this, STATUS_MAX);
+        float shortAt = Ui.sp(this, STATUS_SHORT);
+        android.text.TextPaint tp = new android.text.TextPaint(v.getPaint());
+        String[] af = form(tp, a.forms, width, max, shortAt);
+        String[] bf = form(tp, b.forms, width, max, shortAt);
+        float size = Math.max(Ui.sp(this, STATUS_MIN), Math.min(largest(tp, af, width, max), largest(tp, bf, width, max)));
+        for (Line l : new Line[] {a, b}) l.view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size);
+        a.view.setText(styled(af, a.colour, a.in));
+        b.view.setText(styled(bf, b.colour, b.in));
     }
 
     private String[] form(android.text.TextPaint tp, String[][] forms, float width, float max, float shortAt) {
@@ -524,8 +544,7 @@ public class MainActivity extends Base {
 
     /** The largest size, in half-sp steps from `max`, at which the words and the smaller brackets fit. */
     private float largest(android.text.TextPaint tp, String[] f, float width, float max) {
-        float step = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 0.5f,
-                getResources().getDisplayMetrics());
+        float step = Ui.sp(this, 0.5f);
         for (float s = max; s > step; s -= step) {
             tp.setTypeface(Ui.heavy(this));
             tp.setTextSize(s);
@@ -614,32 +633,7 @@ public class MainActivity extends Base {
         FrameLayout room = new FrameLayout(this);
         head.addView(room, weight());
         if (slots != null) {
-            List<String> light = Logic.dayLights(slots);
-            boolean clean = light.get(0).equals(Logic.NO_OUTAGES);
-            TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
-            tot.setMaxLines(1);
-            tot.setText(light.get(0));
-            tot.setPadding(Ui.dp(this, 9), Ui.dp(this, 4), Ui.dp(this, 9), Ui.dp(this, 4));
-            int tint = Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f);
-            tot.setBackground(Ui.round(clean ? pal.on : tint, Ui.px(this, 100)));
-            FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
-            tl.leftMargin = Ui.dp(this, 8);
-            room.addView(tot, tl);
-            room.addOnLayoutChangeListener((v, l, tp, r, bt, ol, ot, or, ob) -> {
-                if (r - l == or - ol) return;
-                float space = r - l - tl.leftMargin - tot.getPaddingLeft() - tot.getPaddingRight();
-                for (String s : light) {
-                    if (tot.getPaint().measureText(s) <= space || s.equals(light.get(light.size() - 1))) {
-                        String pick = s;
-                        tot.post(() -> {
-                            tot.setText(pick);
-                            tot.setVisibility(tot.getPaint().measureText(pick) <= space ? View.VISIBLE : View.INVISIBLE);
-                        });
-                        break;
-                    }
-                }
-            });
+            light(room, Logic.dayLights(slots));
             head.addView(shareButton(p, date, title));
         }
         head.setContentDescription(Logic.describe(title, slots));
@@ -666,6 +660,37 @@ public class MainActivity extends Base {
         LinearLayout.LayoutParams cl = fill();
         cl.topMargin = Ui.dp(this, 8);
         card.addView(chips(outages), cl);
+    }
+
+    /** "16 год світла · 67 %" at the right of the title, in the longest form that fits. */
+    private void light(FrameLayout room, List<String> light) {
+        boolean clean = light.get(0).equals(Logic.NO_OUTAGES);
+        TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
+        tot.setMaxLines(1);
+        tot.setText(light.get(0));
+        tot.setPadding(Ui.dp(this, 9), Ui.dp(this, 4), Ui.dp(this, 9), Ui.dp(this, 4));
+        int tint = Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f);
+        tot.setBackground(Ui.round(clean ? pal.on : tint, Ui.px(this, 100)));
+        FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL);
+        tl.leftMargin = Ui.dp(this, 8);
+        room.addView(tot, tl);
+        room.addOnLayoutChangeListener((v, l, tp, r, bt, ol, ot, or, ob) -> {
+            if (r - l == or - ol) return;
+            float space = (float) r - l - tl.leftMargin - tot.getPaddingLeft() - tot.getPaddingRight();
+            String pick = light.get(light.size() - 1);
+            for (String s : light) {
+                if (tot.getPaint().measureText(s) <= space) {
+                    pick = s;
+                    break;
+                }
+            }
+            String shown = pick;
+            tot.post(() -> {
+                tot.setText(shown);
+                tot.setVisibility(tot.getPaint().measureText(shown) <= space ? View.VISIBLE : View.INVISIBLE);
+            });
+        });
     }
 
     /**
@@ -748,10 +773,12 @@ public class MainActivity extends Base {
         boolean now = o.when == Logic.Outage.NOW;
         int fill = o.maybe ? pal.maybe : pal.off;
         int ink = o.maybe ? pal.accentInk : pal.ink;
-        TextView c = Ui.text(this, 15, Ui.heavy(this), now ? ink : (o.maybe ? pal.maybeText : pal.offText));
+        int text = o.maybe ? pal.maybeText : pal.offText;
+        TextView c = Ui.text(this, 15, Ui.heavy(this), now ? ink : text);
         c.setText(o.label.replace(" – ", "–"));
         c.setPadding(Ui.dp(this, 12), Ui.dp(this, 7), Ui.dp(this, 12), Ui.dp(this, 7));
-        c.setBackground(Ui.round(now ? fill : Ui.fade(fill, pal.dark ? 0.22f : 0.14f), Ui.px(this, 12)));
+        int tint = Ui.fade(fill, pal.dark ? 0.22f : 0.14f);
+        c.setBackground(Ui.round(now ? fill : tint, Ui.px(this, 12)));
         if (o.when == Logic.Outage.PAST) c.setAlpha(0.45f);
         String when = "";
         if (o.when == Logic.Outage.PAST) when = ", минуло";

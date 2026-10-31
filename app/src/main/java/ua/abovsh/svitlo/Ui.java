@@ -278,20 +278,20 @@ final class Ui {
 
     /** A typeface for part of a text: the words heavy, the brackets after them lighter. */
     static final class Face extends android.text.style.MetricAffectingSpan {
-        private final Typeface face;
+        private final Typeface typeface;
 
-        Face(Typeface face) {
-            this.face = face;
+        Face(Typeface typeface) {
+            this.typeface = typeface;
         }
 
         @Override
         public void updateDrawState(android.text.TextPaint p) {
-            p.setTypeface(face);
+            p.setTypeface(typeface);
         }
 
         @Override
         public void updateMeasureState(android.text.TextPaint p) {
-            p.setTypeface(face);
+            p.setTypeface(typeface);
         }
     }
 }

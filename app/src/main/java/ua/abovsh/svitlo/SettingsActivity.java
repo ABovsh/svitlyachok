@@ -44,7 +44,15 @@ public class SettingsActivity extends Base {
         page.removeAllViews();
         page.addView(topBar("Налаштування"), fill());
 
-        // ---- places
+        placesSection();
+        notificationsSection();
+        lookSection();
+        updatesSection();
+        aboutSection();
+        scroll.post(() -> scroll.scrollTo(0, y));
+    }
+
+    private void placesSection() {
         page.addView(heading("Місця"));
         LinearLayout places = box();
         List<Logic.Place> list = Prefs.places(this);
@@ -73,8 +81,9 @@ public class SettingsActivity extends Base {
         page.addView(places, fill());
         page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць з будь-якими чергами. "
                 + "Дзвіночок вимикає сповіщення одного місця."));
+    }
 
-        // ---- notifications
+    private void notificationsSection() {
         page.addView(heading("Сповіщення"));
         LinearLayout n = box();
         if (!notificationsAllowed()) {
@@ -112,8 +121,9 @@ public class SettingsActivity extends Base {
         page.addView(x, fill());
         page.addView(note("Нагадування приходять точно у свій час. Новий графік Світлячок перевіряє "
                 + "приблизно раз на 15 хвилин."));
+    }
 
-        // ---- look
+    private void lookSection() {
         page.addView(heading("Вигляд"));
         LinearLayout look = box();
         look.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
@@ -135,8 +145,9 @@ public class SettingsActivity extends Base {
         }
         look.addView(seg, fill());
         page.addView(look, fill());
+    }
 
-        // ---- updates
+    private void updatesSection() {
         page.addView(heading("Оновлення"));
         LinearLayout u = box();
         u.addView(toggle("Перевіряти нові версії", "Коли ви відкриваєте Світлячок, не частіше двох разів на день",
@@ -145,14 +156,16 @@ public class SettingsActivity extends Base {
         u.addView(updateRow(), fill());
         page.addView(u, fill());
         page.addView(note("Світлячок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
+    }
 
-        // ---- about
+    private void aboutSection() {
         page.addView(heading("Про застосунок"));
         TextView about = Ui.text(this, 14, Ui.body(this), pal.muted);
         about.setLineSpacing(0, 1.1f);
         about.setText("Світлячок " + BuildConfig.VERSION_NAME + "\n\n"
                 + "Показує графік погодинних відключень, який публікує обленерго. Застосунок нічого не "
-                + "надсилає з телефона: він лише завантажує відкритий файл графіка вашої області з GitHub. "
+                + "надсилає з телефона: він лише завантажує з GitHub відкритий файл графіка вашої області й "
+                + "перевіряє, чи вийшла нова версія. "
                 + "Місця, черги й налаштування зберігаються тільки на цьому телефоні. Без реєстрації, реклами "
                 + "й аналітики.\n\n"
                 + "Застосунок не знає, чи є світло у вашому будинку насправді, і не пов'язаний з ДТЕК "
@@ -171,7 +184,6 @@ public class SettingsActivity extends Base {
             }
         });
         page.addView(battery, fill());
-        scroll.post(() -> scroll.scrollTo(0, y));
     }
 
     /** "Завантажити версію 1.3.0 ›" when a newer one is known, otherwise "Перевірити зараз". */

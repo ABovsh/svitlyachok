@@ -155,7 +155,7 @@ public class MainActivity extends Base {
         float nowRel = cur + (Logic.z(now).getMinute() % 30) / 30f;
 
         body.removeAllViews();
-        Logic.Release update = Updates.available(this);
+        Logic.Release update = Updates.offered(this);
         if (update != null) body.addView(updateCard(update), gap(10));
         boolean many = places.size() > 1;
         if (many) body.addView(tiles(places, p, base, now), gap(10));

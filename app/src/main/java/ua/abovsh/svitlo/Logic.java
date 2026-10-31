@@ -711,11 +711,11 @@ public final class Logic {
     public static final String LATEST_RELEASE = REPO + "releases/latest";
     static final long UPDATE_CHECK_S = 12 * 3600L;
 
-    /** "1.2.0-rc.1" -> {1, 2, 0, rc?}; null for anything that is not a version. */
+    /** "1.2.0-rc.1" -> {1, 2, 0, rc?}; empty for anything that is not a version. */
     private static int[] version(String v) {
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("v?(\\d{1,4})(?:\\.(\\d{1,4}))?(?:\\.(\\d{1,4}))?(-.+)?").matcher(v.trim());
-        if (!m.matches()) return null;
+        if (!m.matches()) return new int[0];
         int[] out = new int[4];
         for (int i = 0; i < 3; i++) out[i] = m.group(i + 1) == null ? 0 : Integer.parseInt(m.group(i + 1));
         out[3] = m.group(4) == null ? 1 : 0;  // a release outranks its own candidates
@@ -726,7 +726,7 @@ public final class Logic {
     public static boolean newer(String latest, String current) {
         int[] a = version(latest);
         int[] b = version(current);
-        if (a == null || b == null) return false;
+        if (a.length == 0 || b.length == 0) return false;
         for (int i = 0; i < 4; i++) {
             if (a[i] != b[i]) return a[i] > b[i];
         }

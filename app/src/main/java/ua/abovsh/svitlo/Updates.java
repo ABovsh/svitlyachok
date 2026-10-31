@@ -40,7 +40,7 @@ final class Updates {
     }
 
     /** The newer release the user has not put off, or null. */
-    static Logic.Release available(Context c) {
+    static Logic.Release offered(Context c) {
         Logic.Release r = latest(c);
         if (r == null || r.version.equals(p(c).getString(DISMISSED, ""))) return null;
         return r;

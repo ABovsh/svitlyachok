@@ -313,6 +313,59 @@ public class LogicTest {
         assertTrue(Logic.dueForFetch(at(10, 30), at(10, 0)));       // the clock went back
     }
 
+    // ---- updates -------------------------------------------------------------
+
+    static final String LATEST = "https://github.com/ABovsh/svitlyachok/releases/tag/v1.3.0";
+
+    @Test
+    public void versionsCompareLikePeopleExpect() {
+        assertTrue(Logic.newer("1.3.0", "1.2.0"));
+        assertTrue(Logic.newer("1.10.0", "1.9.3"));
+        assertTrue(Logic.newer("1.2.0", "1.2.0-rc.1"));  // the release after its candidate
+        assertTrue(Logic.newer("v2.0", "1.9.9"));
+        assertFalse(Logic.newer("1.2.0", "1.2.0"));
+        assertFalse(Logic.newer("1.2.0-rc.2", "1.2.0"));
+        assertFalse(Logic.newer("1.1.9", "1.2.0"));
+        assertFalse(Logic.newer("not a version", "1.2.0"));
+        assertFalse(Logic.newer("", "1.2.0"));
+    }
+
+    @Test
+    public void latestReleaseIsReadFromWhereGitHubPoints() throws Exception {
+        Logic.Release r = Logic.releaseAt(LATEST);
+        assertEquals("1.3.0", r.version);
+        assertEquals(LATEST, r.page);
+        assertEquals("https://github.com/ABovsh/svitlyachok/releases/download/v1.3.0/Svitlyachok-1.3.0.apk", r.apk);
+    }
+
+    @Test
+    public void onlyAReleaseOfThisRepositoryIsOffered() {
+        String[] refused = {
+            "https://example.com/ABovsh/svitlyachok/releases/tag/v1.3.0",   // another site
+            "https://github.com/someone/svitlyachok/releases/tag/v1.3.0",  // another repository
+            "https://github.com/ABovsh/svitlyachok/releases",               // nothing published yet
+            "https://github.com/ABovsh/svitlyachok/releases/tag/latest",   // not a version
+            "https://github.com/ABovsh/svitlyachok/releases/tag/v1.3.0/../../x",
+            "http://github.com/ABovsh/svitlyachok/releases/tag/v1.3.0",
+        };
+        for (String url : refused) {
+            try {
+                Logic.releaseAt(url);
+                throw new AssertionError("accepted " + url);
+            } catch (Logic.BadFile expected) {
+                // refused, as it should be
+            }
+        }
+    }
+
+    @Test
+    public void updatesAreCheckedTwiceADayAtMost() {
+        assertTrue(Logic.dueForUpdateCheck(0, at(10, 0)));
+        assertFalse(Logic.dueForUpdateCheck(at(10, 0), at(21, 59)));
+        assertTrue(Logic.dueForUpdateCheck(at(10, 0), at(22, 0)));
+        assertTrue(Logic.dueForUpdateCheck(at(10, 0), at(9, 0)));  // the clock went back
+    }
+
     @Test
     public void onlyOffAndOnAreOnByDefault() {
         Logic.Alerts a = new Logic.Alerts();

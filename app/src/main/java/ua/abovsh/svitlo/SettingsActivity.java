@@ -129,11 +129,22 @@ public class SettingsActivity extends Base {
                 recreate();
             });
             LinearLayout.LayoutParams l = weight();
+            if (i == 0) l.weight = 1.6f;  // "Як у системі" is the longest
             if (i > 0) l.leftMargin = Ui.dp(this, 8);
             seg.addView(t, l);
         }
         look.addView(seg, fill());
         page.addView(look, fill());
+
+        // ---- updates
+        page.addView(heading("Оновлення"));
+        LinearLayout u = box();
+        u.addView(toggle("Перевіряти нові версії", "Коли ви відкриваєте Світлячок, не частіше двох разів на день",
+                Updates.enabled(this), on -> Updates.setEnabled(this, on)), fill());
+        u.addView(divider());
+        u.addView(updateRow(), fill());
+        page.addView(u, fill());
+        page.addView(note("Світлячок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
 
         // ---- about
         page.addView(heading("Про застосунок"));
@@ -161,6 +172,36 @@ public class SettingsActivity extends Base {
         });
         page.addView(battery, fill());
         scroll.post(() -> scroll.scrollTo(0, y));
+    }
+
+    /** "Завантажити версію 1.3.0 ›" when a newer one is known, otherwise "Перевірити зараз". */
+    private View updateRow() {
+        TextView t = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
+        t.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
+        Logic.Release r = Updates.latest(this);
+        if (r != null) {
+            t.setText("Завантажити версію " + r.version + " ›");
+            t.setOnClickListener(v -> Updates.open(this, r.apk));
+            return t;
+        }
+        t.setText("Перевірити зараз");
+        t.setOnClickListener(v -> {
+            t.setText("Перевіряю…");
+            t.setOnClickListener(null);
+            new Thread(() -> {
+                int result = Updates.check(getApplicationContext());
+                runOnUiThread(() -> {
+                    if (isFinishing()) return;
+                    if (result == Updates.CURRENT) {
+                        Toast.makeText(this, "У вас остання версія " + BuildConfig.VERSION_NAME, Toast.LENGTH_SHORT).show();
+                    } else if (result == Updates.FAILED) {
+                        Toast.makeText(this, "Не вдалося перевірити: немає зв'язку з GitHub", Toast.LENGTH_SHORT).show();
+                    }
+                    rebuild();
+                });
+            }).start();
+        });
+        return t;
     }
 
     private View placeRow(Logic.Place p) {

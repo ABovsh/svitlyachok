@@ -697,6 +697,61 @@ public final class Logic {
         return false;
     }
 
+    // ---- updates ---------------------------------------------------------------
+
+    public static final class Release {
+        public String version = "";
+        public String page = "";
+        public String apk = "";
+    }
+
+    /** Where the app is published: the only place an update may come from. */
+    static final String REPO = "https://github.com/ABovsh/svitlyachok/";
+    /** Answers with a redirect to the newest published release (never a draft or pre-release). */
+    public static final String LATEST_RELEASE = REPO + "releases/latest";
+    static final long UPDATE_CHECK_S = 12 * 3600L;
+
+    /** "1.2.0-rc.1" -> {1, 2, 0, rc?}; null for anything that is not a version. */
+    private static int[] version(String v) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("v?(\\d{1,4})(?:\\.(\\d{1,4}))?(?:\\.(\\d{1,4}))?(-.+)?").matcher(v.trim());
+        if (!m.matches()) return null;
+        int[] out = new int[4];
+        for (int i = 0; i < 3; i++) out[i] = m.group(i + 1) == null ? 0 : Integer.parseInt(m.group(i + 1));
+        out[3] = m.group(4) == null ? 1 : 0;  // a release outranks its own candidates
+        return out;
+    }
+
+    /** Whether `latest` is a newer version than the one installed. */
+    public static boolean newer(String latest, String current) {
+        int[] a = version(latest);
+        int[] b = version(current);
+        if (a == null || b == null) return false;
+        for (int i = 0; i < 4; i++) {
+            if (a[i] != b[i]) return a[i] > b[i];
+        }
+        return false;
+    }
+
+    /**
+     * The release GitHub points to from "latest". Only an exact release address of this repository
+     * with a version tag is accepted; the APK is the one the release publishes under its version.
+     */
+    public static Release releaseAt(String location) throws BadFile {
+        String prefix = REPO + "releases/tag/v";
+        String v = location.startsWith(prefix) ? location.substring(prefix.length()) : "";
+        if (!v.matches("\\d{1,4}(\\.\\d{1,4}){0,2}")) throw new BadFile("not a release of this app: " + location);
+        Release r = new Release();
+        r.version = v;
+        r.page = location;
+        r.apk = REPO + "releases/download/v" + v + "/Svitlyachok-" + v + ".apk";
+        return r;
+    }
+
+    public static boolean dueForUpdateCheck(long checkedAt, long now) {
+        return checkedAt <= 0 || now < checkedAt || now - checkedAt >= UPDATE_CHECK_S;
+    }
+
     // ---- widget ----------------------------------------------------------------
 
     /** One row (2 x 1 and wider), or with a bar of the next 24 hours when there is room. */

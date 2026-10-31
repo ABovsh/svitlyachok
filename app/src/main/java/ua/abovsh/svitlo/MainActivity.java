@@ -59,6 +59,9 @@ public class MainActivity extends Base {
             return;
         }
         refresh();
+        Updates.checkIfDue(this, () -> runOnUiThread(() -> {
+            if (!isFinishing()) render();
+        }));
     }
 
     private View header() {
@@ -152,6 +155,8 @@ public class MainActivity extends Base {
         float nowRel = cur + (Logic.z(now).getMinute() % 30) / 30f;
 
         body.removeAllViews();
+        Logic.Release update = Updates.available(this);
+        if (update != null) body.addView(updateCard(update), gap(10));
         boolean many = places.size() > 1;
         if (many) body.addView(tiles(places, p, base, now), gap(10));
         body.addView(hero(p, d, tl, base, now, many), gap(10));
@@ -166,6 +171,70 @@ public class MainActivity extends Base {
         AppWidgetManager m = AppWidgetManager.getInstance(this);
         boolean placed = m.getAppWidgetIds(new ComponentName(this, LightWidget.class)).length > 0;
         addWidget.setVisibility(!placed && m.isRequestPinAppWidgetSupported() ? View.VISIBLE : View.GONE);
+    }
+
+    /** A newer version on GitHub: what it is, and two ways on. The user decides; "later" hides it. */
+    private View updateCard(Logic.Release r) {
+        LinearLayout card = Ui.column(this);
+        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 16));
+        android.graphics.drawable.GradientDrawable bg = Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, 0.12f)),
+                Ui.px(this, 24));
+        bg.setStroke(Ui.dp(this, 1.5f), Ui.fade(pal.accent, 0.7f));
+        card.setBackground(bg);
+
+        LinearLayout top = Ui.row(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_download);
+        icon.setColorFilter(pal.accentInk, PorterDuff.Mode.SRC_IN);
+        icon.setScaleType(ImageView.ScaleType.CENTER);
+        icon.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40));
+        il.rightMargin = Ui.dp(this, 12);
+        top.addView(icon, il);
+        TextView title = Ui.text(this, 17, Ui.display(this), pal.text);
+        title.setText("Нова версія " + r.version);
+        top.addView(title, weight());
+        ImageView close = iconButton(R.drawable.ic_close, "Пізніше: сховати це оновлення", v -> {
+            Updates.dismiss(this, r.version);
+            render();
+        });
+        close.setBackground(null);
+        close.setColorFilter(pal.muted, PorterDuff.Mode.SRC_IN);
+        top.addView(close);
+        card.addView(top, fill());
+
+        TextView text = Ui.text(this, 14, Ui.body(this), pal.muted);
+        text.setLineSpacing(0, 1.1f);
+        text.setText("У вас " + BuildConfig.VERSION_NAME + ". Нова версія встановлюється поверх цієї, місця й "
+                + "налаштування збережуться.");
+        text.setPadding(0, Ui.dp(this, 8), Ui.dp(this, 8), 0);
+        card.addView(text, fill());
+
+        LinearLayout buttons = Ui.row(this);
+        TextView get = Ui.text(this, 15, Ui.heavy(this), pal.accentInk);
+        get.setText("Завантажити");
+        get.setGravity(Gravity.CENTER);
+        get.setMinHeight(Ui.dp(this, 46));
+        get.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
+        get.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
+        get.setOnClickListener(v -> Updates.open(this, r.apk));
+        buttons.addView(get, wrap());
+        TextView what = Ui.text(this, 15, Ui.heavy(this), pal.text);
+        what.setText("Що нового");
+        what.setGravity(Gravity.CENTER);
+        what.setMinHeight(Ui.dp(this, 46));
+        what.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
+        what.setBackground(Ui.outline(pal.line, Ui.px(this, 100), Ui.dp(this, 1.5f)));
+        what.setOnClickListener(v -> Updates.open(this, r.page));
+        LinearLayout.LayoutParams wl = wrap();
+        wl.leftMargin = Ui.dp(this, 8);
+        buttons.addView(what, wl);
+        LinearLayout.LayoutParams bl = fill();
+        bl.topMargin = Ui.dp(this, 14);
+        card.addView(buttons, bl);
+        return card;
     }
 
     /** Every place as a tile: its state and until when. A tap shows it in full below. */

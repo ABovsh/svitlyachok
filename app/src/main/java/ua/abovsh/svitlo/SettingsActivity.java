@@ -243,7 +243,11 @@ public class SettingsActivity extends Base {
         Logic.Release r = Updates.latest(this);
         if (r != null) {
             t.setText("Завантажити версію " + r.version + " ›");
-            t.setOnClickListener(v -> Updates.open(this, r.apk));
+            t.setOnClickListener(v -> {
+                t.setOnClickListener(null);
+                t.setText("Завантажую… 0 %");
+                Updates.get(this, r, p -> t.setText("Завантажую… " + p + " %"), this::rebuild);
+            });
             return t;
         }
         t.setText("Перевірити зараз");

@@ -21,6 +21,7 @@ public class SetupActivity extends Base {
     private static final String[] DEFAULT_GROUPS = {"GPV1.1", "GPV1.2", "GPV2.1", "GPV2.2", "GPV3.1", "GPV3.2",
         "GPV4.1", "GPV4.2", "GPV5.1", "GPV5.2", "GPV6.1", "GPV6.2"};
     private static final String[] NAMES = {"Дім", "Дача", "Робота", "Батьки"};
+    private static final int MAX_NAME = 24;
 
     private boolean first;
     private String editId;
@@ -84,6 +85,8 @@ public class SetupActivity extends Base {
         name.setTextColor(pal.text);
         name.setHintTextColor(pal.dim);
         name.setSingleLine(true);
+        // the limit shows while typing, not as a name cut after saving
+        name.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(MAX_NAME)});
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         name.setImeOptions(EditorInfo.IME_ACTION_DONE);
         name.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
@@ -271,7 +274,7 @@ public class SetupActivity extends Base {
         }
         String n = name.getText().toString().trim();
         if (n.isEmpty()) n = "Черга " + Logic.queue(group);
-        if (n.length() > 24) n = n.substring(0, 24);
+        if (n.length() > MAX_NAME) n = n.substring(0, MAX_NAME);
         List<Logic.Place> places = Prefs.places(this);
         if (editId == null && places.size() >= Prefs.MAX_PLACES) {
             Toast.makeText(this, "Можна додати до " + Prefs.MAX_PLACES + " місць", Toast.LENGTH_SHORT).show();

@@ -241,14 +241,14 @@ final class Sync {
         String name = at == null || ps.size() < 2 ? "" : at.name + " · ";
         String id = at == null ? "" : at.id;
         long gone = now() + 600;
-        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + "Скоро вимкнуть світло", false, gone), true);
-        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + name + "Скоро увімкнуть світло", true, gone), true);
+        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + "Скоро вимкнуть світло", name, false, gone), true);
+        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + "Скоро увімкнуть світло", name, true, gone), true);
     }
 
-    private static Logic.Notice sample(String title, boolean on, long until) {
+    private static Logic.Notice sample(String title, String name, boolean on, long until) {
         Logic.Notice n = new Logic.Notice();
         n.title = title;
-        n.text = "Пробне сповіщення · о 18:00, через 15 хв";
+        n.text = name + "о 18:00, через 15 хв (пробне)";
         n.on = on;
         n.until = until;
         return n;

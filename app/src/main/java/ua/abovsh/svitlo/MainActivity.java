@@ -28,6 +28,11 @@ import java.util.List;
 public class MainActivity extends Base {
     /** A widget or a notification names the place to open. */
     static final String EXTRA_PLACE = "place";
+    /** The version being downloaded now, and how far; the card shows it after a re-render too. */
+    private String downloading;
+    private int percent;
+    private TextView getButton;
+
     /** The round buttons of the place card, dp. */
     private static final int HERO_BUTTON = 44;
     private TextView sub;
@@ -84,7 +89,7 @@ public class MainActivity extends Base {
 
     private View header() {
         LinearLayout r = Ui.row(this);
-        r.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+        r.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.ic_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -109,10 +114,11 @@ public class MainActivity extends Base {
             List<Logic.Place> places = Prefs.places(this);
             if (!places.isEmpty()) Widgets.offer(this, current(places));
         });
-        LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48));
+        LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON));
         wl.rightMargin = Ui.dp(this, 8);
         r.addView(addWidget, wl);
-        r.addView(iconButton(R.drawable.ic_gear, "Налаштування", v -> startActivity(new Intent(this, SettingsActivity.class))));
+        r.addView(iconButton(R.drawable.ic_gear, "Налаштування", v -> startActivity(new Intent(this, SettingsActivity.class))),
+                new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
         return r;
     }
 
@@ -197,13 +203,13 @@ public class MainActivity extends Base {
 
         body.removeAllViews();
         Logic.Release update = Updates.offered(this);
-        if (update != null) body.addView(updateCard(update), gap(10));
+        if (update != null) body.addView(updateCard(update), gap(8));
         boolean many = places.size() > 1;
-        if (many) body.addView(tiles(places, p, base, now), gap(10));
-        body.addView(hero(p, d, tl, base, now), gap(10));
+        if (many) body.addView(tiles(places, p, base, now), gap(8));
+        body.addView(hero(p, d, tl, base, now), gap(8));
         View stale = stale(p, d, now);
-        if (stale != null) body.addView(stale, gap(10));
-        body.addView(schedule(p, d, base, cur, nowRel), gap(10));
+        if (stale != null) body.addView(stale, gap(8));
+        body.addView(schedule(p, d, base, cur, nowRel), gap(8));
         LinearLayout.LayoutParams lg = gap(14);
         lg.leftMargin = lg.rightMargin = Ui.dp(this, 6);
         body.addView(legend(), lg);
@@ -216,6 +222,10 @@ public class MainActivity extends Base {
     }
 
     /** A newer version on GitHub: what it is, and two ways on. The user decides; "later" hides it. */
+    private String downloadText() {
+        return "Завантажую… " + percent + " %";
+    }
+
     private View updateCard(Logic.Release r) {
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
@@ -248,12 +258,25 @@ public class MainActivity extends Base {
 
         FlowRow buttons = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 8));
         TextView get = Ui.text(this, 15, Ui.heavy(this), pal.accentInk);
-        get.setText("Завантажити");
+        get.setText(r.version.equals(downloading) ? downloadText() : "Завантажити");
         get.setGravity(Gravity.CENTER);
         get.setMinHeight(Ui.dp(this, 46));
         get.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
         get.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
-        get.setOnClickListener(v -> Updates.open(this, r.apk));
+        get.setOnClickListener(v -> {
+            if (downloading != null) return;
+            downloading = r.version;
+            percent = 0;
+            get.setText(downloadText());
+            Updates.get(this, r, p -> {
+                percent = p;
+                if (getButton != null) getButton.setText(downloadText());
+            }, () -> {
+                downloading = null;
+                render();
+            });
+        });
+        getButton = get;
         buttons.addView(get);
         TextView what = Ui.text(this, 15, Ui.heavy(this), pal.text);
         what.setText("Що нового");
@@ -313,7 +336,7 @@ public class MainActivity extends Base {
         }
         LinearLayout t = Ui.row(this);
         t.setGravity(Gravity.CENTER_VERTICAL);
-        t.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
+        t.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
         android.graphics.drawable.GradientDrawable bg = Ui.round(
                 Ui.blend(pal.card, Ui.fade(pal.fill(n.state), pal.dark ? 0.14f : 0.10f)), Ui.px(this, 20));
         bg.setStroke(Ui.dp(this, chosen ? 2 : 1), chosen ? pal.text : pal.line);
@@ -341,11 +364,13 @@ public class MainActivity extends Base {
         w.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 Math.round(title.getTextSize() * 1.35f) + Ui.dp(this, 2)));  // auto-size needs a fixed height
         TextView big = Ui.text(this, 13, Ui.heavy(this), pal.text);
-        big.setText(n.big.isEmpty() ? " " : n.big);  // three lines in every tile: rows stay even
-        big.setSingleLine(true);
-        big.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        big.setText(n.big.isEmpty() ? " " : n.big.replace(' ', '\u00A0'));  // three lines in every tile: rows stay even
+        // "до завтра 12:00" with large fonts: smaller letters, not "до завтра 12…"
+        big.setMaxLines(1);
+        big.setAutoSizeTextTypeUniformWithConfiguration(8, 13, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         big.setPadding(0, Ui.dp(this, 2), 0, 0);
-        w.addView(big);
+        w.addView(big, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.round(big.getTextSize() * 1.35f) + Ui.dp(this, 2)));
         t.addView(w, weight());
         t.setContentDescription(p.name + ": " + n.title + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (chosen ? ", показано нижче" : ", натисніть, щоб показати графік"));
@@ -368,7 +393,7 @@ public class MainActivity extends Base {
         // the words on the left; on the right, round buttons: notifications and statistics;
         // under both, across the whole card, what comes next
         LinearLayout card = Ui.column(this);
-        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 16));
+        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 14));
         card.setBackground(Ui.card(this, pal, tint));
         LinearLayout top = Ui.row(this);
         top.setBaselineAligned(false);
@@ -398,7 +423,7 @@ public class MainActivity extends Base {
         words.addView(where, fill());
 
         card.setContentDescription("Зараз за графіком: " + n.title
-                + (n.since.isEmpty() ? "" : " " + n.since + ", " + n.already) + ", " + n.hint);
+                + (n.since.isEmpty() ? "" : " " + n.since + ", " + n.already) + (n.hint.isEmpty() ? "" : ", " + n.hint));
         // the same card for one place or several: with one place there are no tiles above it
         since(words, n);
         hint(card, n);
@@ -452,11 +477,10 @@ public class MainActivity extends Base {
         // one line: on a narrow screen or with large fonts the letters get smaller, not the line longer
         hint.setMaxLines(1);
         hint.setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
-        hint.setPadding(Ui.dp(this, 12), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 9));
+        hint.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 8));
         hint.setBackground(Ui.round(bg, Ui.px(this, 14)));
         LinearLayout.LayoutParams hl = wrap();
-        hl.topMargin = Ui.dp(this, 10);
-        hl.rightMargin = Ui.dp(this, 4);
+        hl.topMargin = Ui.dp(this, 8);
         card.addView(hint, hl);
     }
 
@@ -488,14 +512,14 @@ public class MainActivity extends Base {
     /** Today and tomorrow in one card: a bar each and the outages as time ranges. */
     private View schedule(Logic.Place p, Logic.Data d, LocalDate base, int cur, float nowRel) {
         LinearLayout card = Ui.column(this);
-        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
+        card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 16), Ui.dp(this, 12));
         card.setBackground(Ui.card(this, pal, 0));
         day(card, p, base, "Сьогодні", Logic.day(d, p.group, base), cur, nowRel);
         View line = divider();
         LinearLayout.LayoutParams ll = fill();
         ll.height = Ui.dp(this, 1);
-        ll.topMargin = Ui.dp(this, 14);
-        ll.bottomMargin = Ui.dp(this, 14);
+        ll.topMargin = Ui.dp(this, 12);
+        ll.bottomMargin = Ui.dp(this, 12);
         card.addView(line, ll);
         LocalDate t = base.plusDays(1);
         day(card, p, t, "Завтра, " + t.getDayOfMonth() + " " + Ui.MONTHS[t.getMonthValue() - 1],
@@ -505,7 +529,7 @@ public class MainActivity extends Base {
 
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
         // the title and how much light to expect, at the right edge; on a narrow screen it goes under
-        FlowRow head = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 6));
+        FlowRow head = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 6));
         head.spread();
         TextView t = Ui.text(this, 16, Ui.display(this), pal.text);
         t.setText(title);
@@ -515,7 +539,7 @@ public class MainActivity extends Base {
             boolean clean = light.equals(Logic.NO_OUTAGES);
             TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
             tot.setText(light);
-            tot.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
+            tot.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
             int tint = Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f);
             tot.setBackground(Ui.round(clean ? pal.on : tint, Ui.px(this, 100)));
             head.addView(tot);
@@ -536,7 +560,7 @@ public class MainActivity extends Base {
         bar.set(slots, cur >= 0 ? nowRel : -1);
         bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         LinearLayout.LayoutParams bl = fill();
-        bl.topMargin = Ui.dp(this, 10);
+        bl.topMargin = Ui.dp(this, 8);
         card.addView(bar, bl);
 
         // the outages, and at the right the day as a picture to send

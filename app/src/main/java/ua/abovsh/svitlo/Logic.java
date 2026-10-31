@@ -431,7 +431,7 @@ public final class Logic {
             if (yesterday == null || yesterday.length() != 48) return;
             int j = 48;
             while (j > 0 && yesterday.charAt(j - 1) == c) j--;
-            if (j == 0) return;
+            if (j == 0 || yesterday.charAt(j - 1) == '2') return;  // all day, or hours without a schedule
             start = slotStart(base.minusDays(1), j);
             if (j < 48) day = " учора";
         }
@@ -750,10 +750,25 @@ public final class Logic {
         return q;
     }
 
-    /** "🔴 Дім · Скоро вимкнуть світло", or "🔴 Скоро вимкнуть світло" for a place with no name. */
-    private static String headed(String mark, String name, String what) {
-        if (name.isEmpty()) return mark + Character.toUpperCase(what.charAt(0)) + what.substring(1);
-        return mark + name + " · " + what;
+    /** Hosts GitHub serves release files from, after the redirect from the release address. */
+    private static final String[] FILE_HOSTS = {"release-assets.githubusercontent.com", "objects.githubusercontent.com"};
+
+    /** An update is downloaded only from a release of this repository and GitHub's file hosts. */
+    static boolean trustedDownload(String url) {
+        if (url == null) return false;
+        if (url.startsWith(REPO + "releases/download/")) return true;
+        for (String h : FILE_HOSTS) if (url.startsWith("https://" + h + "/")) return true;
+        return false;
+    }
+
+    /** A title: the mark and what happens, "🔴 Скоро вимкнуть світло". */
+    private static String headed(String mark, String what) {
+        return mark + Character.toUpperCase(what.charAt(0)) + what.substring(1);
+    }
+
+    /** The second line, with the place first when there are several: "Дім · о 18:30, через 15 хв". */
+    private static String named(String name, String text) {
+        return name.isEmpty() ? text : name + " · " + text;
     }
 
     /** Everything else is opt-in. */
@@ -831,7 +846,8 @@ public final class Logic {
     }
 
     /**
-     * A reminder: what happens, then when; a coloured mark and the place first. It is no
+     * A reminder: a coloured mark and what happens; under it the place (when there are several)
+     * and when. It is no
      * longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
      */
     public static Notice eventText(Event e, String tl, LocalDate base, long now) {
@@ -843,8 +859,8 @@ public final class Logic {
         int state = OFF;
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
-        n.title = headed(mark(state), e.name, eventWhat(e.kind, maybe));
-        n.text = eventWhen(e, end, now);
+        n.title = headed(mark(state), eventWhat(e.kind, maybe));
+        n.text = named(e.name, eventWhen(e, end, now));
         if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
@@ -915,16 +931,16 @@ public final class Logic {
         Note n = new Note();
         if (b == null) {
             n.kind = Note.PUBLISHED;
-            n.title = headed(SCHEDULE_MARK, p.name, "графік на " + (today ? "сьогодні" : "завтра"));
+            n.title = headed(SCHEDULE_MARK, "графік на " + (today ? "сьогодні" : "завтра"));
             int k = offCount(a);
-            n.text = k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a);
+            n.text = named(p.name, k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
             return n;
         }
         if (a.substring(from).equals(b.substring(from))) return null;
         n.kind = Note.CHANGED;
-        n.title = headed(SCHEDULE_MARK, p.name, "графік змінився");
+        n.title = headed(SCHEDULE_MARK, "графік змінився");
         String w = today ? "Сьогодні" : "Завтра";
-        n.text = offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a);
+        n.text = named(p.name, offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a));
         return n;
     }
 

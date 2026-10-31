@@ -4,6 +4,7 @@
     android:description="@string/widget_desc"
     android:initialLayout="@layout/widget"
     android:previewLayout="@layout/widget_preview"
+    android:previewImage="@drawable/widget_preview_img"
     android:minWidth="110dp"
     android:minHeight="40dp"
     android:minResizeWidth="110dp"

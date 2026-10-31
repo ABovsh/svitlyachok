@@ -11,19 +11,29 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
- * Lends the one shared picture to the app the person picked, read-only, for as long as that app
- * holds the grant. Not exported: no other app can ask for anything here, and no other file is
- * ever served.
+ * Lends two files, read-only, by a one-time grant: the shared picture to the app the person
+ * picked, and a downloaded update to the system installer. Not exported: no other app can ask
+ * for anything here, and no other file is ever served.
  */
 public class ShareProvider extends ContentProvider {
     static final String AUTHORITY = "ua.abovsh.svitlo.share";
+
+    private static final String APK_TYPE = "application/vnd.android.package-archive";
 
     static Uri uri() {
         return new Uri.Builder().scheme("content").authority(AUTHORITY).appendPath(Share.FILE).build();
     }
 
-    private boolean ours(Uri u) {
-        return AUTHORITY.equals(u.getAuthority()) && ("/" + Share.FILE).equals(u.getPath());
+    static Uri apkUri() {
+        return new Uri.Builder().scheme("content").authority(AUTHORITY).appendPath(Updates.APK).build();
+    }
+
+    /** The file behind the address, or null when it is not one of the two. */
+    private File file(Uri u) {
+        if (!AUTHORITY.equals(u.getAuthority())) return null;
+        if (("/" + Share.FILE).equals(u.getPath())) return Share.picture(getContext());
+        if (("/" + Updates.APK).equals(u.getPath())) return Updates.apk(getContext());
+        return null;
     }
 
     @Override
@@ -33,22 +43,26 @@ public class ShareProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri u, String mode) throws FileNotFoundException {
-        if (!ours(u) || !"r".equals(mode)) throw new FileNotFoundException(u.toString());
-        return ParcelFileDescriptor.open(Share.picture(getContext()), ParcelFileDescriptor.MODE_READ_ONLY);
+        File f = file(u);
+        if (f == null || !"r".equals(mode)) throw new FileNotFoundException(u.toString());
+        return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
     }
 
     @Override
     public String getType(Uri u) {
-        return ours(u) ? "image/png" : null;
+        File f = file(u);
+        if (f == null) return null;
+        return f.getName().equals(Updates.APK) ? APK_TYPE : "image/png";
     }
 
     /** Name and size: some messengers ask before they read. */
     @Override
     public Cursor query(Uri u, String[] projection, String selection, String[] args, String order) {
-        if (!ours(u)) return null;
-        File f = Share.picture(getContext());
+        File f = file(u);
+        if (f == null) return null;
         MatrixCursor c = new MatrixCursor(new String[] {OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE});
-        c.addRow(new Object[] {"svitlyachok-grafik.png", f.length()});
+        boolean apk = f.getName().equals(Updates.APK);
+        c.addRow(new Object[] {apk ? "Svitlyachok.apk" : "svitlyachok-grafik.png", f.length()});
         return c;
     }
 

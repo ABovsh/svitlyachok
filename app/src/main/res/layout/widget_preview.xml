@@ -1,37 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the widget picker shows: the 2 x 1 form. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- What the widget picker shows: a picture of the real 2 x 1 widget. A picture only scales, so
+     launchers with their own font size no longer wrap or cut the text, as they did with a layout. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_preview"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="10dp">
-    <ImageView
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:background="@drawable/widget_preview_disc"
-        android:importantForAccessibility="no"
-        android:padding="9dp"
-        android:src="@drawable/ic_bulb" />
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:orientation="vertical">
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Світло є"
-            android:textColor="#FF4ADE8F"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="до 14:30"
-            android:textColor="#FFF3F5F9"
-            android:textSize="17sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-</LinearLayout>
+    android:importantForAccessibility="no"
+    android:scaleType="fitCenter"
+    android:src="@drawable/widget_preview_img" />

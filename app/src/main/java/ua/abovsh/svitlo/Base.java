@@ -89,6 +89,7 @@ abstract class Base extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        Updates.resume(this);  // back from allowing installs: the update goes on
         if (Ui.pal(this).dark != pal.dark) {  // the theme changed while away
             recreate();
             return;
@@ -127,7 +128,7 @@ abstract class Base extends Activity {
     /** A switch row: a title, a line under it, the switch. */
     View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
         LinearLayout r = Ui.row(this);
-        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        r.setPadding(0, Ui.dp(this, 11), 0, Ui.dp(this, 11));
         r.addView(label(title, desc), weight());
         ToggleView tv = new ToggleView(this, pal, on, v -> {
             l.changed(v);
@@ -200,7 +201,7 @@ abstract class Base extends Activity {
         TextView t = Ui.text(this, 12, Ui.heavy(this), pal.muted);
         t.setText(s.toUpperCase(Ui.UK));
         t.setLetterSpacing(0.12f);
-        t.setPadding(Ui.dp(this, 6), Ui.dp(this, 16), 0, Ui.dp(this, 8));
+        t.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), 0, Ui.dp(this, 6));
         return t;
     }
 

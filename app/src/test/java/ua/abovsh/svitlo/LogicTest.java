@@ -239,19 +239,20 @@ public class LogicTest {
         String t = tl(TODAY_ONLY);
         Logic.Event e = Logic.events(home(), t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
         Logic.Notice s = Logic.eventText(e, t, OCT30, at(14, 2));
-        assertEquals("\uD83D\uDD34 Дім · Скоро вимкнуть світло", s.title);
-        assertEquals("о 14:30, через 28 хв", s.text);
+        // the place opens the second line: the title stays short enough for one line
+        assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", s.title);
+        assertEquals("Дім · о 14:30, через 28 хв", s.text);
         assertFalse(s.on);
         assertEquals(at(18, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
         Logic.Notice n = Logic.eventText(on, t, OCT30, at(18, 15));
-        assertEquals("\uD83D\uDFE2 Дім · Скоро увімкнуть світло", n.title);
-        assertEquals("о 18:30, через 15 хв", n.text);
+        assertEquals("\uD83D\uDFE2 Скоро увімкнуть світло", n.title);
+        assertEquals("Дім · о 18:30, через 15 хв", n.text);
         assertTrue(n.on);
         assertEquals(at(19, 30), n.until);
         String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
         Logic.Event m = Logic.events(home(), maybe, OCT30, at(9, 0), new Logic.Alerts()).get(0);
-        assertEquals("\uD83D\uDFE0 Дім · Можливе вимкнення", Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
+        assertEquals("\uD83D\uDFE0 Можливе вимкнення", Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
     }
 
     @Test
@@ -265,12 +266,12 @@ public class LogicTest {
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
         Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30, at(14, 30));
-        assertEquals("\uD83D\uDD34 Дім · Вимкнення за графіком", off.title);
-        assertEquals("до 18:30", off.text);
+        assertEquals("\uD83D\uDD34 Вимкнення за графіком", off.title);
+        assertEquals("Дім · до 18:30", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
         Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30, at(18, 30));
-        assertEquals("\uD83D\uDFE2 Дім · Світло має з'явитися", on.title);
-        assertEquals("за графіком з 18:30", on.text);
+        assertEquals("\uD83D\uDFE2 Світло має з'явитися", on.title);
+        assertEquals("Дім · за графіком з 18:30", on.text);
     }
 
     @Test
@@ -280,7 +281,7 @@ public class LogicTest {
         a.leadOff = 0;
         Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), a).get(0);
         Logic.Notice s = Logic.eventText(e, open, OCT30, at(6, 0));
-        assertEquals("за графіком", s.text);
+        assertEquals("Дім · за графіком", s.text);
         assertEquals(at(10, 0), s.until);
     }
 
@@ -643,8 +644,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Дім · графік на завтра", n.get(0).title);
-        assertEquals("2 вимкнення, без світла 4 год: 00:00 – 02:00, 20:00 – 22:00", n.get(0).text);
+        assertEquals("\uD83D\uDCC5 Графік на завтра", n.get(0).title);
+        assertEquals("Дім · 2 вимкнення, без світла 4 год: 00:00 – 02:00, 20:00 – 22:00", n.get(0).text);
     }
 
     @Test
@@ -654,8 +655,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), after, at(12, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.CHANGED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Дім · графік змінився", n.get(0).title);
-        assertEquals("Сьогодні без світла 7 год: 06:00 – 08:00, 14:30 – 18:30, 19:00 – 20:00", n.get(0).text);
+        assertEquals("\uD83D\uDCC5 Графік змінився", n.get(0).title);
+        assertEquals("Дім · Сьогодні без світла 7 год: 06:00 – 08:00, 14:30 – 18:30, 19:00 – 20:00", n.get(0).text);
     }
 
     @Test
@@ -674,7 +675,7 @@ public class LogicTest {
         String clean = HOURS_11_TOMORROW.replace("\"no\"", "\"yes\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31
                 + "\":{\"GPV1.1\":" + clean + "}}"));
-        assertEquals("Відключень не заплановано", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
+        assertEquals("Дім · Відключень не заплановано", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
     }
 
     @Test
@@ -776,6 +777,9 @@ public class LogicTest {
         assertEquals("з 22:00 учора", fromYesterday.since);
         assertEquals("уже 5 год 00 хв", fromYesterday.already);
         assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('0', 48)).since);
+        // yesterday has hours without a schedule right before the run: the start is not known
+        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
+        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
         // the same all yesterday: longer than a day, the start is not known
         assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48)).since);
         // no schedule, or no outages at all: nothing to count from
@@ -806,5 +810,21 @@ public class LogicTest {
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}"));
         assertEquals("\uD83D\uDCC5 Графік змінився", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
+    }
+
+    // ---- 1.3.1: the update downloads inside the app ----------------------------------
+
+    @Test
+    public void anUpdateDownloadsOnlyFromThisReleaseAndGithubFiles() {
+        assertTrue(Logic.trustedDownload("https://github.com/ABovsh/svitlyachok/releases/download/v1.3.1/Svitlyachok-1.3.1.apk"));
+        // GitHub sends the file itself from its file hosts
+        assertTrue(Logic.trustedDownload("https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r"));
+        assertTrue(Logic.trustedDownload("https://objects.githubusercontent.com/github-production-release-asset-2e65be/1/2"));
+        assertFalse(Logic.trustedDownload("http://github.com/ABovsh/svitlyachok/releases/download/v1.3.1/Svitlyachok-1.3.1.apk"));
+        assertFalse(Logic.trustedDownload("https://github.com/someone/svitlyachok/releases/download/v1.3.1/x.apk"));
+        assertFalse(Logic.trustedDownload("https://github.com/ABovsh/svitlyachok/archive/main.zip"));
+        assertFalse(Logic.trustedDownload("https://evil.example/objects.githubusercontent.com/x"));
+        assertFalse(Logic.trustedDownload("https://objects.githubusercontent.com.evil.example/x"));
+        assertFalse(Logic.trustedDownload(null));
     }
 }

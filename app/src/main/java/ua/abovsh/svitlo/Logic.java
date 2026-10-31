@@ -465,9 +465,10 @@ public final class Logic {
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
             n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
+        // the clock first, how long in brackets: "о 22:30 (через 1 год 44 хв)"
         String at = until(change, now);
-        // another day: the day and the clock; today: how long, and the clock
-        String in = at.startsWith("завтра") ? " завтра о " + hm(change) : " через " + waitText(change - now) + " (" + at + ")";
+        String in = (at.startsWith("завтра") ? " завтра о " + hm(change) : " о " + at)
+                + " (через " + waitText(change - now) + ")";
         if (next == '0') n.hint = "вимкнуть" + in;
         else if (next == '3') n.hint = "можливе вимкнення" + in;
         else if (c == '0') n.hint = "увімкнуть" + in;

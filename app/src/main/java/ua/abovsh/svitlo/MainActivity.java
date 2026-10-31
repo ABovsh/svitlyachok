@@ -365,14 +365,17 @@ public class MainActivity extends Base {
             n.hint = "інтернет потрібен лише для першого завантаження";
         }
         int tint = n.state == Logic.UNKNOWN ? 0 : pal.fill(n.state);
-        // the words on the left; on the right, round buttons: notifications and statistics
-        LinearLayout card = Ui.row(this);
-        card.setBaselineAligned(false);
-        card.setGravity(Gravity.TOP);  // the words start level with the bell, however tall the buttons
+        // the words on the left; on the right, round buttons: notifications and statistics;
+        // under both, across the whole card, what comes next
+        LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 16));
         card.setBackground(Ui.card(this, pal, tint));
+        LinearLayout top = Ui.row(this);
+        top.setBaselineAligned(false);
+        top.setGravity(Gravity.TOP);  // the words start level with the bell, however tall the buttons
+        card.addView(top, fill());
         LinearLayout words = Ui.column(this);
-        card.addView(words, weight());
+        top.addView(words, weight());
         LinearLayout buttons = Ui.column(this);
         buttons.addView(bell(p), new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
         View stats = iconButton(R.drawable.ic_stats, "Статистика за тиждень і місяць",
@@ -382,7 +385,7 @@ public class MainActivity extends Base {
         buttons.addView(stats, sl);
         LinearLayout.LayoutParams bl = wrap();
         bl.leftMargin = Ui.dp(this, 8);
-        card.addView(buttons, bl);
+        top.addView(buttons, bl);
 
         TextView where = Ui.text(this, 14, Ui.bold(this), pal.muted);
         android.text.SpannableStringBuilder w = new android.text.SpannableStringBuilder(p.name);
@@ -398,7 +401,7 @@ public class MainActivity extends Base {
                 + (n.since.isEmpty() ? "" : " " + n.since + ", " + n.already) + ", " + n.hint);
         if (many) since(words, n);
         else words.addView(now(n), withTop(10));
-        hint(words, n);
+        hint(card, n);
         return card;
     }
 
@@ -481,10 +484,14 @@ public class MainActivity extends Base {
         }
         TextView hint = Ui.text(this, 15, Ui.bold(this), colour);
         hint.setText(n.hint);
-        hint.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-        hint.setBackground(Ui.round(bg, Ui.px(this, 100)));
+        // one line: on a narrow screen or with large fonts the letters get smaller, not the line longer
+        hint.setMaxLines(1);
+        hint.setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        hint.setPadding(Ui.dp(this, 12), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 9));
+        hint.setBackground(Ui.round(bg, Ui.px(this, 14)));
         LinearLayout.LayoutParams hl = wrap();
-        hl.topMargin = Ui.dp(this, 12);
+        hl.topMargin = Ui.dp(this, 10);
+        hl.rightMargin = Ui.dp(this, 4);
         card.addView(hint, hl);
     }
 

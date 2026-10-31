@@ -132,7 +132,7 @@ public class LogicTest {
         assertEquals(Logic.ON, n.state);
         assertEquals("Світло є", n.title);
         assertEquals("до 14:30", n.big);
-        assertEquals("вимкнуть через 4 год 30 хв (14:30)", n.hint);
+        assertEquals("вимкнуть о 14:30 (через 4 год 30 хв)", n.hint);
         assertEquals(Logic.OFF, n.next);  // the hint takes the colour of what comes
         assertFalse(n.soon);
     }
@@ -141,7 +141,7 @@ public class LogicTest {
     public void soonOff() throws Exception {
         Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(14, 10), false);
         assertTrue(n.soon);
-        assertEquals("вимкнуть через 20 хв (14:30)", n.hint);
+        assertEquals("вимкнуть о 14:30 (через 20 хв)", n.hint);
     }
 
     @Test
@@ -150,7 +150,7 @@ public class LogicTest {
         assertEquals(Logic.OFF, n.state);
         assertEquals("Світла немає", n.title);
         assertEquals("до 18:30", n.big);
-        assertEquals("увімкнуть через 3 год 30 хв (18:30)", n.hint);
+        assertEquals("увімкнуть о 18:30 (через 3 год 30 хв)", n.hint);
         assertEquals(Logic.ON, n.next);
     }
 
@@ -167,7 +167,7 @@ public class LogicTest {
     public void untilMidnightAndTomorrow() throws Exception {
         Logic.Now n = Logic.now(tl(WITH_TOMORROW), OCT30, at(20, 0), false);
         assertEquals("до 24:00", n.big);
-        assertEquals("вимкнуть через 4 год 00 хв (24:00)", n.hint);
+        assertEquals("вимкнуть о 24:00 (через 4 год 00 хв)", n.hint);
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
         assertEquals("до завтра 06:00", Logic.now(later, OCT30, at(20, 0), false).big);
     }
@@ -784,10 +784,9 @@ public class LogicTest {
     }
 
     @Test
-    public void theHintEndsWithTheClockTime() throws Exception {
+    public void theHintSaysTheClockTimeThenHowLong() throws Exception {
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
-        // another day: the day and the clock, a count of hours would not fit the line
-        assertEquals("вимкнуть завтра о 06:00", Logic.now(later, OCT30, at(20, 0), false).hint);
+        assertEquals("вимкнуть завтра о 06:00 (через 10 год 00 хв)", Logic.now(later, OCT30, at(20, 0), false).hint);
     }
 
     @Test

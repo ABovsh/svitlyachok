@@ -1,0 +1,62 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The published APK is signed with a key that never enters this repository: pass the path of a
+// properties file (storeFile, storePassword, keyAlias) as -PsigningProperties=<path>. Without it
+// the release build is signed with the local debug key, so anyone can build an installable APK.
+def signing = new Properties()
+def signingPath = findProperty('signingProperties')
+if (signingPath) file(signingPath).withInputStream { signing.load(it) }
+
+android {
+    namespace 'ua.abovsh.svitlo'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+
+    defaultConfig {
+        applicationId 'ua.abovsh.svitlo'
+        minSdk 26
+        targetSdk 35
+        versionCode 3
+        versionName '1.2.0-rc.1'
+    }
+    buildFeatures { buildConfig true }
+    signingConfigs {
+        if (signingPath) {
+            release {
+                storeFile file(signing.getProperty('storeFile'))
+                storePassword signing.getProperty('storePassword')
+                keyAlias signing.getProperty('keyAlias', 'svitlyachok')
+                keyPassword signing.getProperty('keyPassword', signing.getProperty('storePassword'))
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            enableUnitTestCoverage true  // JaCoCo report for the code analysis
+        }
+        release {
+            // R8: smaller APK, no unused code; there is no reflection to keep
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            signingConfig signingPath ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    lint {
+        lintConfig file('lint.xml')
+        warningsAsErrors true
+        abortOnError true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    // Android's org.json is a stub in local unit tests; the real one parses the fixtures.
+    testImplementation 'org.json:json:20240303'
+}

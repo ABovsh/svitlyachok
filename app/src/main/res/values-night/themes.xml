@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Svitlo" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#FF0A0E17</item>
+        <item name="android:colorAccent">#FFFFC53D</item>
+    </style>
+</resources>

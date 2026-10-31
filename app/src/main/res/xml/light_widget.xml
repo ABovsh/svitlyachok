@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One or several places (chosen in WidgetSetupActivity); from 2 x 1 to 4 x 2 with the next 24 hours. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_desc"
+    android:initialLayout="@layout/widget"
+    android:previewLayout="@layout/widget_preview"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:configure="ua.abovsh.svitlo.WidgetSetupActivity"
+    android:widgetFeatures="reconfigurable"
+    android:widgetCategory="home_screen" />

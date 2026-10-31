@@ -1,0 +1,59 @@
+name: Приватність
+
+# Only app files, no private addresses, e-mails or keys, authors with no-reply addresses:
+# checked for every push and pull request, whoever pushed it.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Файли, вміст і автори
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Перевірка
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ZERO=0000000000000000000000000000000000000000
+          .github/privacy-guard.sh tree "$HEAD_SHA"
+          if [ "$EVENT" = "pull_request" ] && [ -n "${BASE:-}" ]; then
+            exec .github/privacy-guard.sh range "$BASE" "$HEAD_SHA"
+          fi
+          if [ "$EVENT" = "push" ] && [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "$ZERO" ] \
+             && git cat-file -e "$BEFORE" 2>/dev/null; then
+            exec .github/privacy-guard.sh range "$BEFORE" "$HEAD_SHA"
+          fi
+          # first push of a branch: every commit it carries
+          exec .github/privacy-guard.sh range "$(git rev-list --max-parents=0 "$HEAD_SHA" | tail -1)" "$HEAD_SHA"
+
+  secrets:
+    name: Ключі й паролі
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false

@@ -1,0 +1,48 @@
+name: Перевірка
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Тести, lint, збірка, SonarCloud
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # SonarCloud needs the history to tell new code from old
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Also checks gradle-wrapper.jar against the official checksums.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Тести, lint і збірка
+        run: ./gradlew --no-daemon testDebugUnitTest createDebugUnitTestCoverageReport lintDebug assembleRelease
+
+      - name: Android API для аналізу
+        run: echo "ANDROID_JAR=$ANDROID_HOME/platforms/android-35/android.jar" >> "$GITHUB_ENV"
+
+      # Pull requests from forks get no token; the push of the same commit is analysed.
+      - name: SonarCloud
+        if: github.event_name != 'pull_request'
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          args: -Dsonar.java.libraries=${{ env.ANDROID_JAR }}

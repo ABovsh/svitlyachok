@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Deliberate choices, not oversights. -->
+<lint>
+    <!-- The app speaks Ukrainian only; the texts live next to the logic that builds them. -->
+    <issue id="SetTextI18n" severity="ignore" />
+    <issue id="HardcodedText" severity="ignore" />
+    <!-- A one-column phone layout; widgets and notifications do the work on other screens. -->
+    <issue id="LockedOrientationActivity" severity="ignore" />
+    <issue id="DiscouragedApi" severity="ignore" />
+    <!-- Views built in code only, never inflated from XML. -->
+    <issue id="ViewConstructor" severity="ignore" />
+    <!-- Not on Google Play: reminders must arrive on time on phones that put apps to sleep. -->
+    <issue id="BatteryLife" severity="ignore" />
+    <!-- Widget sizing attributes for Android 12+; older launchers use minWidth/minHeight. -->
+    <issue id="UnusedAttribute" severity="ignore" />
+    <!-- The resource compiler still wants adaptive icons in mipmap-anydpi-v26. -->
+    <issue id="ObsoleteSdkInt" severity="ignore" />
+</lint>

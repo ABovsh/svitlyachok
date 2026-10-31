@@ -224,7 +224,7 @@ public class LogicTest {
         List<Logic.Event> ev = Logic.events(home(), tl(TODAY_ONLY), OCT30, at(10, 0), a);
         assertEquals(2, ev.size());
         assertEquals(Logic.Event.SOON_OFF, ev.get(0).kind);
-        assertEquals(at(14, 0), ev.get(0).at);
+        assertEquals(at(14, 15), ev.get(0).at);  // 15 minutes before
         assertEquals(at(14, 30), ev.get(0).change);
         assertEquals(Logic.Event.SOON_ON, ev.get(1).kind);
         assertEquals(at(18, 15), ev.get(1).at);
@@ -366,12 +366,33 @@ public class LogicTest {
         assertTrue(Logic.dueForUpdateCheck(at(10, 0), at(9, 0)));  // the clock went back
     }
 
+    // ---- problem reports -----------------------------------------------------
+
+    @Test
+    public void aReportNamesRegionsAndQueuesButNotThePlaces() {
+        Logic.Place p1 = home();
+        Logic.Place p2 = place("p2");
+        p2.name = "Вулиця Садова 5";  // the user's own words stay on the phone
+        p2.group = "GPV3.2";
+        String s = Logic.placesSummary(Arrays.asList(p1, p2));
+        assertEquals("Київська область, черга 1.1; Київська область, черга 3.2", s);
+        assertFalse(s.contains("Дім"));
+        assertFalse(s.contains("Садова"));
+    }
+
+    @Test
+    public void aReportOpensAPrefilledIssueOfThisRepository() {
+        String url = Logic.issueLink("Світлячок 1.2.0\nAndroid 15");
+        assertTrue(url.startsWith("https://github.com/ABovsh/svitlyachok/issues/new?template=problem.yml&details="));
+        assertTrue(url.endsWith("%D0%A1%D0%B2%D1%96%D1%82%D0%BB%D1%8F%D1%87%D0%BE%D0%BA+1.2.0%0AAndroid+15"));
+    }
+
     @Test
     public void onlyOffAndOnAreOnByDefault() {
         Logic.Alerts a = new Logic.Alerts();
         assertTrue(a.off);
         assertTrue(a.on);
-        assertEquals(30, a.leadOff);
+        assertEquals(15, a.leadOff);  // 15 minutes before a blackout
         assertEquals(15, a.leadOn);
         assertFalse(Logic.DEFAULT_TOMORROW);
         assertFalse(Logic.DEFAULT_CHANGES);
@@ -386,13 +407,21 @@ public class LogicTest {
     }
 
     @Test
-    public void widgetShowsTheChosenPlacesOrAll() {
+    public void aWidgetShowsItsOwnPlace() {
         List<Logic.Place> all = Arrays.asList(place("p1"), place("p2"), place("p3"));
-        assertEquals("p2", ids(Logic.widgetPlaces(all, "p2")));
-        assertEquals("p1,p3", ids(Logic.widgetPlaces(all, "p3,p1")));  // in the app's order
-        assertEquals("p1,p2,p3", ids(Logic.widgetPlaces(all, "")));      // not chosen yet: all
-        assertEquals("p1,p2,p3", ids(Logic.widgetPlaces(all, "gone")));  // the chosen place was removed
-        assertEquals("p2", ids(Logic.widgetPlaces(all, "gone,p2")));
+        assertEquals("p2", Logic.widgetPlace(all, "p2").id);
+        assertEquals("p1", Logic.widgetPlace(all, "").id);      // not chosen yet: the first place
+        assertEquals("p1", Logic.widgetPlace(all, "gone").id);  // its place was removed
+        assertNull(Logic.widgetPlace(Arrays.asList(), "p1"));   // no places at all
+    }
+
+    @Test
+    public void aPlaceWithoutAWidgetIsOfferedOne() {
+        List<Logic.Place> all = Arrays.asList(place("p1"), place("p2"));
+        assertTrue(Logic.needsWidget("p2", Arrays.asList("p1")));
+        assertFalse(Logic.needsWidget("p1", Arrays.asList("p1", "")));
+        assertTrue(Logic.needsWidget("p1", Arrays.asList()));
+        assertEquals(2, all.size());
     }
 
     static String ids(List<Logic.Place> ps) {
@@ -404,10 +433,11 @@ public class LogicTest {
     @Test
     public void lateReminderKeptBriefly() throws Exception {
         String t = tl(TODAY_ONLY);
-        // published at 14:09: the 14:00 reminder is 12 min late, still worth it
-        assertEquals(at(14, 0), Logic.events(home(), t, OCT30, at(14, 9), new Logic.Alerts()).get(0).at);
+        // published at 14:24: the 14:15 reminder is 9 min late, still worth it
+        assertEquals(at(14, 15), Logic.events(home(), t, OCT30, at(14, 24), new Logic.Alerts()).get(0).at);
+        // at 14:26 it is 11 min late: dropped, the next one is the reminder before the power returns
         assertEquals(Logic.Event.SOON_ON,
-                Logic.events(home(), t, OCT30, at(14, 11), new Logic.Alerts()).get(0).kind);
+                Logic.events(home(), t, OCT30, at(14, 26), new Logic.Alerts()).get(0).kind);
     }
 
     @Test

@@ -285,6 +285,8 @@ public class SetupActivity extends Base {
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
         if (first) startActivity(new Intent(this, MainActivity.class));
+        // a new place gets its own widget: the launcher asks whether to put it on the home screen
+        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p);
         finish();
     }
 }

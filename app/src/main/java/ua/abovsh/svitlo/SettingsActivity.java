@@ -48,6 +48,7 @@ public class SettingsActivity extends Base {
         notificationsSection();
         lookSection();
         updatesSection();
+        helpSection();
         aboutSection();
         scroll.post(() -> scroll.scrollTo(0, y));
     }
@@ -156,6 +157,34 @@ public class SettingsActivity extends Base {
         u.addView(updateRow(), fill());
         page.addView(u, fill());
         page.addView(note("Світлячок питає GitHub лише, яка версія остання. Що встановлювати і коли, вирішуєте ви."));
+    }
+
+    private void helpSection() {
+        page.addView(heading("Допомога"));
+        LinearLayout h = box();
+        h.addView(link("Повідомити про проблему на GitHub",
+                "Відкриється форма з технічними даними. Потрібен обліковий запис GitHub.", v -> Report.onGitHub(this)), fill());
+        h.addView(divider());
+        h.addView(link("Надіслати опис у месенджер",
+                "Viber, Telegram чи пошта: наприклад, тому, хто порадив вам Світлячок.", v -> Report.share(this)), fill());
+        page.addView(h, fill());
+        page.addView(note("Застосунок нічого не надсилає сам: ви бачите текст і вирішуєте, кому його відправити. "
+                + "Технічні дані — версія, телефон, область і черга, без назв ваших місць."));
+    }
+
+    /** A row that opens something: a title, a line under it, a chevron. */
+    private View link(String title, String desc, View.OnClickListener l) {
+        LinearLayout r = Ui.row(this);
+        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        r.addView(label(title, desc), weight());
+        ImageView go = new ImageView(this);
+        go.setImageResource(R.drawable.ic_chevron);
+        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
+        go.setScaleType(ImageView.ScaleType.CENTER);
+        r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 44)));
+        r.setContentDescription(title);
+        r.setOnClickListener(l);
+        return r;
     }
 
     private void aboutSection() {
@@ -286,14 +315,17 @@ public class SettingsActivity extends Base {
         for (int i = 0; i < leads.length; i++) {
             int v = leads[i];
             TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
-            t.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+            int side = Ui.dp(this, 4);
+            t.setPadding(side, 0, side, 0);
+            // a narrow phone with a large system font: the text shrinks instead of overflowing
+            t.setAutoSizeTextTypeUniformWithConfiguration(9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
             t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
             t.setOnClickListener(c -> {
                 Prefs.setInt(this, leadKey, v);
                 Sync.apply(getApplicationContext());
                 rebuild();
             });
-            LinearLayout.LayoutParams lp = weight();
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1f);
             if (v == 0) lp.weight = 1.4f;  // "Одразу" is the longest word
             if (i > 0) lp.leftMargin = Ui.dp(this, 6);
             row.addView(t, lp);

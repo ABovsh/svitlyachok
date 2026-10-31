@@ -519,7 +519,7 @@ public final class Logic {
     public static final class Alerts {
         public boolean off = true;
         public boolean on = true;
-        public int leadOff = 30;
+        public int leadOff = 15;
         public int leadOn = 15;
     }
 
@@ -752,18 +752,43 @@ public final class Logic {
         return checkedAt <= 0 || now < checkedAt || now - checkedAt >= UPDATE_CHECK_S;
     }
 
+    // ---- problem reports ---------------------------------------------------------
+
+    /** "Київська область, черга 1.1; …": what a report says about the places, never their names. */
+    public static String placesSummary(List<Place> places) {
+        List<String> out = new ArrayList<>();
+        for (Place p : places) {
+            Region r = region(p.region);
+            out.add((r == null ? p.region : r.name) + ", черга " + queue(p.group));
+        }
+        return String.join("; ", out);
+    }
+
+    /** A new issue in this repository with the technical details already in the form. */
+    public static String issueLink(String details) {
+        try {
+            return REPO + "issues/new?template=problem.yml&details="
+                    + java.net.URLEncoder.encode(details, java.nio.charset.StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            return REPO + "issues/new?template=problem.yml";  // UTF-8 always exists
+        }
+    }
+
     // ---- widget ----------------------------------------------------------------
 
     /** One row (2 x 1 and wider), or with a bar of the next 24 hours when there is room. */
     public static final int W_ROW = 0;
     public static final int W_FULL = 1;
 
-    /** The places a widget shows: those chosen for it ("p1,p3"), in the app's order; all when none is left. */
-    public static List<Place> widgetPlaces(List<Place> all, String chosen) {
-        List<String> ids = java.util.Arrays.asList(chosen.split(","));
-        List<Place> out = new ArrayList<>();
-        for (Place p : all) if (ids.contains(p.id)) out.add(p);
-        return out.isEmpty() ? new ArrayList<>(all) : out;
+    /** The place a widget shows: the one chosen for it, or the first place when none is (left). */
+    public static Place widgetPlace(List<Place> all, String chosen) {
+        for (Place p : all) if (p.id.equals(chosen)) return p;
+        return all.isEmpty() ? null : all.get(0);
+    }
+
+    /** Whether a place still has no widget of its own (`widgetPlaces`: the place of each widget). */
+    public static boolean needsWidget(String place, List<String> widgetPlaces) {
+        return !widgetPlaces.contains(place);
     }
 
     public static int widgetForm(int wDp, int hDp) {

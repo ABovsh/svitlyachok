@@ -1,0 +1,32 @@
+name: Проблема
+description: Щось працює не так, як мало б
+title: "Проблема: "
+labels: ["проблема"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Дякуємо, що повідомили. Не пишіть сюди адресу, телефон чи інші особисті дані: ця сторінка публічна.
+  - type: textarea
+    id: what
+    attributes:
+      label: Що сталося
+      description: Що ви робили і що побачили. Скриншот можна просто вставити сюди.
+      placeholder: Наприклад, віджет показує «Світло є», а в застосунку «Світла немає».
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Як мало бути
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: Технічні дані
+      description: Застосунок заповнює це сам (кнопка «Повідомити про проблему» в налаштуваннях).
+      placeholder: Версія Світлячка, версія Android, модель телефона, область і черга.
+      render: text
+    validations:
+      required: false

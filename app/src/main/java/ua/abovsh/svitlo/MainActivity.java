@@ -87,8 +87,10 @@ public class MainActivity extends Base {
         sub.setPadding(0, Ui.dp(this, 3), 0, 0);
         t.addView(sub);
         r.addView(t, weight());
-        addWidget = iconButton(R.drawable.ic_widget, "Додати віджет на головний екран", v ->
-                AppWidgetManager.getInstance(this).requestPinAppWidget(new ComponentName(this, LightWidget.class), null, null));
+        addWidget = iconButton(R.drawable.ic_widget, "Додати віджет на головний екран", v -> {
+            List<Logic.Place> places = Prefs.places(this);
+            if (!places.isEmpty()) Widgets.offer(this, current(places));
+        });
         LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48));
         wl.rightMargin = Ui.dp(this, 8);
         r.addView(addWidget, wl);
@@ -168,9 +170,10 @@ public class MainActivity extends Base {
         body.addView(legend(), lg);
         body.addView(footer(p, d, now), fill());
 
-        AppWidgetManager m = AppWidgetManager.getInstance(this);
-        boolean placed = m.getAppWidgetIds(new ComponentName(this, LightWidget.class)).length > 0;
-        addWidget.setVisibility(!placed && m.isRequestPinAppWidgetSupported() ? View.VISIBLE : View.GONE);
+        // one widget per place: offered for the place on screen until it has one
+        boolean offer = Widgets.canOffer(this, p);
+        addWidget.setVisibility(offer ? View.VISIBLE : View.GONE);
+        addWidget.setContentDescription("Додати віджет «" + p.name + "» на головний екран");
     }
 
     /** A newer version on GitHub: what it is, and two ways on. The user decides; "later" hides it. */

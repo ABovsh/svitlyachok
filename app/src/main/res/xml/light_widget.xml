@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One or several places (chosen in WidgetSetupActivity); from 2 x 1 to 4 x 2 with the next 24 hours. -->
+<!-- One place per widget (chosen in WidgetSetupActivity or offered by the app); 2 x 1 to 4 x 2 with the next 24 hours. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_desc"
     android:initialLayout="@layout/widget"

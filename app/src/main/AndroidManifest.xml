@@ -58,6 +58,7 @@
         </receiver>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".PinReceiver" android:exported="false" />
 
         <!-- Boot and app-update events are sent by the system; other apps need the permission, and
              BootReceiver ignores every other action anyway. -->

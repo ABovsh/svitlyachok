@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Світлячок</string>
-    <string name="widget_desc">Графік відключень одного або кількох місць: що зараз і до котрої</string>
+    <string name="widget_desc">Графік відключень одного місця: що зараз і до котрої. Для кожного місця — свій віджет.</string>
 </resources>

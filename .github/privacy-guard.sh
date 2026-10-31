@@ -11,7 +11,7 @@
 # Exit 0 = clean, 1 = findings, 2 = usage error.
 set -uo pipefail
 
-ALLOWED='^(app/(build\.gradle|lint\.xml|src/(main|test)/.+)|gradle/wrapper/gradle-wrapper\.(jar|properties)|gradlew|gradlew\.bat|docs/screenshots/[a-z0-9-]+\.png|\.github/(workflows/[a-z0-9-]+\.yml|dependabot\.yml|privacy-guard\.sh)|build\.gradle|settings\.gradle|gradle\.properties|sonar-project\.properties|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|SECURITY\.md|LICENSE|\.gitignore|\.gitattributes)$'
+ALLOWED='^(app/(build\.gradle|lint\.xml|src/(main|test)/.+)|gradle/wrapper/gradle-wrapper\.(jar|properties)|gradlew|gradlew\.bat|docs/screenshots/[a-z0-9-]+\.png|\.github/(workflows/[a-z0-9-]+\.yml|ISSUE_TEMPLATE/[a-z0-9-]+\.yml|dependabot\.yml|privacy-guard\.sh)|build\.gradle|settings\.gradle|gradle\.properties|sonar-project\.properties|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|SECURITY\.md|LICENSE|\.gitignore|\.gitattributes)$'
 NEVER='\.(jks|keystore|p12|pfx|pem|key|apk|aab)$|(^|/)(local|signing)\.properties$|(^|/)\.env'
 
 CONTENT=(

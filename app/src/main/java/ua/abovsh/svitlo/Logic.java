@@ -39,6 +39,7 @@ public final class Logic {
     public static final int QUIET_FROM_H = 23;
     public static final int QUIET_TO_H = 7;
     static final String NO_OUTAGES = "без вимкнень";
+    static final String NOT_PUBLISHED = "ще не опубліковано";
 
     private Logic() {}
 
@@ -390,7 +391,7 @@ public final class Logic {
         n.state = state(c);
         n.title = title(n.state);
         if (n.state == UNKNOWN) {
-            n.big = "ще не опубліковано";
+            n.big = NOT_PUBLISHED;
             n.hint = "щойно обленерго його оприлюднить, він з'явиться тут";
         } else if (none) {
             n.big = NO_OUTAGES;
@@ -487,7 +488,7 @@ public final class Logic {
     }
 
     public static String dayTotal(String day) {
-        if (day == null) return "ще не опубліковано";
+        if (day == null) return NOT_PUBLISHED;
         int off = 0;
         for (int i = 0; i < day.length(); i++) if (day.charAt(i) == '0') off++;
         if (off == 0) return NO_OUTAGES;
@@ -498,7 +499,7 @@ public final class Logic {
 
     /** "зі світлом 18 год · 75 %": the positive side of a day, as a share of all 24 hours. */
     public static String dayLight(String day) {
-        if (day == null) return "ще не опубліковано";
+        if (day == null) return NOT_PUBLISHED;
         int on = count(day, '1');
         if (on == day.length()) return NO_OUTAGES;
         return "зі світлом " + length(on) + " · " + Math.round(on * 100f / day.length()) + " %";

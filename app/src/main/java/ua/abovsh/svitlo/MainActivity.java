@@ -481,7 +481,8 @@ public class MainActivity extends Base {
             TextView tot = Ui.text(this, 13, Ui.heavy(this), clean ? pal.ink : pal.onText);
             tot.setText(light);
             tot.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
-            tot.setBackground(Ui.round(clean ? pal.on : Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f), Ui.px(this, 100)));
+            int tint = Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f);
+            tot.setBackground(Ui.round(clean ? pal.on : tint, Ui.px(this, 100)));
             head.addView(tot);
         }
         head.setContentDescription(Logic.describe(title, slots));

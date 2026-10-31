@@ -83,7 +83,7 @@ final class StatsChart extends View {
 
     /** Light from the bottom, then a possible outage, then none: the share of 48 half hours. */
     private void stack(Canvas cv, Logic.DayStat d, float r) {
-        float all = (float) (d.on + d.maybe + d.off);
+        float all = d.on + d.maybe + (float) d.off;
         if (all <= 0) return;
         cv.save();
         bar.top = 0f;

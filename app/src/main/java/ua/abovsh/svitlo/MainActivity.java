@@ -401,16 +401,9 @@ public class MainActivity extends Base {
         // the colour of what comes, softened towards the text: a hint, not an alarm
         int ink = known ? Ui.blend(pal.text, Ui.fade(pal.status(n.next), 0.8f)) : pal.text;
         if (!n.hint.isEmpty()) {
-            int soonInk = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
-            TextView hint = Ui.text(this, 15, Ui.bold(this), n.soon && known ? soonInk : ink);
-            hint.setText(n.hint);
-            hint.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
-            int bg = pal.raised;
-            if (known) bg = n.soon ? pal.fill(n.next) : Ui.blend(pal.raised, Ui.fade(pal.fill(n.next), pal.dark ? 0.16f : 0.12f));
-            hint.setBackground(Ui.round(bg, Ui.px(this, 100)));
             LinearLayout.LayoutParams hl = wrap();
             hl.topMargin = Ui.dp(this, card.getChildCount() > 1 ? 14 : 12);
-            card.addView(hint, hl);
+            card.addView(hint(n, known, ink), hl);
         }
         if (!n.then.isEmpty()) {
             TextView then = Ui.text(this, 14, Ui.bold(this), known ? Ui.blend(pal.muted, Ui.fade(ink, 0.75f)) : pal.muted);
@@ -418,6 +411,23 @@ public class MainActivity extends Base {
             then.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), 0, 0);
             card.addView(then, fill());
         }
+    }
+
+    /** "вимкнуть через 1 год 37 хв" in a pill: tinted with what comes, filled with it when soon. */
+    private TextView hint(Logic.Now n, boolean known, int ink) {
+        int colour = ink;
+        int bg = pal.raised;
+        if (known && n.soon) {
+            colour = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+            bg = pal.fill(n.next);
+        } else if (known) {
+            bg = Ui.blend(pal.raised, Ui.fade(pal.fill(n.next), pal.dark ? 0.16f : 0.12f));
+        }
+        TextView hint = Ui.text(this, 15, Ui.bold(this), colour);
+        hint.setText(n.hint);
+        hint.setPadding(Ui.dp(this, 14), Ui.dp(this, 9), Ui.dp(this, 14), Ui.dp(this, 9));
+        hint.setBackground(Ui.round(bg, Ui.px(this, 100)));
+        return hint;
     }
 
     private View bell(Logic.Place p) {

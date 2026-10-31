@@ -323,10 +323,14 @@ public final class Logic {
         return h > 0 ? String.format(Locale.ROOT, "%d год %02d хв", h, m) : m + " хв";
     }
 
+    /** The end of a day as a clock. */
+    static final String MIDNIGHT = "24:00";
+    static final String NO_POWER = "без світла ";
+
     /** The end of something as a clock: "18:30", "24:00" for tonight's midnight, "завтра 06:00". */
     public static String until(long t, long now) {
         long d = dayDiff(now, t);
-        if (d == 1 && hm(t).equals("00:00")) return "24:00";
+        if (d == 1 && hm(t).equals("00:00")) return MIDNIGHT;
         return d == 1 ? "завтра " + hm(t) : hm(t);
     }
 
@@ -453,7 +457,7 @@ public final class Logic {
     }
 
     static String clock(int slot) {
-        return slot >= 48 ? "24:00" : String.format(Locale.ROOT, "%02d:%02d", slot / 2, (slot % 2) * 30);
+        return slot >= 48 ? MIDNIGHT : String.format(Locale.ROOT, "%02d:%02d", slot / 2, (slot % 2) * 30);
     }
 
     static String length(int halves) {
@@ -494,7 +498,7 @@ public final class Logic {
         int off = 0;
         for (int i = 0; i < day.length(); i++) if (day.charAt(i) == '0') off++;
         if (off == 0) return NO_OUTAGES;
-        return "без світла " + length(off);
+        return NO_POWER + length(off);
     }
 
     static final int HISTORY_DAYS = 31;
@@ -588,7 +592,7 @@ public final class Logic {
         if (day == null) return title + ": графік ще не опубліковано";
         String off = list(day, false);
         String maybe = list(day, true);
-        return title + ": " + (off.isEmpty() ? NO_OUTAGES : "без світла " + off)
+        return title + ": " + (off.isEmpty() ? NO_OUTAGES : NO_POWER + off)
                 + (maybe.isEmpty() ? "" : "; можливе вимкнення " + maybe);
     }
 
@@ -698,7 +702,7 @@ public final class Logic {
     /** "14:30–18:30", "з 06:00" when the end is not known yet; midnight after the start is 24:00. */
     private static String range(long from, long to) {
         if (to <= 0) return "з " + hm(from);
-        return hm(from) + "–" + (dayDiff(from, to) == 1 && hm(to).equals("00:00") ? "24:00" : hm(to));
+        return hm(from) + "–" + (dayDiff(from, to) == 1 && hm(to).equals("00:00") ? MIDNIGHT : hm(to));
     }
 
     /**
@@ -712,7 +716,7 @@ public final class Logic {
         boolean maybe = !n.on && i >= 0 && i < tl.length() && tl.charAt(i) == '3';
         long end = n.on ? powerEnd(tl, base, e.change) : outageEnd(tl, base, e.change);
         int state = OFF;
-        String what = "без світла ";
+        String what = NO_POWER;
         if (n.on) {
             state = ON;
             what = "світло ";

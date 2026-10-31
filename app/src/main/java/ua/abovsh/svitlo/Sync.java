@@ -121,15 +121,25 @@ final class Sync {
         return 200 + placeNo(c, placeId);
     }
 
+    /** A schedule notice: gold, it stays until opened or swiped away. */
     static void post(Context c, int id, String channel, String title, String text) {
-        post(c, id, channel, title, text, R.drawable.ic_notify, GOLD, 0);
+        Logic.Notice n = new Logic.Notice();
+        n.title = title;
+        n.text = text;
+        post(c, id, channel, n, false);
     }
 
     /**
-     * `icon` and `colour` tell off from on before a word is read: Samsung paints the circle with it.
-     * `until` (epoch seconds, 0 = never): when the notice stops being true it goes by itself.
+     * A reminder's bulb and colour tell off from on before a word is read: Samsung paints the
+     * circle with it. `n.until`: when the notice stops being true it goes by itself.
      */
-    static void post(Context c, int id, String channel, String title, String text, int icon, int colour, long until) {
+    static void post(Context c, int id, String channel, Logic.Notice n, boolean reminder) {
+        int icon = R.drawable.ic_notify;
+        int colour = GOLD;
+        if (reminder) {
+            icon = n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off;
+            colour = n.on ? GREEN : RED;
+        }
         ensureChannels(c);
         long now = now();
         if (Prefs.quietNights(c) && Logic.quiet(now)) channel = CH_QUIET;
@@ -137,15 +147,15 @@ final class Sync {
         Notification.Builder b = new Notification.Builder(c, channel)
                 .setSmallIcon(icon)
                 .setColor(colour)
-                .setContentTitle(tinted(title, colour))
-                .setContentText(text)
+                .setContentTitle(tinted(n.title, colour))
+                .setContentText(n.text)
                 .setWhen(now * 1000)
                 .setShowWhen(true)
                 .setAutoCancel(true)
                 .setContentIntent(PendingIntent.getActivity(c, 0, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
-        if (text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(text));
-        if (until > now) b.setTimeoutAfter((until - now) * 1000);
+        if (n.text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(n.text));
+        if (n.until > now) b.setTimeoutAfter((n.until - now) * 1000);
         try {
             c.getSystemService(NotificationManager.class).notify(id, b.build());
         } catch (SecurityException ignored) {
@@ -203,8 +213,7 @@ final class Sync {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now + 30) break;
             Logic.Notice n = Logic.eventText(e, (String) x[1], base, now);
-            post(c, slot(c, e.place), CH_REMIND, n.title, n.text,
-                    n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off, n.on ? GREEN : RED, n.until);
+            post(c, slot(c, e.place), CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
         }
     }
@@ -215,10 +224,17 @@ final class Sync {
         String name = ps.isEmpty() ? "Дім" : ps.get(0).name;
         for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) name = p.name;
         long gone = now() + 600;
-        post(c, 998, CH_REMIND, Logic.mark(Logic.OFF) + name + " · без світла 18:00–22:00", "Пробне сповіщення",
-                R.drawable.ic_notify_off, RED, gone);
-        post(c, 999, CH_REMIND, Logic.mark(Logic.ON) + name + " · світло з 22:00", "Пробне сповіщення",
-                R.drawable.ic_notify_on, GREEN, gone);
+        post(c, 998, CH_REMIND, sample(Logic.mark(Logic.OFF) + name + " · без світла 18:00–22:00", false, gone), true);
+        post(c, 999, CH_REMIND, sample(Logic.mark(Logic.ON) + name + " · світло з 22:00", true, gone), true);
+    }
+
+    private static Logic.Notice sample(String title, boolean on, long until) {
+        Logic.Notice n = new Logic.Notice();
+        n.title = title;
+        n.text = "Пробне сповіщення";
+        n.on = on;
+        n.until = until;
+        return n;
     }
 
     // ---- widget --------------------------------------------------------------------

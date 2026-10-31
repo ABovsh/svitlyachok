@@ -18,4 +18,8 @@
     <!-- The target Android level is raised deliberately, after testing on that version, not
          whenever a newer one appears: CI's online lint would otherwise fail on release day. -->
     <issue id="OldTargetApi" severity="ignore" />
+    <!-- New versions of libraries and build tools come as Dependabot pull requests. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
 </lint>

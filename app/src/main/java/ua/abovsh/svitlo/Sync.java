@@ -29,8 +29,8 @@ final class Sync {
     static final String CH_REMIND = "remind";
     static final String CH_SCHEDULE = "schedule";
     static final String CH_QUIET = "quiet";
-    static final String ACTION_REFRESH = "ua.abovsh.svitlo.REFRESH";
-    static final String ACTION_NOTIFY = "ua.abovsh.svitlo.NOTIFY";
+    static final String ACTION_REFRESH = BuildConfig.APPLICATION_ID + ".REFRESH";
+    static final String ACTION_NOTIFY = BuildConfig.APPLICATION_ID + ".NOTIFY";
 
     private Sync() {}
 

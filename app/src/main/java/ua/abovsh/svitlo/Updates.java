@@ -52,6 +52,7 @@ final class Updates {
 
     /** The newest release known, if it is newer than this app; null otherwise. */
     static Logic.Release latest(Context c) {
+        if (BuildConfig.IS_RC) return null;  // RCs are installed separately, never from the stable feed
         String v = p(c).getString(VERSION, "");
         if (!Logic.newer(v, BuildConfig.VERSION_NAME)) return null;
         try {
@@ -68,6 +69,7 @@ final class Updates {
 
     /** On opening the app: check in the background when due, then `done` on that thread. */
     static void checkIfDue(Context c, Runnable done) {
+        if (BuildConfig.IS_RC) return;
         Context app = c.getApplicationContext();
         // always on: a skipped version stays skipped, a newer one is offered again
         if (!Logic.dueForUpdateCheck(p(app).getLong(CHECKED, 0), Sync.now())) return;

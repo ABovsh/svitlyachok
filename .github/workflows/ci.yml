@@ -2,7 +2,7 @@ name: Перевірка
 
 on:
   push:
-    branches: [main]
+    branches: [main, rc]
   pull_request:
   workflow_dispatch:
 
@@ -32,7 +32,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Тести, lint і збірка
-        run: ./gradlew --no-daemon testDebugUnitTest createDebugUnitTestCoverageReport lintDebug assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest createDebugUnitTestCoverageReport lintDebug lintRc assembleRelease assembleRc
 
       - name: Android API для аналізу
         run: echo "ANDROID_JAR=$ANDROID_HOME/platforms/android-35/android.jar" >> "$GITHUB_ENV"

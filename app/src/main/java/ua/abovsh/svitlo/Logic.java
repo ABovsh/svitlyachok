@@ -1223,6 +1223,110 @@ public final class Logic {
         return out;
     }
 
+    /** Compact tiles keep a literal state; an unpublished day is never treated as power. */
+    public static String tileLine(Now n) {
+        if (n.big.startsWith("до ") && n.state == ON) return "Є " + n.big;
+        if (n.big.startsWith("до ") && n.state == OFF) return "Немає " + n.big;
+        return n.title;
+    }
+
+    /** Secondary line without brackets, with the known end of the next outage when available. */
+    public static String nextDetail(Now n) {
+        String text = n.hintIn;
+        if (text.startsWith("(") && text.endsWith(")")) text = text.substring(1, text.length() - 1);
+        int end = n.then.lastIndexOf(" до ");
+        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + n.then.substring(end + 1);
+        return text;
+    }
+
+    /** Label, exact clock (including tomorrow), and known end; no countdown on a widget. */
+    public static String[] widgetNext(Now n) {
+        int at = n.hint.lastIndexOf(' ');
+        if (n.next == UNKNOWN || n.change == 0 || at < 0) return new String[] {"", "", ""};
+        int end = n.then.lastIndexOf(" до ");
+        return new String[] {n.hint.substring(0, at), n.hint.substring(at + 1), end < 0 ? "" : n.then.substring(end + 1)};
+    }
+
+    static int statValue(DayStat d, int state) {
+        return state == ON ? d.on : state == OFF ? d.off : state == MAYBE ? d.maybe : 0;
+    }
+
+    static boolean statKnown(DayStat d) {
+        return d.known && d.on + d.off + d.maybe > 0;
+    }
+
+    public static int statKnownDays(List<DayStat> days) {
+        int count = 0;
+        for (DayStat d : days) if (statKnown(d)) count++;
+        return count;
+    }
+
+    public static int statAverageMinutes(List<DayStat> days, int state) {
+        int count = 0;
+        int halves = 0;
+        for (DayStat d : days) if (statKnown(d)) { count++; halves += statValue(d, state); }
+        return count == 0 ? -1 : Math.round(halves * 30f / count);
+    }
+
+    public static int statShare(List<DayStat> days, int state) {
+        int value = 0;
+        int total = 0;
+        for (DayStat d : days) if (statKnown(d)) {
+            value += statValue(d, state);
+            total += d.on + d.off + d.maybe;
+        }
+        return total == 0 ? -1 : Math.round(value * 100f / total);
+    }
+
+    public static String statNumber(DayStat d, int state, boolean rounded) {
+        if (!statKnown(d)) return "—";
+        int halves = statValue(d, state);
+        if (!rounded) return halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5";
+        if (halves == 1) return "<1";
+        int[] counts = {d.on, d.off, d.maybe};
+        int[] hours = {d.on / 2, d.off / 2, d.maybe / 2};
+        int left = Math.round((d.on + d.off + d.maybe) / 2f) - hours[0] - hours[1] - hours[2];
+        for (int i = 0; i < counts.length && left > 0; i++) if (counts[i] % 2 != 0) { hours[i]++; left--; }
+        return String.valueOf(hours[state == ON ? 0 : state == OFF ? 1 : 2]);
+    }
+
+    public static final class StatLabel {
+        public int index;
+        public float x;
+    }
+
+    /** All bars remain visible: month labels use anchor dates; a larger font reduces labels. */
+    public static List<StatLabel> statLabels(List<DayStat> days, float width, float labelW, float gap) {
+        List<StatLabel> out = new ArrayList<>();
+        if (days.isEmpty()) return out;
+        List<Integer> order = new ArrayList<>();
+        order.add(days.size() - 1);
+        for (int i = 0; i < days.size() - 1; i++) if (days.size() <= 7 || days.get(i).date.getDayOfMonth() % 5 == 0) order.add(i);
+        float step = width / days.size();
+        for (int i : order) {
+            if (!statKnown(days.get(i))) continue;
+            float x = clampX((i + 0.5f) * step, labelW / 2, width);
+            boolean fits = true;
+            for (StatLabel l : out) if (Math.abs(x - l.x) < labelW + gap - 0.01f) { fits = false; break; }
+            if (fits) { StatLabel l = new StatLabel(); l.index = i; l.x = x; out.add(l); }
+        }
+        return out;
+    }
+
+    public static String describeStats(List<DayStat> days) {
+        StringBuilder text = new StringBuilder("За графіком. ");
+        for (DayStat d : days) {
+            text.append(d.date.getDayOfMonth()).append('.').append(d.date.getMonthValue()).append(": ");
+            if (!statKnown(d)) text.append("графіка немає");
+            else {
+                text.append("зі світлом ").append(hoursMinutes(d.on * 30)).append(", без світла ").append(hoursMinutes(d.off * 30));
+                if (d.maybe > 0) text.append(", можливе вимкнення ").append(hoursMinutes(d.maybe * 30));
+            }
+            text.append(". ");
+        }
+        return text.toString().trim();
+    }
+
     /** Where a run of an outage begins (OFF or MAYBE) and where the power comes back after it (ON). */
     private static List<int[]> changes(String day) {
         List<int[]> ch = new ArrayList<>();  // slot, kind

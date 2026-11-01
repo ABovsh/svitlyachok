@@ -16,7 +16,7 @@ import java.io.FileNotFoundException;
  * for anything here, and no other file is ever served.
  */
 public class ShareProvider extends ContentProvider {
-    static final String AUTHORITY = "ua.abovsh.svitlo.share";
+    static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".share";
 
     private static final String APK_TYPE = "application/vnd.android.package-archive";
 

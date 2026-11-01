@@ -922,6 +922,106 @@ public class LogicTest {
         assertEquals(5, clean.size());  // 00, 06, 12, 18, 24
     }
 
+    @Test
+    public void compactLinesPreserveStateAndKnownEnd() throws Exception {
+        Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false);
+        assertEquals("Є до 14:30", Logic.tileLine(n));
+        assertEquals("через 4 год 30 хв · до 18:30", Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Вимкнуть о", "14:30", "до 18:30"), Arrays.asList(Logic.widgetNext(n)));
+        n = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false);
+        assertEquals("Немає до 18:30", Logic.tileLine(n));
+        assertEquals("через 3 год 30 хв", Logic.nextDetail(n));
+        n = Logic.now(tl(feed("[]")), OCT30, at(10, 0), true);
+        assertEquals("Світло є", Logic.tileLine(n));
+        assertEquals(Arrays.asList("", "", ""), Arrays.asList(Logic.widgetNext(n)));
+        Logic.Now unknown = new Logic.Now();
+        unknown.title = "Графіка немає";
+        assertEquals("Графіка немає", Logic.tileLine(unknown));
+        assertEquals("", Logic.nextDetail(unknown));
+        n.state = Logic.MAYBE;
+        n.title = "Можливе вимкнення";
+        assertEquals("Можливе вимкнення", Logic.tileLine(n));
+    }
+
+    @Test
+    public void statisticsKeepOffPossibleUnknownAndZeroSeparate() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        h.put(OCT30.minusDays(2), repeat('1', 48));
+        h.put(OCT30.minusDays(1), repeat('0', 48));
+        h.put(OCT30, repeat('1', 33) + repeat('0', 12) + repeat('3', 3));
+        List<Logic.DayStat> days = Logic.window(h, OCT30, 7);
+        assertEquals(3, Logic.statKnownDays(days));
+        assertEquals(810, Logic.statAverageMinutes(days, Logic.ON));
+        assertEquals(600, Logic.statAverageMinutes(days, Logic.OFF));
+        assertEquals(30, Logic.statAverageMinutes(days, Logic.MAYBE));
+        assertEquals(56, Logic.statShare(days, Logic.ON));
+        assertEquals(42, Logic.statShare(days, Logic.OFF));
+        assertEquals("24", Logic.statNumber(days.get(4), Logic.ON, true));
+        assertEquals("0", Logic.statNumber(days.get(4), Logic.OFF, true));
+        assertEquals("—", Logic.statNumber(days.get(0), Logic.OFF, true));
+        assertEquals("16,5", Logic.statNumber(days.get(6), Logic.ON, false));
+        assertEquals("17", Logic.statNumber(days.get(6), Logic.ON, true));
+        assertEquals("6", Logic.statNumber(days.get(6), Logic.OFF, true));
+        Logic.DayStat tiny = new Logic.DayStat();
+        tiny.known = true; tiny.on = 47; tiny.off = 1;
+        assertEquals("<1", Logic.statNumber(tiny, Logic.OFF, true));
+        assertEquals(-1, Logic.statAverageMinutes(Logic.window(new java.util.HashMap<>(), OCT30, 7), Logic.ON));
+        assertEquals(-1, Logic.statShare(Logic.window(new java.util.HashMap<>(), OCT30, 7), Logic.OFF));
+    }
+
+    @Test
+    public void statisticsLabelsFitWithoutPagingOrInventingUnknownValues() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        for (int i = 0; i < 31; i++) h.put(OCT30.minusDays(i), repeat('1', 32) + repeat('0', 16));
+        List<Logic.DayStat> days = Logic.window(h, OCT30, 31);
+        for (int width : new int[] {200, 260, 340}) {
+            List<Logic.StatLabel> labels = Logic.statLabels(days, width, 32, 6);
+            assertEquals(30, labels.get(0).index);
+            for (int i = 0; i < labels.size(); i++) {
+                assertTrue(labels.get(i).x >= 16 && labels.get(i).x <= width - 16);
+                for (int j = i + 1; j < labels.size(); j++) assertTrue(Math.abs(labels.get(i).x - labels.get(j).x) >= 37.99f);
+            }
+        }
+        assertEquals(7, Logic.statLabels(days.subList(24, 31), 320, 30, 5).size());
+        assertTrue(Logic.describeStats(days).contains("без світла 8 год"));
+        assertTrue(Logic.describeStats(Logic.window(new java.util.HashMap<>(), OCT30, 7)).contains("графіка немає"));
+    }
+
+    @Test
+    public void compactEventsKeepTomorrowMidnightAndPossibleOutagesExplicit() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.MAYBE; n.title = "Можливе вимкнення"; n.big = "до 15:00";
+        assertEquals(n.title, Logic.tileLine(n));
+        n.next = Logic.MAYBE; n.change = 1; n.hint = "Можливе вимкнення завтра о 06:00";
+        n.then = "потім можливе вимкнення до завтра 09:00"; n.hintIn = "";
+        assertEquals("до завтра 09:00", Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Можливе вимкнення завтра о", "06:00", "до завтра 09:00"), Arrays.asList(Logic.widgetNext(n)));
+        n.next = Logic.ON; n.hint = "Увімкнуть о 24:00"; n.hintIn = "через 30 хв";
+        assertEquals("через 30 хв", Logic.nextDetail(n));
+        n.then = "";
+        assertEquals(Arrays.asList("Увімкнуть о", "24:00", ""), Arrays.asList(Logic.widgetNext(n)));
+        n.change = 0;
+        assertEquals(Arrays.asList("", "", ""), Arrays.asList(Logic.widgetNext(n)));
+    }
+
+    @Test
+    public void incompleteStatisticsDoNotInventACompleteDay() {
+        java.util.Map<LocalDate, String> history = new java.util.HashMap<>();
+        history.put(OCT30, repeat('1', 12) + repeat('0', 10) + repeat('3', 3) + repeat('2', 23));
+        history.put(OCT30.minusDays(1), repeat('2', 48));
+        List<Logic.DayStat> days = Logic.window(history, OCT30, 7);
+        assertEquals(1, Logic.statKnownDays(days));
+        assertEquals(360, Logic.statAverageMinutes(days, Logic.ON));
+        assertEquals(48, Logic.statShare(days, Logic.ON));
+        assertEquals(12, Logic.statShare(days, Logic.MAYBE));
+        assertEquals("2", Logic.statNumber(days.get(6), Logic.MAYBE, true));
+        assertEquals("5", Logic.statNumber(days.get(6), Logic.OFF, false));
+        assertEquals("—", Logic.statNumber(days.get(5), Logic.ON, false));
+        assertTrue(Logic.describeStats(days).contains("можливе вимкнення 1 год 30 хв"));
+        assertTrue(Logic.statLabels(java.util.Collections.emptyList(), 320, 30, 6).isEmpty());
+        assertEquals(1, Logic.statLabels(days, 280, 60, 6).size());
+    }
+
     private static boolean has(List<Logic.Label> l, int slot) {
         for (Logic.Label x : l) if (x.slot == slot) return true;
         return false;

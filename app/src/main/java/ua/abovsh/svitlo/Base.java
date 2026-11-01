@@ -162,20 +162,14 @@ abstract class Base extends Activity {
         when.setText("Коли нагадати");
         when.setPadding(0, 0, 0, Ui.dp(this, 8));
         box.addView(when, fill());
-        LinearLayout row = Ui.row(this);
+        FlowRow row = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 6));
         for (int i = 0; i < leads.length; i++) {
             int v = leads[i];
             TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
-            int side = Ui.dp(this, 4);
-            t.setPadding(side, 0, side, 0);
-            // a narrow phone with a large system font: the text shrinks instead of overflowing
-            t.setAutoSizeTextTypeUniformWithConfiguration(9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
             t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
             t.setOnClickListener(c -> chosen.accept(v));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, Ui.dp(this, 42), 1f);
-            if (v == 0) lp.weight = 1.4f;  // "Одразу" is the longest word
-            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
-            row.addView(t, lp);
+            row.addView(t);
+
         }
         LinearLayout.LayoutParams rl = fill();
         rl.bottomMargin = Ui.dp(this, 14);
@@ -191,8 +185,11 @@ abstract class Base extends Activity {
         TextView t = Ui.text(this, 21, Ui.display(this), pal.text);
         t.setText(title);
         t.setGravity(Gravity.CENTER_VERTICAL);
-        t.setPadding(Ui.dp(this, 14), 0, 0, 0);
-        r.addView(t, weight());
+        boolean separate = t.getPaint().measureText(title) > Ui.px(this,
+                getResources().getConfiguration().screenWidthDp - 94);
+        if (separate) r.setOrientation(LinearLayout.VERTICAL);
+        t.setPadding(separate ? 0 : Ui.dp(this, 14), 0, 0, 0);
+        r.addView(t, separate ? fill() : weight());
         return r;
     }
 

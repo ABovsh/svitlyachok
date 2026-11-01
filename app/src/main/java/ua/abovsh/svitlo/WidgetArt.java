@@ -3,9 +3,11 @@ package ua.abovsh.svitlo;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.Shader;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -63,7 +65,7 @@ final class WidgetArt {
         b.append('|').append(m.many).append('|').append(m.place.name).append('|').append(n.state).append('|')
                 .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon);
         if (Logic.widgetForm(wDp, hDp) == Logic.W_FULL) {  // the bar moves every half hour
-            b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now));
+            b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
         }
         return b.toString();
     }
@@ -101,7 +103,12 @@ final class WidgetArt {
         float r = Math.min(24 * s, f.h / 2.6f);
         b.p.setColor((pal.card & 0x00FFFFFF) | 0xF5000000);
         b.r.set(0f, 0f, (float) f.w, (float) f.h);
+        if (m != null && !m.gone) {
+            b.p.setShader(new LinearGradient(0, 0, f.w * .88f, 0,
+                    new int[] {pal.soft(m.now.state), pal.card}, null, Shader.TileMode.CLAMP));
+        }
         b.cv.drawRoundRect(b.r, r, r, b.p);
+        b.p.setShader(null);
         if (m == null) {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);
             String msg = "Оберіть чергу в Світлячку";
@@ -121,6 +128,7 @@ final class WidgetArt {
 
     /** One place: the bulb and the words; at 4 x 2, the next 24 hours under them. */
     private static void one(Context c, Brush b, Model m, long now, Frame f, boolean full) {
+        if (full && f.w / f.s >= 300 && f.h / f.s >= 160 && large(c, b, m, now, f)) return;
         Logic.Now n = m.now;
         float s = f.s;
         float barBlock = full ? 34 * s : 0;  // bar + hour labels
@@ -158,6 +166,67 @@ final class WidgetArt {
             b.r2.set(f.pad, top, f.w - f.pad, top + 11 * s);
             bar(c, b, m.base, m.tl, now, b.r2, s);
         }
+    }
+
+    /** The compact form above is unchanged: the larger form adds two columns and a bar. */
+    private static boolean large(Context c, Brush b, Model m, long now, Frame f) {
+        Logic.Now n = m.now;
+        String[] next = Logic.widgetNext(n);
+        if (next[0].isEmpty()) return false;
+        float s = f.s;
+        float gap = 8 * s;
+        float column = (f.w - 2 * f.pad - 10 * s) / 2;
+        float bulb = 40 * s;
+        float textX = f.pad + bulb + 7 * s;
+        float room = column - bulb - 7 * s;
+        float start = f.pad + 23 * s;
+        float barBlock = 48 * s;
+        float rowH = f.h - f.pad - barBlock - start;
+        Paint title = text(Ui.heavy(c), 19 * s, b.pal.status(n.state), Paint.Align.LEFT);
+        String first = n.title;
+        String second = "";
+        if (title.measureText(first) > room) {
+            int space = first.indexOf(' ');
+            if (space > 0) { second = first.substring(space + 1); first = first.substring(0, space); }
+        }
+        fit(title, first, room);
+        if (!second.isEmpty()) fit(title, second, room);
+        String clock = n.since.isEmpty() ? n.big : n.since;
+        String day = "";
+        if (clock.endsWith(" учора")) { day = "учора"; clock = clock.substring(0, clock.length() - 6); }
+        else if (clock.startsWith("до завтра ")) { day = "завтра"; clock = "до " + clock.substring(10); }
+        Paint time = fit(text(clock.contains(":") ? Ui.display(c) : Ui.bold(c),
+                (clock.contains(":") ? 19.95f : 14) * s, b.pal.text, Paint.Align.LEFT), clock, room);
+        Paint context = text(Ui.bold(c), 13 * s, b.pal.muted, Paint.Align.LEFT);
+        float height = title.getTextSize() * (second.isEmpty() ? 1 : 2) + 5 * s + time.getTextSize()
+                + (day.isEmpty() ? 0 : 3 * s + context.getTextSize());
+        if (height > rowH || title.getTextSize() < 14 * s || time.getTextSize() < 13 * s) return false;
+        Paint name = fit(text(Ui.heavy(c), 15.2f * s, b.pal.text, Paint.Align.LEFT),
+                m.place.name + " · черга " + Logic.queue(m.place.group), f.w - 2 * f.pad);
+        line(b, m.place.name + " · черга " + Logic.queue(m.place.group), f.pad, f.pad, name);
+        BulbView.draw(b, n.state, f.pad + bulb / 2, start + rowH / 2, bulb, 1);
+        float y = start + (rowH - height) / 2;
+        y = line(b, first, textX, y, title);
+        if (!second.isEmpty()) y = line(b, second, textX, y, title);
+        y = line(b, clock, textX, y + 5 * s, time);
+        if (!day.isEmpty()) line(b, day, textX, y + 3 * s, context);
+        float right = f.pad + column + gap;
+        float rightW = f.w - f.pad - right;
+        Paint event = fit(text(Ui.bold(c), 14 * s, b.pal.muted, Paint.Align.LEFT), next[0], rightW);
+        Paint at = fit(text(Ui.display(c), 19.95f * s, b.pal.status(n.next), Paint.Align.LEFT), next[1], rightW);
+        Paint until = fit(text(Ui.bold(c), 13 * s, b.pal.muted, Paint.Align.LEFT), next[2], rightW);
+        float rightH = event.getTextSize() + 4 * s + at.getTextSize() + (next[2].isEmpty() ? 0 : 3 * s + until.getTextSize());
+        float ry = start + (rowH - rightH) / 2;
+        b.p.setColor(b.pal.line);
+        b.cv.drawRect(right - 6 * s, ry, right - 5 * s, ry + rightH, b.p);
+        ry = line(b, next[0], right, ry, event);
+        ry = line(b, next[1], right, ry + 4 * s, at);
+        if (!next[2].isEmpty()) line(b, next[2], right, ry + 3 * s, until);
+        float top = f.h - f.pad - barBlock;
+        line(b, "Найближчі 24 години", f.pad, top, text(Ui.bold(c), 12 * s, b.pal.muted, Paint.Align.LEFT));
+        b.r2.set(f.pad, top + 18 * s, f.w - f.pad, top + 36 * s);
+        bar(c, b, m.base, m.tl, now, b.r2, s);
+        return true;
     }
 
     /** A line of text whose top is at y; returns the y under it. */

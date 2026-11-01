@@ -773,7 +773,7 @@ public class LogicTest {
         assertEquals("уже 30 хв", off.already);
         // A known run from midnight remains visible; a missing preceding slot is a lower bound.
         Logic.Now early = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("щонайменше з 00:00", early.since);
+        assertEquals("з 00:00", early.since);
         assertEquals("уже 3 год 00 хв", early.already);
         String lateOn = repeat('0', 44) + repeat('1', 4);
         Logic.Now fromYesterday = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, lateOn);
@@ -781,15 +781,15 @@ public class LogicTest {
         assertEquals("уже 5 год 00 хв", fromYesterday.already);
         assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('0', 48)).since);
         // yesterday has hours without a schedule right before the run: the start is not known
-        assertEquals("щонайменше з 22:00 учора", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
-        assertEquals("щонайменше з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
+        assertEquals("з 22:00 учора", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
+        assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
         // the same all yesterday: longer than a day, the start is not known
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("щонайменше з 00:00 учора", allDay.since);
+        assertEquals("з 00:00 учора", allDay.since);
         assertEquals("уже 1 д 3 год", allDay.already);
         // no schedule, or no outages at all: nothing to count from
         assertEquals("", Logic.now(repeat('2', 96), OCT30, at(12, 0), false, null).since);
-        assertEquals("щонайменше з 00:00", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
+        assertEquals("з 00:00", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
     }
 
     @Test
@@ -857,10 +857,10 @@ public class LogicTest {
         assertEquals("(уже 2 год 00 хв)", Logic.nowLineIn(on));
         assertEquals("Світло є вже 2 год 00 хв", Logic.nowLineShort(on));
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("Світло є щонайменше з 00:00 учора", Logic.nowLine(allDay));
+        assertEquals("Світло є з 00:00 учора", Logic.nowLine(allDay));
         assertEquals("(уже 1 д 3 год)", Logic.nowLineIn(allDay));
         Logic.Now unknown = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("Світло є щонайменше з 00:00", Logic.nowLine(unknown));
+        assertEquals("Світло є з 00:00", Logic.nowLine(unknown));
         assertEquals("(уже 3 год 00 хв)", Logic.nowLineIn(unknown));
         assertEquals("Світло є вже 3 год 00 хв", Logic.nowLineShort(unknown));
     }
@@ -1031,13 +1031,13 @@ public class LogicTest {
         assertEquals("з 18:00 28.10", n.since);
         assertEquals("уже 1 д 18 год", n.already);
         history.put(OCT30.minusDays(2), repeat('2', 36) + repeat('1', 12));
-        assertEquals("щонайменше з 18:00 28.10", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("з 18:00 28.10", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
         history.remove(OCT30.minusDays(1));
-        assertEquals("щонайменше з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
         history.put(OCT30.minusDays(1), repeat('0', 48));
         assertEquals("з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
         assertEquals("", Logic.nowWithHistory(repeat('2', 96), OCT30, at(12, 0), false, history).since);
-        assertEquals("щонайменше з 10:00", Logic.nowWithHistory(repeat('2', 20) + repeat('1', 76), OCT30, at(12, 0), false, history).since);
+        assertEquals("з 10:00", Logic.nowWithHistory(repeat('2', 20) + repeat('1', 76), OCT30, at(12, 0), false, history).since);
     }
 
     @Test
@@ -1074,7 +1074,7 @@ public class LogicTest {
     @Test
     public void widgetPanesKeepTheKnownStartAndHonestFutureWhenNoChangeIsPublished() {
         Logic.Now n = Logic.now(repeat('1',96), OCT30, at(12,0), false);
-        assertEquals(Arrays.asList("з 00:00", "щонайменше"), Arrays.asList(Logic.widgetStart(n)));
+        assertEquals(Arrays.asList("з 00:00", ""), Arrays.asList(Logic.widgetStart(n)));
         assertEquals(Arrays.asList("Сьогодні й завтра", "Без вимкнень", ""), Arrays.asList(Logic.widgetFuture(n)));
         n = Logic.now(repeat('1',48) + repeat('2',48), OCT30, at(12,0), false);
         assertEquals(Arrays.asList("Завтра", "Графіка ще немає", ""), Arrays.asList(Logic.widgetFuture(n)));
@@ -1082,8 +1082,8 @@ public class LogicTest {
         assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.widgetFuture(n)));
         n.since = "з 22:00 учора";
         assertEquals(Arrays.asList("з 22:00", "учора"), Arrays.asList(Logic.widgetStart(n)));
-        n.since = "щонайменше з 22:00 28.10";
-        assertEquals(Arrays.asList("з 22:00", "щонайменше 28.10"), Arrays.asList(Logic.widgetStart(n)));
+        n.since = "з 22:00 28.10";
+        assertEquals(Arrays.asList("з 22:00", "28.10"), Arrays.asList(Logic.widgetStart(n)));
         n.since = ""; n.big = "до завтра 06:00";
         assertEquals(Arrays.asList("до 06:00", "завтра"), Arrays.asList(Logic.widgetStart(n)));
         n = Logic.now(repeat('0',96), OCT30, at(12,0), false);

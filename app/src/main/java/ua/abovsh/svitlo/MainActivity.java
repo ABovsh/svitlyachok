@@ -390,14 +390,18 @@ public class MainActivity extends Base {
         }
         TextView title = Ui.text(this, 25, Ui.heavy(this), pal.status(n.state));
         title.setText(n.title);
+        LinearLayout titleBlock = Ui.row(this);
+        BulbView stateIcon = new BulbView(this, pal); stateIcon.still(); stateIcon.set(n.state);
+        LinearLayout.LayoutParams si = new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 28)); si.rightMargin = Ui.dp(this, 6);
+        titleBlock.addView(stateIcon, si); titleBlock.addView(title, weight());
         TextView since = Ui.text(this, 14, Ui.body(this), pal.muted);
         since.setText(n.since + (n.since.isEmpty() || n.already.isEmpty() ? "" : "\n") + n.already);
         int available = getResources().getConfiguration().screenWidthDp - 62;
-        float need = title.getPaint().measureText(n.title) + Math.max(since.getPaint().measureText(n.since), since.getPaint().measureText(n.already));
+        float need = Ui.px(this, 34) + title.getPaint().measureText(n.title) + Math.max(since.getPaint().measureText(n.since), since.getPaint().measureText(n.already));
         boolean vertical = stacked() || need > Ui.px(this, available);
         LinearLayout present = vertical ? Ui.column(this) : Ui.row(this);
         present.setPadding(Ui.dp(this, 11), Ui.dp(this, 8), Ui.dp(this, 11), Ui.dp(this, 8));
-        if (vertical) present.addView(title, fill()); else present.addView(title, weight());
+        if (vertical) present.addView(titleBlock, fill()); else present.addView(titleBlock, weight());
         if (!since.getText().toString().isEmpty()) {
             since.setGravity(vertical ? Gravity.START : Gravity.END);
             if (vertical) since.setText(n.since + (n.since.isEmpty() || n.already.isEmpty() ? "" : " · ") + n.already);
@@ -480,19 +484,30 @@ public class MainActivity extends Base {
     }
 
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
-        FlowRow head = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 3));
+        LinearLayout head = Ui.column(this);
+        LinearLayout row = Ui.row(this);
         TextView name = Ui.text(this, 18, Ui.heavy(this), pal.text);
-        name.setText(title); head.addView(name);
+        name.setText(title);
+        row.addView(name, weight());
+        LinearLayout summary = Ui.row(this);
+        summary.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         if (slots != null) {
             TextView total = Ui.text(this, 13, Ui.heavy(this), pal.onText);
             total.setText(Logic.dayLights(slots).get(0));
-            total.setPadding(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4));
-            total.setBackground(Ui.round(pal.soft(Logic.ON), Ui.px(this, 10)));
-            head.addView(total);
+            android.graphics.drawable.Drawable light = getDrawable(R.drawable.ic_notify_on);
+            if (light != null) { light.setTint(pal.onText); light.setBounds(0,0,Ui.dp(this,16),Ui.dp(this,16)); total.setCompoundDrawables(light,null,null,null); total.setCompoundDrawablePadding(Ui.dp(this,4)); }
+            total.setGravity(Gravity.END);
+            summary.addView(total, weight());
             ImageView share = iconButton(R.drawable.ic_share, "Поділитися графіком: " + title, v -> Share.send(this, p, date));
             share.setBackground(null);
-            head.addView(share, new ViewGroup.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
-        }
+            summary.addView(share, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+            if (stacked()) {
+                head.addView(row, fill()); head.addView(summary, fill());
+            } else {
+                LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.7f);
+                row.addView(summary, right); head.addView(row, fill());
+            }
+        } else head.addView(row, fill());
         head.setContentDescription(Logic.describe(title, slots)); card.addView(head, fill());
         if (slots == null) {
             TextView none = Ui.text(this, 14, Ui.body(this), pal.muted);

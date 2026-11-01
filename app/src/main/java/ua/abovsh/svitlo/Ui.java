@@ -48,13 +48,13 @@ final class Ui {
                 bg = 0xFF10191B; card = 0xFF172428; raised = 0xFF203236; line = 0xFF334749;
                 text = 0xFFEFF3EC; muted = 0xFFB3C1BB; dim = 0xFFB3C1BB;
                 accent = 0xFFEDC25B; accentText = 0xFFEDC25B; accentInk = 0xFF30260B;
-                on = 0xFF317F59; onText = 0xFF83DCA6; off = 0xFFB94F5D; offText = 0xFFFFADB3;
+                on = 0xFF268B60; onText = 0xFF83DCA6; off = 0xFFCC4C60; offText = 0xFFFFADB3;
                 maybe = 0xFFD6A544; maybeText = 0xFFF6D184; unknown = 0xFF293B3F; ink = 0xFFFFFFFF; glow = 0x28;
             } else {
                 bg = 0xFFF5F4ED; card = 0xFFFFFEFA; raised = 0xFFECEEE6; line = 0xFFD6DED2;
                 text = 0xFF1D2D2A; muted = 0xFF596A62; dim = 0xFF5A685F;
                 accent = 0xFFE6B545; accentText = 0xFF96701B; accentInk = 0xFF30260B;
-                on = 0xFF278357; onText = 0xFF176B47; off = 0xFFC74C58; offText = 0xFFB13945;
+                on = 0xFF218657; onText = 0xFF176B47; off = 0xFFCF4054; offText = 0xFFB13945;
                 maybe = 0xFFE3B550; maybeText = 0xFF835800; unknown = 0xFFE6EBE5; ink = 0xFFFFFFFF; glow = 0x18;
             }
         }

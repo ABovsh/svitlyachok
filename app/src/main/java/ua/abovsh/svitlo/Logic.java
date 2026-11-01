@@ -457,7 +457,7 @@ public final class Logic {
         if (date.equals(base.minusDays(1))) suffix = " учора";
         else if (date.isBefore(base)) suffix = String.format(Locale.ROOT, " %d.%02d", date.getDayOfMonth(), date.getMonthValue())
                 + (date.getYear() == base.getYear() ? "" : "." + date.getYear());
-        n.since = (exact ? "з " : "щонайменше з ") + hm(start) + suffix;
+        n.since = "з " + hm(start) + suffix;
         n.already = "уже " + waitText(now - start);
     }
 

@@ -82,7 +82,7 @@ final class Share {
 
         y = sh.legend(y + 24 * s) + 18 * s;
         y = sh.line("Це графік обленерго, а не фактична наявність світла.", y, sh.text(Ui.body(c), 11.5f, pal.dim));
-        y = sh.line("Світлячок · github.com/ABovsh/svitlyachok", y + 6 * s, sh.text(Ui.heavy(c), 13, pal.accentText));
+        y = sh.line(Logic.SHARE_SIGNATURE, y + 6 * s, sh.text(Ui.heavy(c), 13, pal.accentText));
         // drawn on a tall sheet, then cut to what was used
         Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 22 * s)));
         tall.recycle();

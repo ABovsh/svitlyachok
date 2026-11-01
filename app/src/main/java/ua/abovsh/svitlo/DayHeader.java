@@ -2,7 +2,6 @@ package ua.abovsh.svitlo;
 
 import android.content.Context;
 import android.graphics.Matrix;
-import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;

@@ -1214,6 +1214,11 @@ public class LogicTest {
         assertEquals("2 дні", Logic.waitText(2 * 86400 + 60));
     }
 
+    @Test
+    public void sharedPictureNamesTheSite() {
+        assertEquals("Світлячок · abovsh.github.io/svitlyachok", Logic.SHARE_SIGNATURE);
+    }
+
     private static boolean has(List<Logic.Label> l, int slot) {
         for (Logic.Label x : l) if (x.slot == slot) return true;
         return false;

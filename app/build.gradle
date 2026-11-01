@@ -18,8 +18,8 @@ android {
         applicationId 'ua.abovsh.svitlo'
         minSdk 26
         targetSdk 35
-        versionCode 15
-        versionName '1.5.0'
+        versionCode 16
+        versionName '1.5.1'
         manifestPlaceholders = [appLabel: '@string/app_name']
         buildConfigField 'boolean', 'IS_RC', 'false'
     }
@@ -49,7 +49,7 @@ android {
     buildTypes.create('rc') {
         initWith buildTypes.release
         applicationIdSuffix '.rc'
-        versionNameSuffix '-rc.4'
+        versionNameSuffix '-rc.1'
         manifestPlaceholders = [appLabel: 'Світлячок RC']
         buildConfigField 'boolean', 'IS_RC', 'true'
         matchingFallbacks = ['release']

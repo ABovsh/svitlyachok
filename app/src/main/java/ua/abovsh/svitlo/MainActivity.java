@@ -388,6 +388,25 @@ public class MainActivity extends Base {
             queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
             card.addView(queue, fill());
         }
+        card.addView(present(n), fill());
+        if (Logic.hintIsEvent(n)) {
+            String detail = Logic.nextDetail(n);
+            card.addView(nextEvent(n, detail, Logic.highlight(n, Prefs.alerts(this, p.id), now)), fill());
+            card.setContentDescription(Logic.describeNow(n, detail));
+            return card;
+        }
+        if (d == null) {  // no event: the schedule below already says why, so the card stays compact; only this needs words
+            TextView note = Ui.text(this, 14, Ui.body(this), pal.muted);
+            note.setText(n.hint);
+            note.setPadding(Ui.dp(this, 11), 0, Ui.dp(this, 11), Ui.dp(this, 10));
+            card.addView(note, fill());
+        }
+        card.setContentDescription(Logic.describeNow(n, ""));
+        return card;
+    }
+
+    /** What is scheduled now and since when: one row, or two when the words do not fit beside it. */
+    private View present(Logic.Now n) {
         TextView title = Ui.text(this, 25, Ui.heavy(this), pal.status(n.state));
         title.setText(n.title);
         LinearLayout titleBlock = Ui.row(this);
@@ -395,50 +414,41 @@ public class MainActivity extends Base {
         LinearLayout.LayoutParams si = new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 28)); si.rightMargin = Ui.dp(this, 6);
         titleBlock.addView(stateIcon, si); titleBlock.addView(title, weight());
         TextView since = Ui.text(this, 14, Ui.body(this), pal.muted);
-        since.setText(n.since + (n.since.isEmpty() || n.already.isEmpty() ? "" : "\n") + n.already);
-        int available = getResources().getConfiguration().screenWidthDp - 62;
+        boolean both = !n.since.isEmpty() && !n.already.isEmpty();
+        float available = getResources().getConfiguration().screenWidthDp - 62f;
         float need = Ui.px(this, 34) + title.getPaint().measureText(n.title) + Math.max(since.getPaint().measureText(n.since), since.getPaint().measureText(n.already));
         boolean vertical = stacked() || need > Ui.px(this, available);
         LinearLayout present = vertical ? Ui.column(this) : Ui.row(this);
         present.setPadding(Ui.dp(this, 11), Ui.dp(this, 8), Ui.dp(this, 11), Ui.dp(this, 8));
-        if (vertical) present.addView(titleBlock, fill()); else present.addView(titleBlock, weight());
-        if (!since.getText().toString().isEmpty()) {
+        present.addView(titleBlock, vertical ? fill() : weight());
+        String gap = vertical ? " · " : "\n";
+        since.setText(n.since + (both ? gap : "") + n.already);
+        if (!n.since.isEmpty() || !n.already.isEmpty()) {
             since.setGravity(vertical ? Gravity.START : Gravity.END);
-            if (vertical) since.setText(n.since + (n.since.isEmpty() || n.already.isEmpty() ? "" : " · ") + n.already);
             present.addView(since, vertical ? fill() : wrap());
         }
-        card.addView(present, fill());
-        if (!Logic.hintIsEvent(n)) {  // no event: the schedule below already says why, so the card stays compact
-            if (d == null) {  // nothing below explains this one
-                TextView note = Ui.text(this, 14, Ui.body(this), pal.muted);
-                note.setText(n.hint);
-                note.setPadding(Ui.dp(this, 11), 0, Ui.dp(this, 11), Ui.dp(this, 10));
-                card.addView(note, fill());
-            }
-            card.setContentDescription(Logic.describeNow(n, ""));
-            return card;
-        }
+        return present;
+    }
+
+    /** The coming change with its clock; filled with its colour when it is close. */
+    private View nextEvent(Logic.Now n, String detail, boolean soon) {
         LinearLayout next = Ui.column(this);
         next.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), Ui.dp(this, 9));
-        int nextState = n.next == Logic.UNKNOWN ? n.state : n.next;
-        boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
-        android.graphics.drawable.GradientDrawable nextBg = Ui.round(soon ? pal.fill(nextState) : pal.soft(nextState), Ui.px(this, 15));
-        if (soon) nextBg.setStroke(Ui.dp(this, 2), pal.status(nextState));
-        int eventInk = soon ? (nextState == Logic.MAYBE ? pal.accentInk : pal.ink) : pal.status(nextState);
+        android.graphics.drawable.GradientDrawable nextBg = Ui.round(soon ? pal.fill(n.next) : pal.soft(n.next), Ui.px(this, 15));
+        if (soon) nextBg.setStroke(Ui.dp(this, 2), pal.status(n.next));
+        int eventInk = pal.status(n.next);
+        if (soon) eventInk = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         next.setBackground(nextBg);
         TextView event = Ui.text(this, 26, Ui.heavy(this), eventInk);
         event.setText(n.hint);
         next.addView(event, fill());
-        String detail = Logic.nextDetail(n);
         if (!detail.isEmpty()) {
             TextView small = Ui.text(this, 14, Ui.bold(this), soon ? eventInk : pal.text);
             small.setText(detail);
             small.setPadding(0, Ui.dp(this, 3), 0, 0);
             next.addView(small, fill());
         }
-        if (!n.hint.isEmpty()) card.addView(next, fill());
-        card.setContentDescription(Logic.describeNow(n, detail));
-        return card;
+        return next;
     }
 
     private View actions(Logic.Place p) {

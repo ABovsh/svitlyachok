@@ -182,10 +182,10 @@ final class WidgetArt {
         Paint titleSize = text(Ui.heavy(c), w.textSize * s, b.pal.status(m.now.state), Paint.Align.LEFT);
         if (titleSize.measureText(m.now.title) <= width - bulb - 5 * s) title = m.now.title;
         if (w.compact && m.now.next != Logic.UNKNOWN) next[0] = compactEvent(m.now);
-        Panel present = new Panel(c, title, start[0], start[1], width, width - bulb - 5 * s,
-                w.textSize * s, b.pal.status(m.now.state), b.pal.text, b.pal.muted, bulb, s);
-        Panel future = new Panel(c, next[0], next[1], next[2], width, width,
-                w.textSize * s, b.pal.muted, b.pal.status(m.now.next), b.pal.muted, 0, s);
+        Panel present = new Panel(c, new String[] {title, start[0], start[1]}, new float[] {width, width - bulb - 5 * s, w.textSize * s},
+                new int[] {b.pal.status(m.now.state), b.pal.text, b.pal.muted}, bulb, s);
+        Panel future = new Panel(c, new String[] {next[0], next[1], next[2]}, new float[] {width, width, w.textSize * s},
+                new int[] {b.pal.muted, b.pal.status(m.now.next), b.pal.muted}, 0, s);
         float rowTop = w.rowTop * s;
         float rowHeight = w.rowHeight * s;
         present.fitHeight(rowHeight);
@@ -219,15 +219,20 @@ final class WidgetArt {
         private float bulb;
         private float gap;
 
-        Panel(Context c, String title, String value, String detail, float width, float titleWidth,
-              float size, int titleInk, int valueInk, int detailInk, float bulb, float scale) {
-            strings = new String[] {title, value, detail};
-            this.width = width; this.titleWidth = titleWidth; this.bulb = bulb; gap = 2 * scale;
+        /** words: title, value, detail; sizes: width, title width, text size; inks in the order of the words. */
+        Panel(Context c, String[] words, float[] sizes, int[] inks, float bulb, float scale) {
+            strings = words;
+            String value = words[1];
+            float size = sizes[2];
+            this.width = sizes[0]; this.titleWidth = sizes[1]; this.bulb = bulb; gap = 2 * scale;
+            int titleInk = inks[0];
+            int valueInk = inks[1];
+            int detailInk = inks[2];
             paints[0] = new TextPaint(text(Ui.heavy(c), bulb > 0 ? size : size * .74f, titleInk, Paint.Align.LEFT));
             paints[1] = new TextPaint(text(value.contains(":") ? Ui.display(c) : Ui.bold(c),
                     size * (value.contains(":") ? 1.05f : .74f), valueInk, Paint.Align.LEFT));
             paints[2] = new TextPaint(text(Ui.bold(c), size * .68f, detailInk, Paint.Align.LEFT));
-            if (value.contains(":")) fit(paints[1], value, width);
+            if (value.contains(":")) fit(paints[1], value, sizes[0]);
             reflow();
         }
 
@@ -240,8 +245,12 @@ final class WidgetArt {
             }
         }
 
+        private float titleHeight() {
+            return lines[0] == null ? bulb : Math.max(bulb, (float) lines[0].getHeight());
+        }
+
         float height() {
-            float h = Math.max(bulb, lines[0] == null ? 0 : lines[0].getHeight());
+            float h = titleHeight();
             for (int i = 1; i < lines.length; i++) if (lines[i] != null) h += gap + lines[i].getHeight();
             return h;
         }
@@ -257,7 +266,7 @@ final class WidgetArt {
         }
 
         void draw(Brush b, float x, float y, int state) {
-            float titleHeight = Math.max(bulb, lines[0] == null ? 0 : lines[0].getHeight());
+            float titleHeight = titleHeight();
             if (bulb > 0) BulbView.draw(b, state, x + bulb / 2, y + titleHeight / 2, bulb, 1);
             drawLine(b.cv, lines[0], x + (bulb > 0 ? bulb + 5 * gap / 2 : 0), y);
             y += titleHeight;
@@ -299,10 +308,15 @@ final class WidgetArt {
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
         Paint lab = text(Ui.bold(c), 10 * s, b.pal.muted, Paint.Align.CENTER);
         for (int hour = 0; hour <= 24; hour += 6) {
-            lab.setTextAlign(hour == 0 ? Paint.Align.LEFT : hour == 24 ? Paint.Align.RIGHT : Paint.Align.CENTER);
+            lab.setTextAlign(hourAlign(hour));
             b.cv.drawText(String.format(Locale.ROOT, "%02d", hour), bounds.left + bounds.width() * hour/24,
                     bounds.bottom + 13*s, lab);
         }
+    }
+
+    private static Paint.Align hourAlign(int hour) {
+        if (hour == 0) return Paint.Align.LEFT;
+        return hour == 24 ? Paint.Align.RIGHT : Paint.Align.CENTER;
     }
 
     private static Paint text(Typeface tf, float size, int colour, Paint.Align a) {

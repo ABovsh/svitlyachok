@@ -581,6 +581,9 @@ public final class Logic {
     }
 
     static final int HISTORY_DAYS = 31;
+    private static final String LIGHT_SHARE = " світла · ";
+    /** The last line of a shared picture: where the app comes from. */
+    public static final String SHARE_SIGNATURE = "Світлячок · abovsh.github.io/svitlyachok";
 
     /**
      * "очікується 18 год світла · 75 %": the positive side of a day, as a share of all 24 hours;
@@ -590,7 +593,7 @@ public final class Logic {
         if (day == null) return NOT_PUBLISHED;
         int on = count(day, '1');
         if (on == day.length()) return NO_OUTAGES;
-        return "очікується " + length(on) + " світла · " + Math.round(on * 100f / day.length()) + " %";
+        return "очікується " + length(on) + LIGHT_SHARE + Math.round(on * 100f / day.length()) + " %";
     }
 
     private static int count(String day, char c) {
@@ -676,7 +679,8 @@ public final class Logic {
     /** Minutes of power gained per day vs the previous week; no claim on incomplete data. */
     public static int weekChange(List<WeekStat> weeks) {
         if (weeks.size() < 2) return Integer.MIN_VALUE;
-        WeekStat a = weeks.get(weeks.size() - 2), b = weeks.get(weeks.size() - 1);
+        WeekStat a = weeks.get(weeks.size() - 2);
+        WeekStat b = weeks.get(weeks.size() - 1);
         if (a.known != 7 || b.known != 7 || a.possible > 0 || b.possible > 0) return Integer.MIN_VALUE;
         return b.onMinutes - a.onMinutes;
     }
@@ -698,8 +702,8 @@ public final class Logic {
         String pct = Math.round(on * 100f / 48) + " %";
         String hours = (on % 2 == 0 ? String.valueOf(on / 2) : on / 2 + ",5") + " год";
         List<String> out = new ArrayList<>();
-        out.add(hoursMinutes(on * 30) + " світла · " + pct);
-        out.add(hours + " світла · " + pct);
+        out.add(hoursMinutes(on * 30) + LIGHT_SHARE + pct);
+        out.add(hours + LIGHT_SHARE + pct);
         out.add(hours + " · " + pct);
         return out;
     }
@@ -1235,6 +1239,11 @@ public final class Logic {
         public float labelHeight;
     }
 
+    private static float widgetBarHeight(int height) {
+        if (height < 150) return 8;
+        return height < 180 ? 12 : 16;
+    }
+
     public static WidgetLayout widgetLayout(int width, int height, boolean titled) {
         WidgetLayout w = new WidgetLayout();
         w.twoParts = widgetForm(width, height) == W_FULL;
@@ -1242,7 +1251,7 @@ public final class Logic {
         w.textSize = Math.max(12, Math.min(19, height * .15f));
         w.columnWidth = (width - 2 * w.pad - 8) / 2;
         w.labelHeight = 16;
-        w.barHeight = height < 150 ? 8 : height < 180 ? 12 : 16;
+        w.barHeight = widgetBarHeight(height);
         w.barTop = height - w.pad - w.labelHeight - w.barHeight;
         w.rowTop = w.pad + (titled ? w.textSize * .8f + 2 : 0);
         w.rowHeight = w.barTop - 2 - w.rowTop;
@@ -1406,7 +1415,9 @@ public final class Logic {
     }
 
     static int statValue(DayStat d, int state) {
-        return state == ON ? d.on : state == OFF ? d.off : state == MAYBE ? d.maybe : 0;
+        if (state == ON) return d.on;
+        if (state == OFF) return d.off;
+        return state == MAYBE ? d.maybe : 0;
     }
 
     static boolean statKnown(DayStat d) {

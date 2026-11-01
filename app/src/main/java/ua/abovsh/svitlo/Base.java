@@ -186,7 +186,7 @@ abstract class Base extends Activity {
         t.setText(title);
         t.setGravity(Gravity.CENTER_VERTICAL);
         boolean separate = t.getPaint().measureText(title) > Ui.px(this,
-                getResources().getConfiguration().screenWidthDp - 94);
+                getResources().getConfiguration().screenWidthDp - 94f);
         if (separate) r.setOrientation(LinearLayout.VERTICAL);
         t.setPadding(separate ? 0 : Ui.dp(this, 14), 0, 0, 0);
         r.addView(t, separate ? fill() : weight());

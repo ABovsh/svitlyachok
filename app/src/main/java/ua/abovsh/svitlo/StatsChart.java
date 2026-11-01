@@ -30,6 +30,7 @@ final class StatsChart extends View {
     private List<Logic.DayStat> days = new ArrayList<>();
     private List<Logic.WeekStat> weeks = new ArrayList<>();
     private float average = -1;
+    private float offEnd;  // where the red of the bar being labelled ends
 
     StatsChart(Context c, Ui.Pal pal) {
         super(c); this.pal = pal;
@@ -88,7 +89,7 @@ final class StatsChart extends View {
                 : Math.min(slot * .25f, Ui.px(getContext(), 10));
         label.setTextAlign(Paint.Align.RIGHT);
         for (int hour = 0; hour <= 24; hour += 6) {
-            float y = top + chartH * (24 - hour) / 24;
+            float y = top + chartH * (24f - hour) / 24;
             paint.setColor(pal.line); paint.setStrokeWidth(1);
             cv.drawLine(axis, y, getWidth(), y, paint);
             label.setColor(pal.muted); cv.drawText(String.valueOf(hour), axis - Ui.px(getContext(), 6), y - (label.ascent()+label.descent())/2, label);
@@ -137,9 +138,9 @@ final class StatsChart extends View {
     private void dayText(Canvas cv, Logic.DayStat d) {
         float x = bar.centerX();
         if (Logic.statKnown(d)) {
-            float offEnd = bar.top + chartH * d.off / 48f;
-            number(cv, Logic.statNumber(d,Logic.OFF),x,bar.top-value.ascent()+Ui.px(getContext(),3),chartH*d.off/48f,pal.offText,true,offEnd);
-            number(cv, Logic.statNumber(d,Logic.ON),x,bar.bottom-Ui.px(getContext(),5),chartH*d.on/48f,pal.onText,false,offEnd);
+            offEnd = bar.top + chartH * d.off / 48f;
+            number(cv, Logic.statNumber(d,Logic.OFF),x,bar.top-value.ascent()+Ui.px(getContext(),3),chartH*d.off/48f,pal.offText,true);
+            number(cv, Logic.statNumber(d,Logic.ON),x,bar.bottom-Ui.px(getContext(),5),chartH*d.on/48f,pal.onText,false);
         }
         label.setColor(pal.muted);
         float y=bar.bottom-label.ascent()+Ui.px(getContext(),5);
@@ -147,7 +148,7 @@ final class StatsChart extends View {
         cv.drawText(date(d.date),x,y+label.getFontSpacing(),label);
     }
 
-    private void number(Canvas cv,String text,float x,float y,float segment,int outsideInk,boolean upper,float offEnd) {
+    private void number(Canvas cv,String text,float x,float y,float segment,int outsideInk,boolean upper) {
         if(value.measureText(text)>bar.width()-Ui.px(getContext(),2)) return;
         boolean inside=segment>=value.getFontSpacing()+Ui.px(getContext(),5);
         int ink=inside?pal.ink:outsideInk;

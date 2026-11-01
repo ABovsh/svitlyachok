@@ -32,6 +32,14 @@ public class StatsActivity extends Base {
         TextView queue = Ui.text(this, 12, Ui.bold(this), pal.muted);
         queue.setText("Черга " + Logic.queue(p.group)); page.addView(queue, gap(4));
         page.addView(period(), gap(8));
+        page.addView(card(history), fill());
+        TextView note = Ui.text(this, 12, Ui.body(this), pal.muted);
+        note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка не вважаємо нульовими. Історія — на цьому телефоні.");
+        note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), 0);
+        page.addView(note, fill());
+    }
+
+    private View card(java.util.Map<java.time.LocalDate,String> history) {
         List<Logic.DayStat> daily = Logic.window(history, Logic.today(Sync.now()), 7);
         List<Logic.WeekStat> weeks = Logic.fourWeeks(history, Logic.today(Sync.now()));
         List<Logic.DayStat> all = new java.util.ArrayList<>();
@@ -65,6 +73,12 @@ public class StatsActivity extends Base {
         metrics.addView(metric(shown, days == 7 ? Logic.OFF : Logic.ON, days == 7 ? "Без світла" : "За 4 тижні"), mr);
         card.addView(metrics, fill());
         TextView coverage = Ui.text(this, 12, Ui.body(this), pal.muted);
+        coverage.setText(coverage(daily, weeks, shown));
+        coverage.setPadding(0, Ui.dp(this, 7), 0, 0); card.addView(coverage, fill());
+        return card;
+    }
+
+    private String coverage(List<Logic.DayStat> daily, List<Logic.WeekStat> weeks, List<Logic.DayStat> shown) {
         String text;
         if (days == 7) text = "Повних днів із графіком: " + Logic.statKnownDays(daily) + " із 7";
         else {
@@ -73,18 +87,14 @@ public class StatsActivity extends Base {
             text = "Повних днів із графіком: " + String.join(" · ", counts);
         }
         int possible = Logic.statAverageMinutes(shown, Logic.MAYBE);
-        if (possible > 0) text += "\nМожливе вимкнення: " + Logic.hoursMinutes(possible) + " на день";
-        coverage.setText(text); coverage.setPadding(0, Ui.dp(this, 7), 0, 0); card.addView(coverage, fill());
-        page.addView(card, fill());
-        TextView note = Ui.text(this, 12, Ui.body(this), pal.muted);
-        note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка не вважаємо нульовими. Історія — на цьому телефоні.");
-        note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), 0);
-        page.addView(note, fill());
+        return possible > 0 ? text + "\nМожливе вимкнення: " + Logic.hoursMinutes(possible) + " на день" : text;
     }
 
     private View trend(List<Logic.WeekStat> weeks) {
         int delta = Logic.weekChange(weeks);
-        TextView t = Ui.text(this, 14, Ui.heavy(this), delta == Integer.MIN_VALUE || delta == 0 ? pal.muted : delta > 0 ? pal.onText : pal.offText);
+        int ink = pal.muted;
+        if (delta != Integer.MIN_VALUE && delta != 0) ink = delta > 0 ? pal.onText : pal.offText;
+        TextView t = Ui.text(this, 14, Ui.heavy(this), ink);
         String text;
         if (delta == Integer.MIN_VALUE) text = "Для тенденції потрібні два повні тижні без невизначених годин.";
         else if (delta == 0) text = "Без змін проти попереднього тижня";
@@ -147,7 +157,9 @@ public class StatsActivity extends Base {
         for (int n : new int[] {7, 28}) {
             TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : "4 тижні", n == days, 14);
             b.setOnClickListener(v -> { days = n; render(); });
-            LinearLayout.LayoutParams lp = weight(); if (n == 28) lp.leftMargin = Ui.dp(this, 6); row.addView(b, lp);
+            LinearLayout.LayoutParams lp = weight();
+            if (n == 28) lp.leftMargin = Ui.dp(this, 6);
+            row.addView(b, lp);
         }
         return row;
     }
@@ -158,7 +170,8 @@ public class StatsActivity extends Base {
         if (this.days == 7) legendItem(row, '0', "Без світла · год");
         TextView average = Ui.text(this, 12, Ui.bold(this), pal.accentText);
         average.setText("┄ Середнє зі світлом"); row.addView(average);
-        boolean possible = false; boolean unknown = missing;
+        boolean possible = false;
+        boolean unknown = missing;
         for (Logic.DayStat d : days) { possible |= d.maybe > 0; unknown |= !Logic.statKnown(d) || d.on + d.off + d.maybe < 48; }
         if (possible) legendItem(row, '3', "Можливе вимкнення");
         if (unknown) legendItem(row, '2', "Немає даних");

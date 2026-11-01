@@ -45,4 +45,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
         with:
-          args: -Dsonar.java.libraries=${{ env.ANDROID_JAR }}
+          # The free plan shows nothing for other branches: rc is analysed as the main branch of its own project.
+          args: >-
+            -Dsonar.java.libraries=${{ env.ANDROID_JAR }}
+            ${{ github.ref == 'refs/heads/rc' && '-Dsonar.projectKey=ABovsh_svitlyachok_rc -Dsonar.branch.name=main' || '' }}

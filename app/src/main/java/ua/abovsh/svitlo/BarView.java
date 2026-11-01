@@ -160,7 +160,7 @@ final class BarView extends View {
         if (x1 - x0 < tw) return;
         int ink = at(slots, i) == '3' ? pal.accentInk : 0xFFFFFFFF;
         boolean past = x1 <= nx + 0.5f;
-        hours.setColor(past ? Ui.fade(ink, 0.5f) : ink);
+        hours.setColor(past ? pal.muted : ink);
         float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;
         cv.drawText(t, (x0 + x1) / 2f, base, hours);
     }

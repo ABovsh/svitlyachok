@@ -8,6 +8,9 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.Shader;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -47,7 +50,7 @@ final class WidgetArt {
         m.base = Logic.today(now);
         Logic.Data data = Store.data(c, p.region);
         m.tl = Logic.timeline(data, p.group, m.base);
-        m.now = Logic.now(m.tl, m.base, now, data != null && data.none);
+        m.now = Logic.nowWithHistory(m.tl, m.base, now, data != null && data.none, Prefs.knownHistory(c, p, data));
         if (data == null) {
             m.now.title = "Немає графіка";
             m.now.big = "відкрийте застосунок";
@@ -62,10 +65,10 @@ final class WidgetArt {
         if (m == null) return b.append("|empty").toString();
         if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
-        b.append('|').append(m.many).append('|').append(m.place.name).append('|').append(n.state).append('|')
+        b.append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
                 .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon);
         if (Logic.widgetForm(wDp, hDp) == Logic.W_FULL) {  // the bar moves every half hour
-            b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
+            b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since).append('|').append(n.hint).append('|').append(n.next);
         }
         return b.toString();
     }
@@ -74,7 +77,7 @@ final class WidgetArt {
         if (m == null) return "Світлячок: відкрийте застосунок і оберіть чергу";
         if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
-        return m.place.name + ", зараз за графіком: " + n.title + (n.big.isEmpty() ? "" : ", " + n.big)
+        return m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then);
     }
 
@@ -128,17 +131,16 @@ final class WidgetArt {
 
     /** One place: the bulb and the words; at 4 x 2, the next 24 hours under them. */
     private static void one(Context c, Brush b, Model m, long now, Frame f, boolean full) {
-        if (full && f.w / f.s >= 300 && f.h / f.s >= 160 && large(c, b, m, now, f)) return;
+        if (full) { large(c, b, m, now, f); return; }
         Logic.Now n = m.now;
         float s = f.s;
-        float barBlock = full ? 34 * s : 0;  // bar + hour labels
-        float rowH = f.h - 2 * f.pad - barBlock;
+        float rowH = f.h - 2 * f.pad;
         float bulb = Math.min(Math.min(rowH * 0.85f, 60 * s), f.w * 0.27f);  // narrow: the words come first
         BulbView.draw(b, n.state, f.pad + bulb / 2f, f.pad + rowH / 2f, bulb, 1f);
 
         float tx = f.pad + bulb + Math.max(8 * s, bulb * 0.18f);
         float tw = f.w - tx - f.pad * 0.8f;
-        float ts = Math.max(12f, Math.min(19f, f.h / s * (full ? 0.15f : 0.24f))) * s;
+        float ts = Math.max(12f, Math.min(19f, f.h / s * 0.24f)) * s;
         // with several places the name is always there: a widget must say whose schedule it shows
         boolean head = m.many;
         boolean then = !n.then.isEmpty() && rowH >= (head ? 84 : 62) * s;
@@ -161,72 +163,115 @@ final class WidgetArt {
         y = line(b, n.title, tx, y, pt);
         if (!n.big.isEmpty()) y = line(b, n.big, tx, y + g, pb);
         if (then) line(b, n.then, tx, y + g, pn);
-        if (full) {
-            float top = f.h - f.pad - barBlock + 8 * s;
-            b.r2.set(f.pad, top, f.w - f.pad, top + 11 * s);
-            bar(c, b, m.base, m.tl, now, b.r2, s);
-        }
     }
 
-    /** The compact form above is unchanged: the larger form adds two columns and a bar. */
-    private static boolean large(Context c, Brush b, Model m, long now, Frame f) {
-        Logic.Now n = m.now;
-        String[] next = Logic.widgetNext(n);
-        if (next[0].isEmpty()) return false;
+    /** Native fonts in both columns; no full widget silently falls back to the old row. */
+    private static void large(Context c, Brush b, Model m, long now, Frame f) {
+        Logic.WidgetLayout w = Logic.widgetLayout(Math.round(f.w / f.s), Math.round(f.h / f.s), true);
         float s = f.s;
-        float gap = 8 * s;
-        float column = (f.w - 2 * f.pad - 10 * s) / 2;
-        float bulb = 40 * s;
-        float textX = f.pad + bulb + 7 * s;
-        float room = column - bulb - 7 * s;
-        float start = f.pad + 23 * s;
-        float barBlock = 48 * s;
-        float rowH = f.h - f.pad - barBlock - start;
-        Paint title = text(Ui.heavy(c), 19 * s, b.pal.status(n.state), Paint.Align.LEFT);
-        String first = n.title;
-        String second = "";
-        if (title.measureText(first) > room) {
-            int space = first.indexOf(' ');
-            if (space > 0) { second = first.substring(space + 1); first = first.substring(0, space); }
-        }
-        fit(title, first, room);
-        if (!second.isEmpty()) fit(title, second, room);
-        String clock = n.since.isEmpty() ? n.big : n.since;
-        String day = "";
-        if (clock.endsWith(" учора")) { day = "учора"; clock = clock.substring(0, clock.length() - 6); }
-        else if (clock.startsWith("до завтра ")) { day = "завтра"; clock = "до " + clock.substring(10); }
-        Paint time = fit(text(clock.contains(":") ? Ui.display(c) : Ui.bold(c),
-                (clock.contains(":") ? 19.95f : 14) * s, b.pal.text, Paint.Align.LEFT), clock, room);
-        Paint context = text(Ui.bold(c), 13 * s, b.pal.muted, Paint.Align.LEFT);
-        float height = title.getTextSize() * (second.isEmpty() ? 1 : 2) + 5 * s + time.getTextSize()
-                + (day.isEmpty() ? 0 : 3 * s + context.getTextSize());
-        if (height > rowH || title.getTextSize() < 14 * s || time.getTextSize() < 13 * s) return false;
-        Paint name = fit(text(Ui.heavy(c), 15.2f * s, b.pal.text, Paint.Align.LEFT),
-                m.place.name + " · черга " + Logic.queue(m.place.group), f.w - 2 * f.pad);
-        line(b, m.place.name + " · черга " + Logic.queue(m.place.group), f.pad, f.pad, name);
-        BulbView.draw(b, n.state, f.pad + bulb / 2, start + rowH / 2, bulb, 1);
-        float y = start + (rowH - height) / 2;
-        y = line(b, first, textX, y, title);
-        if (!second.isEmpty()) y = line(b, second, textX, y, title);
-        y = line(b, clock, textX, y + 5 * s, time);
-        if (!day.isEmpty()) line(b, day, textX, y + 3 * s, context);
-        float right = f.pad + column + gap;
-        float rightW = f.w - f.pad - right;
-        Paint event = fit(text(Ui.bold(c), 14 * s, b.pal.muted, Paint.Align.LEFT), next[0], rightW);
-        Paint at = fit(text(Ui.display(c), 19.95f * s, b.pal.status(n.next), Paint.Align.LEFT), next[1], rightW);
-        Paint until = fit(text(Ui.bold(c), 13 * s, b.pal.muted, Paint.Align.LEFT), next[2], rightW);
-        float rightH = event.getTextSize() + 4 * s + at.getTextSize() + (next[2].isEmpty() ? 0 : 3 * s + until.getTextSize());
-        float ry = start + (rowH - rightH) / 2;
+        float pad = w.pad * s;
+        float width = w.columnWidth * s;
+        float right = pad + width + 8 * s;
+        Paint name = fit(text(Ui.heavy(c), w.textSize * .8f * s, b.pal.text, Paint.Align.LEFT),
+                m.place.name + " · черга " + Logic.queue(m.place.group), f.w - 2 * pad);
+        line(b, m.place.name + " · черга " + Logic.queue(m.place.group), pad, pad, name);
+        String[] start = Logic.widgetStart(m.now);
+        String[] next = Logic.widgetFuture(m.now);
+        float bulb = (w.compact ? 22 : 40) * s;
+        String title = w.compact ? compactTitle(m.now.state) : m.now.title;
+        Paint titleSize = text(Ui.heavy(c), w.textSize * s, b.pal.status(m.now.state), Paint.Align.LEFT);
+        if (titleSize.measureText(m.now.title) <= width - bulb - 5 * s) title = m.now.title;
+        if (w.compact && m.now.next != Logic.UNKNOWN) next[0] = compactEvent(m.now);
+        Panel present = new Panel(c, title, start[0], start[1], width, width - bulb - 5 * s,
+                w.textSize * s, b.pal.status(m.now.state), b.pal.text, b.pal.muted, bulb, s);
+        Panel future = new Panel(c, next[0], next[1], next[2], width, width,
+                w.textSize * s, b.pal.muted, b.pal.status(m.now.next), b.pal.muted, 0, s);
+        float rowTop = w.rowTop * s;
+        float rowHeight = w.rowHeight * s;
+        present.fitHeight(rowHeight);
+        future.fitHeight(rowHeight);
+        present.draw(b, pad, rowTop + (rowHeight - present.height()) / 2, m.now.state);
+        future.draw(b, right, rowTop + (rowHeight - future.height()) / 2, Logic.UNKNOWN);
         b.p.setColor(b.pal.line);
-        b.cv.drawRect(right - 6 * s, ry, right - 5 * s, ry + rightH, b.p);
-        ry = line(b, next[0], right, ry, event);
-        ry = line(b, next[1], right, ry + 4 * s, at);
-        if (!next[2].isEmpty()) line(b, next[2], right, ry + 3 * s, until);
-        float top = f.h - f.pad - barBlock;
-        line(b, "Найближчі 24 години", f.pad, top, text(Ui.bold(c), 12 * s, b.pal.muted, Paint.Align.LEFT));
-        b.r2.set(f.pad, top + 18 * s, f.w - f.pad, top + 36 * s);
+        b.cv.drawRect(right - 5 * s, rowTop, right - 4 * s, rowTop + rowHeight, b.p);
+        if (w.barHeading) line(b, "Найближчі 24 години", pad, (w.barTop - 17) * s,
+                text(Ui.bold(c), 12 * s, b.pal.muted, Paint.Align.LEFT));
+        b.r2.set(pad, w.barTop * s, f.w - pad, (w.barTop + w.barHeight) * s);
         bar(c, b, m.base, m.tl, now, b.r2, s);
-        return true;
+    }
+
+    private static String compactTitle(int state) {
+        if (state == Logic.ON) return "Є";
+        if (state == Logic.OFF) return "Немає";
+        return state == Logic.MAYBE ? "Можливо" : "Невідомо";
+    }
+
+    private static String compactEvent(Logic.Now now) {
+        if (now.next == Logic.ON) return now.state == Logic.OFF ? "Увімкнуть" : "Буде світло";
+        return now.next == Logic.OFF ? "Вимкнуть" : "Можливо";
+    }
+
+    /** Measured text blocks reflow within a column, preserving all schedule information. */
+    private static final class Panel {
+        private final String[] strings;
+        private final TextPaint[] paints = new TextPaint[3];
+        private final StaticLayout[] lines = new StaticLayout[3];
+        private final float width;
+        private final float titleWidth;
+        private float bulb;
+        private float gap;
+
+        Panel(Context c, String title, String value, String detail, float width, float titleWidth,
+              float size, int titleInk, int valueInk, int detailInk, float bulb, float scale) {
+            strings = new String[] {title, value, detail};
+            this.width = width; this.titleWidth = titleWidth; this.bulb = bulb; gap = 2 * scale;
+            paints[0] = new TextPaint(text(Ui.heavy(c), bulb > 0 ? size : size * .74f, titleInk, Paint.Align.LEFT));
+            paints[1] = new TextPaint(text(value.contains(":") ? Ui.display(c) : Ui.bold(c),
+                    size * (value.contains(":") ? 1.05f : .74f), valueInk, Paint.Align.LEFT));
+            paints[2] = new TextPaint(text(Ui.bold(c), size * .68f, detailInk, Paint.Align.LEFT));
+            if (value.contains(":")) fit(paints[1], value, width);
+            reflow();
+        }
+
+        private void reflow() {
+            for (int i = 0; i < lines.length; i++) {
+                if (strings[i].isEmpty()) { lines[i] = null; continue; }
+                lines[i] = StaticLayout.Builder.obtain(strings[i], 0, strings[i].length(), paints[i],
+                        Math.max(1, Math.round(i == 0 ? titleWidth : width)))
+                        .setAlignment(Layout.Alignment.ALIGN_NORMAL).setIncludePad(false).build();
+            }
+        }
+
+        float height() {
+            float h = Math.max(bulb, lines[0] == null ? 0 : lines[0].getHeight());
+            for (int i = 1; i < lines.length; i++) if (lines[i] != null) h += gap + lines[i].getHeight();
+            return h;
+        }
+
+        void fitHeight(float height) {
+            // A launcher may report a shorter cell: keep both panes and all text, never the old row.
+            for (int attempt = 0; attempt < 6 && height() > height; attempt++) {
+                float ratio = Math.min(.99f, (height - 1) / height());
+                for (TextPaint paint : paints) paint.setTextSize(paint.getTextSize() * ratio);
+                bulb *= ratio; gap *= ratio;
+                reflow();
+            }
+        }
+
+        void draw(Brush b, float x, float y, int state) {
+            float titleHeight = Math.max(bulb, lines[0] == null ? 0 : lines[0].getHeight());
+            if (bulb > 0) BulbView.draw(b, state, x + bulb / 2, y + titleHeight / 2, bulb, 1);
+            drawLine(b.cv, lines[0], x + (bulb > 0 ? bulb + 5 * gap / 2 : 0), y);
+            y += titleHeight;
+            for (int i = 1; i < lines.length; i++) if (lines[i] != null) {
+                y += gap; drawLine(b.cv, lines[i], x, y); y += lines[i].getHeight();
+            }
+        }
+
+        private static void drawLine(Canvas cv, StaticLayout line, float x, float y) {
+            if (line == null) return;
+            cv.save(); cv.translate(x, y); line.draw(cv); cv.restore();
+        }
     }
 
     /** A line of text whose top is at y; returns the y under it. */

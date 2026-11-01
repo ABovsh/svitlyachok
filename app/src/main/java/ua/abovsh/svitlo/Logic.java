@@ -397,6 +397,13 @@ public final class Logic {
     }
 
     public static Now now(String tl, LocalDate base, long now, boolean none, String yesterday) {
+        Map<LocalDate, String> history = new HashMap<>();
+        if (yesterday != null) history.put(base.minusDays(1), yesterday);
+        return nowWithHistory(tl, base, now, none, history);
+    }
+
+    public static Now nowWithHistory(String tl, LocalDate base, long now, boolean none,
+                                     Map<LocalDate, String> history) {
         Now n = new Now();
         int cur = index(base, now);
         char c = cur >= 0 && cur < tl.length() ? tl.charAt(cur) : '2';
@@ -412,35 +419,45 @@ public final class Logic {
             List<int[]> ch = changesFrom(tl, cur);
             if (ch.isEmpty()) steady(n, tl, cur, c);
             else changing(n, ch, c, base, now);
-            since(n, tl, cur, c, yesterday, base, now);
         }
+        if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
         return n;
     }
 
-    /**
-     * "з 14:30" and "уже 3 год 08 хв": when the present state began. A state from midnight looks
-     * into yesterday; without yesterday the start is not known, the same all yesterday too is
-     * "уже понад добу".
-     */
-    private static void since(Now n, String tl, int cur, char c, String yesterday, LocalDate base, long now) {
+    /** Walk the contiguous saved schedules; an unknown preceding slot gives a lower bound. */
+    private static void since(Now n, String tl, int cur, char c, Map<LocalDate, String> history,
+                              LocalDate base, long now) {
         int i = cur;
         while (i > 0 && tl.charAt(i - 1) == c) i--;
         if (i > 0) {
-            began(n, slotStart(base, i), "", now);
+            began(n, base, i, state(tl.charAt(i - 1)) != UNKNOWN, base, now);
             return;
         }
-        if (yesterday == null || yesterday.length() != 48) return;
-        int j = 48;
-        while (j > 0 && yesterday.charAt(j - 1) == c) j--;
-        if (j == 0) {  // the same all yesterday too: when it began is not known, only that it is long
-            n.already = "уже понад добу";
-        } else if (yesterday.charAt(j - 1) != '2') {  // not after hours without a schedule
-            began(n, slotStart(base.minusDays(1), j), j < 48 ? " учора" : "", now);
+        LocalDate start = base;
+        for (int back = 1; back <= HISTORY_DAYS; back++) {
+            LocalDate day = base.minusDays(back);
+            String slots = history.get(day);
+            if (slots == null || slots.length() != 48) break;
+            int j = 48;
+            while (j > 0 && slots.charAt(j - 1) == c) j--;
+            if (j > 0) {
+                // j == 48 means the transition (or unknown boundary) is today's midnight.
+                began(n, day, j, state(slots.charAt(j - 1)) != UNKNOWN, base, now);
+                return;
+            }
+            start = day;
         }
+        began(n, start, 0, false, base, now);
     }
 
-    private static void began(Now n, long start, String day, long now) {
-        n.since = "з " + hm(start) + day;
+    private static void began(Now n, LocalDate day, int slot, boolean exact, LocalDate base, long now) {
+        long start = slotStart(day, slot);
+        LocalDate date = z(start).toLocalDate();
+        String suffix = "";
+        if (date.equals(base.minusDays(1))) suffix = " учора";
+        else if (date.isBefore(base)) suffix = String.format(Locale.ROOT, " %d.%02d", date.getDayOfMonth(), date.getMonthValue())
+                + (date.getYear() == base.getYear() ? "" : "." + date.getYear());
+        n.since = (exact ? "з " : "щонайменше з ") + hm(start) + suffix;
         n.already = "уже " + waitText(now - start);
     }
 
@@ -1129,6 +1146,37 @@ public final class Logic {
         return wDp >= 200 && hDp >= 110 ? W_FULL : W_ROW;
     }
 
+    /** Layout in dp: every full widget keeps both current and future information visible. */
+    public static final class WidgetLayout {
+        public boolean twoParts;
+        public boolean compact;
+        public boolean barHeading;
+        public float pad;
+        public float textSize;
+        public float columnWidth;
+        public float rowTop;
+        public float rowHeight;
+        public float barTop;
+        public float barHeight;
+        public float labelHeight;
+    }
+
+    public static WidgetLayout widgetLayout(int width, int height, boolean titled) {
+        WidgetLayout w = new WidgetLayout();
+        w.twoParts = widgetForm(width, height) == W_FULL;
+        w.pad = Math.max(8, Math.min(14, 8 + (height - 110) * .1f));
+        w.textSize = Math.max(12, Math.min(19, height * .15f));
+        w.columnWidth = (width - 2 * w.pad - 8) / 2;
+        w.labelHeight = 16;
+        w.barHeight = height < 150 ? 8 : height < 180 ? 12 : 16;
+        w.barHeading = height >= 180;
+        w.barTop = height - w.pad - w.labelHeight - w.barHeight;
+        w.rowTop = w.pad + (titled ? w.textSize * .8f + 2 : 0);
+        w.rowHeight = w.barTop - (w.barHeading ? 17 : 0) - 2 - w.rowTop;
+        w.compact = w.columnWidth < 145 || w.rowHeight < 75;
+        return w;
+    }
+
     // ---- the place card and the bar of a day ---------------------------------------
 
     /** The line of the present: "Світло є з 14:30". */
@@ -1183,6 +1231,10 @@ public final class Logic {
             lead = a.leadOff;
         }
         return lead > 0 ? lead * 60L : SOON_S;
+    }
+
+    public static boolean highlight(Now n, Alerts alerts, long now) {
+        return n.next != UNKNOWN && n.change > now && n.change - now <= soonS(alerts, n.next);
     }
 
     /** A clock time under the bar: its slot (0..48), what begins there, its centre. */
@@ -1245,6 +1297,29 @@ public final class Logic {
         if (n.next == UNKNOWN || n.change == 0 || at < 0) return new String[] {"", "", ""};
         int end = n.then.lastIndexOf(" до ");
         return new String[] {n.hint.substring(0, at), n.hint.substring(at + 1), end < 0 ? "" : n.then.substring(end + 1)};
+    }
+
+    /** Start clock plus day/lower-bound context, without squeezing the clock on a widget. */
+    public static String[] widgetStart(Now n) {
+        String value = n.since.isEmpty() ? n.big : n.since;
+        String bound = "щонайменше ";
+        boolean limited = value.startsWith(bound);
+        if (limited) value = value.substring(bound.length());
+        if (value.startsWith("до завтра ")) return new String[] {"до " + value.substring("до завтра ".length()), "завтра"};
+        int colon = value.indexOf(':');
+        if (colon < 0) return new String[] {value, ""};
+        int end = colon + 3;
+        String context = ((limited ? bound : "") + value.substring(end).trim()).trim();
+        return new String[] {value.substring(0, end), context};
+    }
+
+    public static String[] widgetFuture(Now n) {
+        String[] next = widgetNext(n);
+        if (!next[0].isEmpty()) return next;
+        if (n.state == UNKNOWN) return new String[] {"Далі", "Графіка немає", ""};
+        if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {"Завтра", "Графіка ще немає", ""};
+        if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", "Без вимкнень", ""};
+        return new String[] {"Далі", "Без змін", "до кінця графіка"};
     }
 
     static int statValue(DayStat d, int state) {

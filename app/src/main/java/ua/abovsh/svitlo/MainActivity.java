@@ -375,7 +375,7 @@ public class MainActivity extends Base {
     }
 
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
-        Logic.Now n = Logic.now(tl, base, now, d != null && d.none, yesterday(p, d, base));
+        Logic.Now n = Logic.nowWithHistory(tl, base, now, d != null && d.none, Prefs.knownHistory(this, p, d));
         if (d == null) {
             n.title = "Завантажую графік"; n.big = "";
             n.hint = "Інтернет потрібен для першого завантаження"; n.hintIn = "";
@@ -407,16 +407,17 @@ public class MainActivity extends Base {
         LinearLayout next = Ui.column(this);
         next.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), Ui.dp(this, 9));
         int nextState = n.next == Logic.UNKNOWN ? n.state : n.next;
-        android.graphics.drawable.GradientDrawable nextBg = Ui.round(pal.soft(nextState), Ui.px(this, 15));
-        boolean soon = n.change > now && n.change - now <= Logic.soonS(Prefs.alerts(this, p.id), n.next);
+        boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
+        android.graphics.drawable.GradientDrawable nextBg = Ui.round(soon ? pal.fill(nextState) : pal.soft(nextState), Ui.px(this, 15));
         if (soon) nextBg.setStroke(Ui.dp(this, 2), pal.status(nextState));
+        int eventInk = soon ? (nextState == Logic.MAYBE ? pal.accentInk : pal.ink) : pal.status(nextState);
         next.setBackground(nextBg);
-        TextView event = Ui.text(this, 26, Ui.heavy(this), pal.status(nextState));
+        TextView event = Ui.text(this, 26, Ui.heavy(this), eventInk);
         event.setText(n.hint);
         next.addView(event, fill());
         String detail = Logic.nextDetail(n);
         if (!detail.isEmpty()) {
-            TextView small = Ui.text(this, 14, Ui.bold(this), pal.text);
+            TextView small = Ui.text(this, 14, Ui.bold(this), soon ? eventInk : pal.text);
             small.setText(detail);
             small.setPadding(0, Ui.dp(this, 3), 0, 0);
             next.addView(small, fill());
@@ -425,12 +426,6 @@ public class MainActivity extends Base {
         card.setContentDescription("Зараз за графіком: " + n.title + " " + n.since + ", " + n.already
                 + ". " + n.hint + ". " + detail);
         return card;
-    }
-
-    private String yesterday(Logic.Place p, Logic.Data d, LocalDate base) {
-        LocalDate y = base.minusDays(1);
-        String day = Logic.day(d, p.group, y);
-        return day != null ? day : Prefs.history(this, p.id).get(y);
     }
 
     private View actions(Logic.Place p) {

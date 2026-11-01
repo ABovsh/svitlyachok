@@ -771,25 +771,25 @@ public class LogicTest {
         Logic.Now off = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false, null);
         assertEquals("з 14:30", off.since);
         assertEquals("уже 30 хв", off.already);
-        // a run from midnight: yesterday tells when it began; without it nothing is guessed
+        // A known run from midnight remains visible; a missing preceding slot is a lower bound.
         Logic.Now early = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("", early.since);
-        assertEquals("", early.already);
+        assertEquals("щонайменше з 00:00", early.since);
+        assertEquals("уже 3 год 00 хв", early.already);
         String lateOn = repeat('0', 44) + repeat('1', 4);
         Logic.Now fromYesterday = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, lateOn);
         assertEquals("з 22:00 учора", fromYesterday.since);
         assertEquals("уже 5 год 00 хв", fromYesterday.already);
         assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('0', 48)).since);
         // yesterday has hours without a schedule right before the run: the start is not known
-        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
-        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
+        assertEquals("щонайменше з 22:00 учора", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
+        assertEquals("щонайменше з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
         // the same all yesterday: longer than a day, the start is not known
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("", allDay.since);
-        assertEquals("уже понад добу", allDay.already);
+        assertEquals("щонайменше з 00:00 учора", allDay.since);
+        assertEquals("уже 1 д 3 год", allDay.already);
         // no schedule, or no outages at all: nothing to count from
         assertEquals("", Logic.now(repeat('2', 96), OCT30, at(12, 0), false, null).since);
-        assertEquals("", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
+        assertEquals("щонайменше з 00:00", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
     }
 
     @Test
@@ -857,12 +857,12 @@ public class LogicTest {
         assertEquals("(уже 2 год 00 хв)", Logic.nowLineIn(on));
         assertEquals("Світло є вже 2 год 00 хв", Logic.nowLineShort(on));
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("Світло є", Logic.nowLine(allDay));
-        assertEquals("(уже понад добу)", Logic.nowLineIn(allDay));
+        assertEquals("Світло є щонайменше з 00:00 учора", Logic.nowLine(allDay));
+        assertEquals("(уже 1 д 3 год)", Logic.nowLineIn(allDay));
         Logic.Now unknown = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("Світло є", Logic.nowLine(unknown));
-        assertEquals("", Logic.nowLineIn(unknown));
-        assertEquals("Світло є", Logic.nowLineShort(unknown));
+        assertEquals("Світло є щонайменше з 00:00", Logic.nowLine(unknown));
+        assertEquals("(уже 3 год 00 хв)", Logic.nowLineIn(unknown));
+        assertEquals("Світло є вже 3 год 00 хв", Logic.nowLineShort(unknown));
     }
 
     @Test
@@ -1020,6 +1020,74 @@ public class LogicTest {
         assertTrue(Logic.describeStats(days).contains("можливе вимкнення 1 год 30 хв"));
         assertTrue(Logic.statLabels(java.util.Collections.emptyList(), 320, 30, 6).isEmpty());
         assertEquals(1, Logic.statLabels(days, 280, 60, 6).size());
+    }
+
+    @Test
+    public void startWalksSavedDaysAndStopsAtUnknownHistory() {
+        java.util.Map<LocalDate, String> history = new java.util.HashMap<>();
+        history.put(OCT30.minusDays(1), repeat('1', 48));
+        history.put(OCT30.minusDays(2), repeat('0', 36) + repeat('1', 12));
+        Logic.Now n = Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history);
+        assertEquals("з 18:00 28.10", n.since);
+        assertEquals("уже 1 д 18 год", n.already);
+        history.put(OCT30.minusDays(2), repeat('2', 36) + repeat('1', 12));
+        assertEquals("щонайменше з 18:00 28.10", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        history.remove(OCT30.minusDays(1));
+        assertEquals("щонайменше з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        history.put(OCT30.minusDays(1), repeat('0', 48));
+        assertEquals("з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("", Logic.nowWithHistory(repeat('2', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("щонайменше з 10:00", Logic.nowWithHistory(repeat('2', 20) + repeat('1', 76), OCT30, at(12, 0), false, history).since);
+    }
+
+    @Test
+    public void urgencyUsesTheExactReminderBoundaryAndEndsAtTheEvent() {
+        Logic.Now n = new Logic.Now(); n.next = Logic.OFF; n.change = at(15, 30);
+        Logic.Alerts alerts = new Logic.Alerts();
+        assertFalse(Logic.highlight(n, alerts, at(15, 15) - 1));
+        assertTrue(Logic.highlight(n, alerts, at(15, 15)));
+        assertTrue(Logic.highlight(n, alerts, at(15, 30) - 1));
+        assertFalse(Logic.highlight(n, alerts, at(15, 30)));
+        assertFalse(Logic.highlight(n, alerts, at(16, 0)));
+        alerts.leadOn = 10; n.next = Logic.ON;
+        assertFalse(Logic.highlight(n, alerts, at(15, 19)));
+        assertTrue(Logic.highlight(n, alerts, at(15, 20)));
+        n.next = Logic.UNKNOWN;
+        assertFalse(Logic.highlight(n, alerts, at(15, 25)));
+    }
+
+    @Test
+    public void everyFullWidgetUsesTheTwoPartLayoutEvenWithALowLauncherHeight() {
+        for (int[] size : new int[][] {{200,110},{250,120},{300,130},{300,160},{360,180},{420,220}}) {
+            Logic.WidgetLayout w = Logic.widgetLayout(size[0], size[1], true);
+            assertTrue(w.twoParts);
+            assertTrue(w.columnWidth > 0);
+            assertTrue(w.rowHeight > 0);
+            assertTrue(w.rowTop + w.rowHeight <= w.barTop);
+            assertTrue(w.barTop + w.barHeight + w.labelHeight <= size[1] - w.pad + .01f);
+            assertTrue(w.textSize >= 12 && w.textSize <= 19);
+        }
+        assertFalse(Logic.widgetLayout(180,80,true).twoParts);
+        assertFalse(Logic.widgetLayout(360,80,true).twoParts);
+    }
+
+    @Test
+    public void widgetPanesKeepTheKnownStartAndHonestFutureWhenNoChangeIsPublished() {
+        Logic.Now n = Logic.now(repeat('1',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("з 00:00", "щонайменше"), Arrays.asList(Logic.widgetStart(n)));
+        assertEquals(Arrays.asList("Сьогодні й завтра", "Без вимкнень", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n = Logic.now(repeat('1',48) + repeat('2',48), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Завтра", "Графіка ще немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n = Logic.now(repeat('2',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n.since = "з 22:00 учора";
+        assertEquals(Arrays.asList("з 22:00", "учора"), Arrays.asList(Logic.widgetStart(n)));
+        n.since = "щонайменше з 22:00 28.10";
+        assertEquals(Arrays.asList("з 22:00", "щонайменше 28.10"), Arrays.asList(Logic.widgetStart(n)));
+        n.since = ""; n.big = "до завтра 06:00";
+        assertEquals(Arrays.asList("до 06:00", "завтра"), Arrays.asList(Logic.widgetStart(n)));
+        n = Logic.now(repeat('0',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Далі", "Без змін", "до кінця графіка"), Arrays.asList(Logic.widgetFuture(n)));
     }
 
     private static boolean has(List<Logic.Label> l, int slot) {

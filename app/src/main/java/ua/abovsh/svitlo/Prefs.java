@@ -128,6 +128,18 @@ final class Prefs {
         return out;
     }
 
+    /** Published older days take precedence over the phone's last saved version. */
+    static Map<LocalDate, String> knownHistory(Context c, Logic.Place place, Logic.Data data) {
+        Map<LocalDate, String> days = history(c, place.id);
+        if (data != null && !data.none) {
+            for (Map.Entry<LocalDate, Map<String, String>> day : data.days.entrySet()) {
+                String slots = day.getValue().get(place.group);
+                if (slots != null) days.put(day.getKey(), slots);
+            }
+        }
+        return days;
+    }
+
     static void saveHistory(Context c, String place, Map<LocalDate, String> days) {
         JSONObject o = new JSONObject();
         try {

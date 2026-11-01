@@ -495,7 +495,7 @@ public class MainActivity extends Base {
             TextView total = Ui.text(this, 13, Ui.heavy(this), pal.onText);
             total.setText(Logic.dayLights(slots).get(0));
             android.graphics.drawable.Drawable light = getDrawable(R.drawable.ic_notify_on);
-            if (light != null) { light.setTint(pal.onText); light.setBounds(0,0,Ui.dp(this,16),Ui.dp(this,16)); total.setCompoundDrawables(light,null,null,null); total.setCompoundDrawablePadding(Ui.dp(this,4)); }
+            if (light != null) { light.setTint(pal.onText); light.setBounds(0,0,Ui.dp(this,16),Ui.dp(this,16)); android.text.SpannableStringBuilder caption = new android.text.SpannableStringBuilder("  " + total.getText()); caption.setSpan(new android.text.style.ImageSpan(light, android.text.style.ImageSpan.ALIGN_BOTTOM),0,1,0); total.setText(caption); }
             total.setGravity(Gravity.END);
             summary.addView(total, weight());
             ImageView share = iconButton(R.drawable.ic_share, "Поділитися графіком: " + title, v -> Share.send(this, p, date));

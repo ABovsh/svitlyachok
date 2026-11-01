@@ -48,7 +48,7 @@ final class Ui {
                 bg = 0xFF10191B; card = 0xFF172428; raised = 0xFF203236; line = 0xFF334749;
                 text = 0xFFEFF3EC; muted = 0xFFB3C1BB; dim = 0xFFB3C1BB;
                 accent = 0xFFEDC25B; accentText = 0xFFEDC25B; accentInk = 0xFF30260B;
-                on = 0xFF268B60; onText = 0xFF83DCA6; off = 0xFFCC4C60; offText = 0xFFFFADB3;
+                on = 0xFF268B60; onText = 0xFF8AE8AE; off = 0xFFCC4C60; offText = 0xFFFFA3AF;
                 maybe = 0xFFD6A544; maybeText = 0xFFF6D184; unknown = 0xFF293B3F; ink = 0xFFFFFFFF; glow = 0x28;
             } else {
                 bg = 0xFFF5F4ED; card = 0xFFFFFEFA; raised = 0xFFECEEE6; line = 0xFFD6DED2;
@@ -80,8 +80,8 @@ final class Ui {
         }
 
         int soft(int state) {
-            if (state == Logic.ON) return dark ? 0xFF1C3C32 : 0xFFE2F1E7;
-            if (state == Logic.OFF) return dark ? 0xFF432B34 : 0xFFFBE8E9;
+            if (state == Logic.ON) return dark ? 0xFF1A4334 : 0xFFDEF3E6;
+            if (state == Logic.OFF) return dark ? 0xFF4B2B37 : 0xFFFDE5E9;
             if (state == Logic.MAYBE) return dark ? 0xFF413923 : 0xFFFFF1CB;
             return dark ? 0xFF293B3F : 0xFFE6EBE5;
         }

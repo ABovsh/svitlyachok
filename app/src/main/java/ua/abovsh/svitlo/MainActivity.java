@@ -220,7 +220,7 @@ public class MainActivity extends Base {
         body.addView(actions(p), gap(6));
         body.addView(footer(p, d, now), fill());
 
-        // one widget per place: offered for the place on screen until it has one
+        // always offered, also beside an existing widget: this is where the other size is added
         boolean offer = android.appwidget.AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported();
         addWidget.setVisibility(offer ? View.VISIBLE : View.GONE);
         addWidget.setContentDescription("Додати віджет «" + p.name + "» на головний екран");
@@ -408,6 +408,16 @@ public class MainActivity extends Base {
             present.addView(since, vertical ? fill() : wrap());
         }
         card.addView(present, fill());
+        if (!Logic.hintIsEvent(n)) {  // no event: the schedule below already says why, so the card stays compact
+            if (d == null) {  // nothing below explains this one
+                TextView note = Ui.text(this, 14, Ui.body(this), pal.muted);
+                note.setText(n.hint);
+                note.setPadding(Ui.dp(this, 11), 0, Ui.dp(this, 11), Ui.dp(this, 10));
+                card.addView(note, fill());
+            }
+            card.setContentDescription(Logic.describeNow(n, ""));
+            return card;
+        }
         LinearLayout next = Ui.column(this);
         next.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), Ui.dp(this, 9));
         int nextState = n.next == Logic.UNKNOWN ? n.state : n.next;
@@ -427,8 +437,7 @@ public class MainActivity extends Base {
             next.addView(small, fill());
         }
         if (!n.hint.isEmpty()) card.addView(next, fill());
-        card.setContentDescription("Зараз за графіком: " + n.title + " " + n.since + ", " + n.already
-                + ". " + n.hint + ". " + detail);
+        card.setContentDescription(Logic.describeNow(n, detail));
         return card;
     }
 

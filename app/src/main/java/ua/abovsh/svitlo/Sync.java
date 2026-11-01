@@ -269,10 +269,11 @@ final class Sync {
             WidgetArt.Model model = models.get(choice);
             Bundle o = m.getAppWidgetOptions(id);
             // Portrait: the real cell is MIN_WIDTH x MAX_HEIGHT.
-            int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180));
-            boolean large = m.getAppWidgetInfo(id) != null
-                    && LargeLightWidget.class.getName().equals(m.getAppWidgetInfo(id).provider.getClassName());
-            int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, large ? 150 : 70)));
+            android.appwidget.AppWidgetProviderInfo info = m.getAppWidgetInfo(id);
+            int[] cell = Logic.widgetDefaultSize(info != null
+                    && LargeLightWidget.class.getName().equals(info.provider.getClassName()));
+            int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, cell[0]));
+            int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
             String key = WidgetArt.key(c, model, now, wDp, hDp);
             if (key.equals(drawn.get(id))) continue;
             RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget);

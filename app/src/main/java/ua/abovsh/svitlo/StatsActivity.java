@@ -52,7 +52,7 @@ public class StatsActivity extends Base {
         android.widget.HorizontalScrollView chartScroll = new android.widget.HorizontalScrollView(this);
         chartScroll.setHorizontalScrollBarEnabled(true); chartScroll.setFillViewport(true); chartScroll.addView(chart);
         LinearLayout.LayoutParams cl = fill(); cl.topMargin = Ui.dp(this, 4); card.addView(chartScroll, cl);
-        card.addView(legend(shown), gap(6));
+        card.addView(legend(shown, days != 7 && Logic.weeksMissData(weeks)), gap(6));
         if (days != 7) card.addView(trend(weeks), gap(6));
         else {
             TextView avg = Ui.text(this, 14, Ui.heavy(this), pal.text); avg.setText("У середньому на день");
@@ -66,7 +66,7 @@ public class StatsActivity extends Base {
         card.addView(metrics, fill());
         TextView coverage = Ui.text(this, 12, Ui.body(this), pal.muted);
         String text;
-        if (days == 7) text = "Днів із графіком: " + Logic.statKnownDays(daily) + " із 7";
+        if (days == 7) text = "Повних днів із графіком: " + Logic.statKnownDays(daily) + " із 7";
         else {
             List<String> counts = new java.util.ArrayList<>();
             for (Logic.WeekStat w : weeks) counts.add(w.known + "/7");
@@ -152,13 +152,13 @@ public class StatsActivity extends Base {
         return row;
     }
 
-    private View legend(List<Logic.DayStat> days) {
+    private View legend(List<Logic.DayStat> days, boolean missing) {
         FlowRow row = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 5));
         legendItem(row, '1', "Зі світлом · год");
         if (this.days == 7) legendItem(row, '0', "Без світла · год");
         TextView average = Ui.text(this, 12, Ui.bold(this), pal.accentText);
         average.setText("┄ Середнє зі світлом"); row.addView(average);
-        boolean possible = false; boolean unknown = false;
+        boolean possible = false; boolean unknown = missing;
         for (Logic.DayStat d : days) { possible |= d.maybe > 0; unknown |= !Logic.statKnown(d) || d.on + d.off + d.maybe < 48; }
         if (possible) legendItem(row, '3', "Можливе вимкнення");
         if (unknown) legendItem(row, '2', "Немає даних");

@@ -285,8 +285,13 @@ public class SetupActivity extends Base {
         p.name = n;
         p.region = region;
         p.group = group;
+        Logic.Place before = editId == null ? null : Prefs.place(this, editId);
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
+        if (before != null && !Logic.sameQueue(before, p)) {  // statistics and "з 14:30" belong to the old queue
+            Prefs.forgetHistory(this, p.id);
+            Sync.rememberDays(getApplicationContext(), Sync.now());
+        }
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
         if (first) startActivity(new Intent(this, MainActivity.class));

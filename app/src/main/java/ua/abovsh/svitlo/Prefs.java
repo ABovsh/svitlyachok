@@ -132,12 +132,16 @@ final class Prefs {
     static Map<LocalDate, String> knownHistory(Context c, Logic.Place place, Logic.Data data) {
         Map<LocalDate, String> days = history(c, place.id);
         if (data != null && !data.none) {
-            for (Map.Entry<LocalDate, Map<String, String>> day : data.days.entrySet()) {
-                String slots = day.getValue().get(place.group);
-                if (slots != null) days.put(day.getKey(), slots);
+            for (LocalDate day : data.days.keySet()) {
+                String slots = Logic.day(data, place.group, day);
+                if (slots != null) days.put(day, slots);
             }
         }
         return days;
+    }
+
+    static void forgetHistory(Context c, String place) {
+        h(c).edit().remove(place).apply();
     }
 
     static void saveHistory(Context c, String place, Map<LocalDate, String> days) {

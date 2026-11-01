@@ -4,14 +4,14 @@
 #   privacy-guard.sh tree [<ref>]        files tracked at <ref> (default HEAD)
 #   privacy-guard.sh range <base> <head> every commit in base..head: paths, added lines, authors
 #
-# 1. Paths: only the files an Android app needs (allow-list). Anything else -- notes, editor or
+# 1. Paths: only the files an Android app and its site (docs/, GitHub Pages) need (allow-list). Anything else -- notes, editor or
 #    tool folders, build output, keys -- fails, whatever its name.
 # 2. Content: no private network addresses, local host names, e-mail addresses or credentials.
 # 3. Commits: authors use the GitHub no-reply address; no co-author trailers.
 # Exit 0 = clean, 1 = findings, 2 = usage error.
 set -uo pipefail
 
-ALLOWED='^(app/(build\.gradle|lint\.xml|src/(main|test)/.+)|gradle/wrapper/gradle-wrapper\.(jar|properties)|gradlew|gradlew\.bat|docs/screenshots/[a-z0-9-]+\.png|\.github/(workflows/[a-z0-9-]+\.yml|ISSUE_TEMPLATE/[a-z0-9-]+\.yml|dependabot\.yml|privacy-guard\.sh)|build\.gradle|settings\.gradle|gradle\.properties|sonar-project\.properties|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|SECURITY\.md|LICENSE|\.gitignore|\.gitattributes)$'
+ALLOWED='^(app/(build\.gradle|lint\.xml|src/(main|test)/.+)|gradle/wrapper/gradle-wrapper\.(jar|properties)|gradlew|gradlew\.bat|docs/screenshots/[a-z0-9-]+\.png|docs/([a-z-]+/)?index\.html|docs/(site\.(css|js)|icon\.svg|icon-192\.png|og\.png|sitemap\.xml|\.nojekyll|google[0-9a-f]+\.html)|\.github/(workflows/[a-z0-9-]+\.yml|ISSUE_TEMPLATE/[a-z0-9-]+\.yml|dependabot\.yml|privacy-guard\.sh)|build\.gradle|settings\.gradle|gradle\.properties|sonar-project\.properties|README\.md|ARCHITECTURE\.md|CHANGELOG\.md|SECURITY\.md|LICENSE|\.gitignore|\.gitattributes)$'
 NEVER='\.(jks|keystore|p12|pfx|pem|key|apk|aab)$|(^|/)(local|signing)\.properties$|(^|/)\.env'
 
 CONTENT=(

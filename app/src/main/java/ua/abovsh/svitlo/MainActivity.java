@@ -421,8 +421,9 @@ public class MainActivity extends Base {
         LinearLayout present = vertical ? Ui.column(this) : Ui.row(this);
         present.setPadding(Ui.dp(this, 11), Ui.dp(this, 8), Ui.dp(this, 11), Ui.dp(this, 8));
         present.addView(titleBlock, vertical ? fill() : weight());
-        since.setText(n.since + (both ? (vertical ? " · " : "\n") : "") + n.already);
-        if (since.getText().length() > 0) {
+        String gap = vertical ? " · " : "\n";
+        since.setText(n.since + (both ? gap : "") + n.already);
+        if (!n.since.isEmpty() || !n.already.isEmpty()) {
             since.setGravity(vertical ? Gravity.START : Gravity.END);
             present.addView(since, vertical ? fill() : wrap());
         }

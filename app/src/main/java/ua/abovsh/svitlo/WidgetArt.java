@@ -271,7 +271,7 @@ final class WidgetArt {
             drawLine(b.cv, lines[0], x + (bulb > 0 ? bulb + 5 * gap / 2 : 0), y);
             y += titleHeight;
             for (int i = 1; i < lines.length; i++) if (lines[i] != null) {
-                y += gap; drawLine(b.cv, lines[i], x, y); y += lines[i].getHeight();
+                y += gap; drawLine(b.cv, lines[i], x, y); y += (float) lines[i].getHeight();
             }
         }
 

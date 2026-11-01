@@ -47,7 +47,7 @@ final class StatsChart extends View {
 
     void set(List<Logic.DayStat> data) {
         days = new ArrayList<>(data); weeks.clear();
-        average = Logic.statAverageMinutes(days, Logic.ON);
+        average = (float) Logic.statAverageMinutes(days, Logic.ON);
         setContentDescription(Logic.describeStats(days)); invalidate();
     }
 
@@ -61,7 +61,7 @@ final class StatsChart extends View {
                     .append(w.onMinutes < 0 ? "немає даних" : Logic.hoursMinutes(w.onMinutes) + ", " + w.onPercent + " відсотків")
                     .append(", повних днів із графіком ").append(w.known).append(" із 7. ");
         }
-        average = Logic.statAverageMinutes(known, Logic.ON);
+        average = (float) Logic.statAverageMinutes(known, Logic.ON);
         setContentDescription(desc); invalidate();
     }
 
@@ -91,7 +91,7 @@ final class StatsChart extends View {
         for (int hour = 0; hour <= 24; hour += 6) {
             float y = top + chartH * (24f - hour) / 24;
             paint.setColor(pal.line); paint.setStrokeWidth(1);
-            cv.drawLine(axis, y, getWidth(), y, paint);
+            cv.drawLine(axis, y, (float) getWidth(), y, paint);
             label.setColor(pal.muted); cv.drawText(String.valueOf(hour), axis - Ui.px(getContext(), 6), y - (label.ascent()+label.descent())/2, label);
         }
         label.setTextAlign(Paint.Align.CENTER);
@@ -103,7 +103,7 @@ final class StatsChart extends View {
             float y = top + chartH * (1 - average / 1440f);
             paint.setColor(pal.accentText); paint.setStrokeWidth(Ui.px(getContext(), 1.3f));
             paint.setPathEffect(averageDash);
-            cv.drawLine(axis, y, getWidth(), y, paint); paint.setPathEffect(null);
+            cv.drawLine(axis, y, (float) getWidth(), y, paint); paint.setPathEffect(null);
         }
         // Text last: the average line passes behind the numbers, never through them.
         for (int i = 0; i < count; i++) {

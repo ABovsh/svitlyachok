@@ -1241,13 +1241,13 @@ public final class Logic {
 
     private static float widgetBarHeight(int height) {
         if (height < 150) return 8;
-        return height < 180 ? 12 : 16;
+        return height < 180 ? 12f : 16f;
     }
 
     public static WidgetLayout widgetLayout(int width, int height, boolean titled) {
         WidgetLayout w = new WidgetLayout();
         w.twoParts = widgetForm(width, height) == W_FULL;
-        w.pad = Math.max(8, Math.min(10, 8 + (height - 110) * .05f));
+        w.pad = Math.max(8f, Math.min(10f, 8 + (height - 110) * .05f));
         w.textSize = Math.max(12, Math.min(19, height * .15f));
         w.columnWidth = (width - 2 * w.pad - 8) / 2;
         w.labelHeight = 16;

@@ -3,4 +3,7 @@
     <!-- the name under the icon: Latin letters on a phone in any language but Ukrainian (values-uk) -->
     <string name="app_name">Svitlyachok</string>
     <string name="widget_desc" translatable="false">Графік відключень одного місця: що зараз і до котрої. Для кожного місця — свій віджет.</string>
+    <string name="widget_small" translatable="false">Малий · 2×1</string>
+    <string name="widget_large" translatable="false">Великий · 4×2</string>
+    <string name="widget_large_desc" translatable="false">Стан зараз, наступна зміна та графік на сьогодні.</string>
 </resources>

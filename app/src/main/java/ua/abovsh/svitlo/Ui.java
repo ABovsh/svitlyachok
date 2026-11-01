@@ -12,9 +12,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * Fonts, the two palettes and small view builders. One idea for colour: power is the
- * warm light of a firefly, an outage is the night around it. Red is never used for a
- * scheduled outage — it is not a fault.
+ * Shared fonts, compact surfaces and accessible state colours.
  */
 final class Ui {
     /**
@@ -47,17 +45,17 @@ final class Ui {
         Pal(boolean dark) {
             this.dark = dark;
             if (dark) {
-                bg = 0xFF0A0E17; card = 0xFF121826; raised = 0xFF1A2233; line = 0x17FFFFFF;
-                text = 0xFFF3F5F9; muted = 0xFF8D96A9; dim = 0xFF5B6478;
-                accent = 0xFFFFC53D; accentText = 0xFFFFC53D; accentInk = 0xFF231800;
-                on = 0xFF2DB86C; onText = 0xFF4ADE8F; off = 0xFFE5484D; offText = 0xFFFF6E72;
-                maybe = 0xFFF5A524; maybeText = 0xFFFFB84D; unknown = 0xFF343C4D; ink = 0xFFFFFFFF; glow = 0x55;
+                bg = 0xFF10191B; card = 0xFF172428; raised = 0xFF203236; line = 0xFF334749;
+                text = 0xFFEFF3EC; muted = 0xFFB3C1BB; dim = 0xFFB3C1BB;
+                accent = 0xFFEDC25B; accentText = 0xFFEDC25B; accentInk = 0xFF30260B;
+                on = 0xFF268B60; onText = 0xFF8AE8AE; off = 0xFFCC4C60; offText = 0xFFFFA3AF;
+                maybe = 0xFFD6A544; maybeText = 0xFFF6D184; unknown = 0xFF293B3F; ink = 0xFFFFFFFF; glow = 0x28;
             } else {
-                bg = 0xFFF4F2EC; card = 0xFFFFFFFF; raised = 0xFFEDEAE2; line = 0x14000000;
-                text = 0xFF141821; muted = 0xFF656C7B; dim = 0xFF9AA0AC;
-                accent = 0xFFF5B000; accentText = 0xFFA86F00; accentInk = 0xFF231800;
-                on = 0xFF1FA463; onText = 0xFF137A43; off = 0xFFDC3E42; offText = 0xFFB4232A;
-                maybe = 0xFFF0A020; maybeText = 0xFF9A5B00; unknown = 0xFFD9D5CC; ink = 0xFFFFFFFF; glow = 0x40;
+                bg = 0xFFF5F4ED; card = 0xFFFFFEFA; raised = 0xFFECEEE6; line = 0xFFD6DED2;
+                text = 0xFF1D2D2A; muted = 0xFF596A62; dim = 0xFF5A685F;
+                accent = 0xFFE6B545; accentText = 0xFF96701B; accentInk = 0xFF30260B;
+                on = 0xFF218657; onText = 0xFF176B47; off = 0xFFCF4054; offText = 0xFFB13945;
+                maybe = 0xFFE3B550; maybeText = 0xFF835800; unknown = 0xFFE6EBE5; ink = 0xFFFFFFFF; glow = 0x18;
             }
         }
 
@@ -79,6 +77,13 @@ final class Ui {
                 case Logic.MAYBE: return maybe;
                 default: return unknown;
             }
+        }
+
+        int soft(int state) {
+            if (state == Logic.ON) return dark ? 0xFF1A4334 : 0xFFDEF3E6;
+            if (state == Logic.OFF) return dark ? 0xFF4B2B37 : 0xFFFDE5E9;
+            if (state == Logic.MAYBE) return dark ? 0xFF413923 : 0xFFFFF1CB;
+            return dark ? 0xFF293B3F : 0xFFE6EBE5;
         }
 
         /** A half hour on a bar: a possible outage is a paler amber, striped on top. */
@@ -182,7 +187,7 @@ final class Ui {
 
     /** A card; with a tint, a soft glow of that colour from the top. */
     static Drawable card(Context c, Pal p, int tint) {
-        float r = px(c, 28);
+        float r = px(c, 20);
         GradientDrawable base = round(p.card, r);
         if (!p.dark) base.setStroke(dp(c, 1), p.line);
         if (tint == 0) return base;
@@ -213,9 +218,9 @@ final class Ui {
         TextView t = text(c, sp, chosen ? heavy(c) : bold(c), chosen ? p.accentInk : p.text);
         t.setText(s);
         t.setGravity(Gravity.CENTER);
-        t.setMaxLines(1);
-        t.setPadding(dp(c, 16), dp(c, 10), dp(c, 16), dp(c, 10));
-        t.setBackground(round(chosen ? p.accent : p.raised, px(c, 100)));
+        t.setMinHeight(dp(c, 48));
+        t.setPadding(dp(c, 13), dp(c, 8), dp(c, 13), dp(c, 8));
+        t.setBackground(round(chosen ? p.accent : p.raised, px(c, 13)));
         return t;
     }
 

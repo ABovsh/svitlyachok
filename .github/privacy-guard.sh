@@ -8,6 +8,7 @@
 #    tool folders, build output, keys -- fails, whatever its name.
 # 2. Content: no private network addresses, local host names, e-mail addresses or credentials.
 # 3. Commits: authors use the GitHub no-reply address; no co-author trailers.
+# 4. Screenshots: every file in docs/screenshots is shown in README.md, on every branch: nothing spare is published.
 # Exit 0 = clean, 1 = findings, 2 = usage error.
 set -uo pipefail
 
@@ -37,6 +38,15 @@ check_paths() {  # paths on stdin
   done
 }
 
+check_screenshots() {  # commit
+  local readme f
+  readme="$(git show "$1:README.md" 2>/dev/null || true)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [[ "$readme" == *"$f"* ]] || report "screenshot not in README: $f (commit ${1:0:9})"
+  done < <(git ls-tree -r --name-only "$1" -- docs/screenshots)
+}
+
 check_text() {  # text lines on stdin, read once and matched against every pattern
   local re hits all
   all="$(cat)"
@@ -54,11 +64,15 @@ case "$mode" in
   tree)
     ref="${2:-HEAD}"
     git ls-tree -r --name-only "$ref" | check_paths
+    check_screenshots "$ref"
     text="$(git grep -I -n -e '' "$ref" -- . ":(exclude)$SELF" 2>/dev/null | sed "s|^$ref:||")"
     ;;
   range)
     [ $# -ge 3 ] || { echo "usage: privacy-guard.sh range <base> <head>" >&2; exit 2; }
     git log --pretty=format: --name-only "$2..$3" -- | sort -u | sed '/^$/d' | check_paths
+    # the tip, and each commit not published yet: one that adds a spare file and a later one that removes it still count
+    check_screenshots "$3"
+    while IFS= read -r c; do check_screenshots "$c"; done < <(git rev-list "$2..$3" --not --remotes)
     # every added line in every commit: a file added and removed within one push still counts
     text="$(git log -p --no-color --pretty=format:'commit %H' "$2..$3" -- . ":(exclude)$SELF" \
       | grep -E '^\+[^+]' | sed 's/^+//')"

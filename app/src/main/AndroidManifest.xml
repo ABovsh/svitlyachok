@@ -20,7 +20,7 @@
         android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="${appLabel}"
         android:supportsRtl="false"
         android:theme="@style/Theme.Svitlo">
 
@@ -51,13 +51,19 @@
             android:name=".LightWidget"
             android:exported="true"
             android:permission="android.permission.BIND_APPWIDGET"
-            android:label="@string/app_name">
+            android:label="@string/widget_small">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/light_widget" />
+        </receiver>
+
+        <receiver android:name=".LargeLightWidget" android:exported="true"
+            android:permission="android.permission.BIND_APPWIDGET" android:label="@string/widget_large">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/large_light_widget" />
         </receiver>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
@@ -77,7 +83,7 @@
              installer, read-only, by a one-time grant. -->
         <provider
             android:name=".ShareProvider"
-            android:authorities="ua.abovsh.svitlo.share"
+            android:authorities="${applicationId}.share"
             android:exported="false"
             android:grantUriPermissions="true" />
 

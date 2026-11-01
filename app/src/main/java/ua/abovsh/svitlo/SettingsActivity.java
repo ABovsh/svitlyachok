@@ -112,7 +112,7 @@ public class SettingsActivity extends Base {
         LinearLayout.LayoutParams xl = fill();
         xl.topMargin = Ui.dp(this, 10);
         page.addView(x, xl);
-        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває і дзвіночок на картці місця. "
+        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває кнопка «Нагадування» під графіком. "
                 + "Одне сповіщення на місце: нове замінює попереднє. Зміни графіка застосунок перевіряє "
                 + "приблизно раз на 15 хвилин."));
     }
@@ -165,6 +165,11 @@ public class SettingsActivity extends Base {
     }
 
     private void updatesSection() {
+        if (BuildConfig.IS_RC) {
+            page.addView(heading("Тестова версія " + BuildConfig.VERSION_NAME));
+            page.addView(note("Світлячок RC працює окремо від основного застосунку. Наступний RC встановіть поверх цього APK."));
+            return;
+        }
         page.addView(heading("Оновлення"));
         LinearLayout u = box();
         u.addView(updateRow(), fill());

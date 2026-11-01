@@ -584,9 +584,7 @@ public class LogicTest {
         assertFalse(w.get(0).known);
         assertEquals(36, w.get(6).on);               // halves
         assertEquals(12, w.get(6).off);
-        assertEquals("У середньому 21 год зі світлом на день · 88 %", Logic.average(w));
         assertEquals(31, Logic.window(h, OCT30, 40).size());  // a month at most
-        assertEquals("", Logic.average(Logic.window(new java.util.HashMap<>(), OCT30, 7)));
     }
 
     @Test
@@ -710,7 +708,6 @@ public class LogicTest {
 
     @Test
     public void waitTexts() {
-        assertEquals("менше хвилини", Logic.waitText(30));
         assertEquals("42 хв", Logic.waitText(42 * 60));
         assertEquals("1 год 05 хв", Logic.waitText(3900));
     }
@@ -771,25 +768,25 @@ public class LogicTest {
         Logic.Now off = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false, null);
         assertEquals("з 14:30", off.since);
         assertEquals("уже 30 хв", off.already);
-        // a run from midnight: yesterday tells when it began; without it nothing is guessed
+        // A known run from midnight remains visible; a missing preceding slot is a lower bound.
         Logic.Now early = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("", early.since);
-        assertEquals("", early.already);
+        assertEquals("з 00:00", early.since);
+        assertEquals("уже 3 год 00 хв", early.already);
         String lateOn = repeat('0', 44) + repeat('1', 4);
         Logic.Now fromYesterday = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, lateOn);
         assertEquals("з 22:00 учора", fromYesterday.since);
         assertEquals("уже 5 год 00 хв", fromYesterday.already);
         assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('0', 48)).since);
         // yesterday has hours without a schedule right before the run: the start is not known
-        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
-        assertEquals("", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
+        assertEquals("з 22:00 учора", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('2', 44) + repeat('1', 4)).since);
+        assertEquals("з 00:00", Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 40) + repeat('2', 8)).since);
         // the same all yesterday: longer than a day, the start is not known
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("", allDay.since);
-        assertEquals("уже понад добу", allDay.already);
+        assertEquals("з 00:00 учора", allDay.since);
+        assertEquals("уже 1 день 3 год", allDay.already);
         // no schedule, or no outages at all: nothing to count from
         assertEquals("", Logic.now(repeat('2', 96), OCT30, at(12, 0), false, null).since);
-        assertEquals("", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
+        assertEquals("з 00:00", Logic.now(tl(feed("[]")), OCT30, at(12, 0), true, null).since);
     }
 
     @Test
@@ -857,12 +854,12 @@ public class LogicTest {
         assertEquals("(уже 2 год 00 хв)", Logic.nowLineIn(on));
         assertEquals("Світло є вже 2 год 00 хв", Logic.nowLineShort(on));
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("Світло є", Logic.nowLine(allDay));
-        assertEquals("(уже понад добу)", Logic.nowLineIn(allDay));
+        assertEquals("Світло є з 00:00 учора", Logic.nowLine(allDay));
+        assertEquals("(уже 1 день 3 год)", Logic.nowLineIn(allDay));
         Logic.Now unknown = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("Світло є", Logic.nowLine(unknown));
-        assertEquals("", Logic.nowLineIn(unknown));
-        assertEquals("Світло є", Logic.nowLineShort(unknown));
+        assertEquals("Світло є з 00:00", Logic.nowLine(unknown));
+        assertEquals("(уже 3 год 00 хв)", Logic.nowLineIn(unknown));
+        assertEquals("Світло є вже 3 год 00 хв", Logic.nowLineShort(unknown));
     }
 
     @Test
@@ -920,6 +917,301 @@ public class LogicTest {
         assertEquals(Logic.UNKNOWN, kind(clean, 0));
         assertEquals(Logic.UNKNOWN, kind(clean, 48));
         assertEquals(5, clean.size());  // 00, 06, 12, 18, 24
+    }
+
+    @Test
+    public void compactLinesPreserveStateAndKnownEnd() throws Exception {
+        Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false);
+        assertEquals("Є до 14:30", Logic.tileLine(n));
+        assertEquals("через 4 год 30 хв · до 18:30", Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Вимкнуть о", "14:30", "до 18:30"), Arrays.asList(Logic.widgetNext(n)));
+        n = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false);
+        assertEquals("Немає до 18:30", Logic.tileLine(n));
+        assertEquals("через 3 год 30 хв", Logic.nextDetail(n));
+        n = Logic.now(tl(feed("[]")), OCT30, at(10, 0), true);
+        assertEquals("Світло є", Logic.tileLine(n));
+        assertEquals(Arrays.asList("", "", ""), Arrays.asList(Logic.widgetNext(n)));
+        Logic.Now unknown = new Logic.Now();
+        unknown.title = "Графіка немає";
+        assertEquals("Графіка немає", Logic.tileLine(unknown));
+        assertEquals("", Logic.nextDetail(unknown));
+        n.state = Logic.MAYBE;
+        n.title = "Можливе вимкнення";
+        assertEquals("Можливе вимкнення", Logic.tileLine(n));
+    }
+
+    @Test
+    public void statisticsKeepOffPossibleUnknownAndZeroSeparate() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        h.put(OCT30.minusDays(2), repeat('1', 48));
+        h.put(OCT30.minusDays(1), repeat('0', 48));
+        h.put(OCT30, repeat('1', 33) + repeat('0', 12) + repeat('3', 3));
+        List<Logic.DayStat> days = Logic.window(h, OCT30, 7);
+        assertEquals(3, Logic.statKnownDays(days));
+        assertEquals(810, Logic.statAverageMinutes(days, Logic.ON));
+        assertEquals(600, Logic.statAverageMinutes(days, Logic.OFF));
+        assertEquals(30, Logic.statAverageMinutes(days, Logic.MAYBE));
+        assertEquals(56, Logic.statShare(days, Logic.ON));
+        assertEquals(42, Logic.statShare(days, Logic.OFF));
+        assertEquals("24", Logic.statNumber(days.get(4), Logic.ON));
+        assertEquals("0", Logic.statNumber(days.get(4), Logic.OFF));
+        assertEquals("—", Logic.statNumber(days.get(0), Logic.OFF));
+        assertEquals("16,5", Logic.statNumber(days.get(6), Logic.ON));
+        assertEquals(-1, Logic.statAverageMinutes(Logic.window(new java.util.HashMap<>(), OCT30, 7), Logic.ON));
+        assertEquals(-1, Logic.statShare(Logic.window(new java.util.HashMap<>(), OCT30, 7), Logic.OFF));
+    }
+
+    @Test
+    public void statisticsDescriptionKeepsUnknownDaysUnknown() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        for (int i = 0; i < 31; i++) h.put(OCT30.minusDays(i), repeat('1', 32) + repeat('0', 16));
+        List<Logic.DayStat> days = Logic.window(h, OCT30, 31);
+        assertTrue(Logic.describeStats(days).contains("без світла 8 год"));
+        assertTrue(Logic.describeStats(Logic.window(new java.util.HashMap<>(), OCT30, 7)).contains("графіка немає"));
+    }
+
+    @Test
+    public void compactEventsKeepTomorrowMidnightAndPossibleOutagesExplicit() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.MAYBE; n.title = "Можливе вимкнення"; n.big = "до 15:00";
+        assertEquals(n.title, Logic.tileLine(n));
+        n.next = Logic.MAYBE; n.change = 1; n.hint = "Можливе вимкнення завтра о 06:00";
+        n.then = "потім можливе вимкнення до завтра 09:00"; n.hintIn = "";
+        assertEquals("до завтра 09:00", Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Можливе вимкнення завтра о", "06:00", "до завтра 09:00"), Arrays.asList(Logic.widgetNext(n)));
+        n.next = Logic.ON; n.hint = "Увімкнуть о 24:00"; n.hintIn = "через 30 хв";
+        assertEquals("через 30 хв", Logic.nextDetail(n));
+        n.then = "";
+        assertEquals(Arrays.asList("Увімкнуть о", "24:00", ""), Arrays.asList(Logic.widgetNext(n)));
+        n.change = 0;
+        assertEquals(Arrays.asList("", "", ""), Arrays.asList(Logic.widgetNext(n)));
+    }
+
+    @Test
+    public void incompleteStatisticsDoNotInventACompleteDay() {
+        java.util.Map<LocalDate, String> history = new java.util.HashMap<>();
+        history.put(OCT30, repeat('1', 12) + repeat('0', 10) + repeat('3', 3) + repeat('2', 23));
+        history.put(OCT30.minusDays(1), repeat('2', 48));
+        List<Logic.DayStat> days = Logic.window(history, OCT30, 7);
+        // A part of a day supports neither a daily average nor a share: its hours would read as a whole day's.
+        assertEquals(0, Logic.statKnownDays(days));
+        assertEquals(-1, Logic.statAverageMinutes(days, Logic.ON));
+        assertEquals(-1, Logic.statShare(days, Logic.ON));
+        assertEquals("1,5", Logic.statNumber(days.get(6), Logic.MAYBE));
+        assertEquals("5", Logic.statNumber(days.get(6), Logic.OFF));
+        assertEquals("—", Logic.statNumber(days.get(5), Logic.ON));
+        assertTrue(Logic.describeStats(days).contains("можливе вимкнення 1 год 30 хв"));
+        history.put(OCT30.minusDays(2), repeat('1', 36) + repeat('0', 12));
+        days = Logic.window(history, OCT30, 7);
+        assertEquals(1, Logic.statKnownDays(days));
+        assertEquals(1080, Logic.statAverageMinutes(days, Logic.ON));
+        assertEquals(360, Logic.statAverageMinutes(days, Logic.OFF));
+        assertEquals(75, Logic.statShare(days, Logic.ON));
+    }
+
+    @Test
+    public void startWalksSavedDaysAndStopsAtUnknownHistory() {
+        java.util.Map<LocalDate, String> history = new java.util.HashMap<>();
+        history.put(OCT30.minusDays(1), repeat('1', 48));
+        history.put(OCT30.minusDays(2), repeat('0', 36) + repeat('1', 12));
+        Logic.Now n = Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history);
+        assertEquals("з 18:00 28.10", n.since);
+        assertEquals("уже 1 день 18 год", n.already);
+        history.put(OCT30.minusDays(2), repeat('2', 36) + repeat('1', 12));
+        assertEquals("з 18:00 28.10", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        history.remove(OCT30.minusDays(1));
+        assertEquals("з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        history.put(OCT30.minusDays(1), repeat('0', 48));
+        assertEquals("з 00:00", Logic.nowWithHistory(repeat('1', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("", Logic.nowWithHistory(repeat('2', 96), OCT30, at(12, 0), false, history).since);
+        assertEquals("з 10:00", Logic.nowWithHistory(repeat('2', 20) + repeat('1', 76), OCT30, at(12, 0), false, history).since);
+    }
+
+    @Test
+    public void urgencyUsesTheExactReminderBoundaryAndEndsAtTheEvent() {
+        Logic.Now n = new Logic.Now(); n.next = Logic.OFF; n.change = at(15, 30);
+        Logic.Alerts alerts = new Logic.Alerts();
+        assertFalse(Logic.highlight(n, alerts, at(15, 15) - 1));
+        assertTrue(Logic.highlight(n, alerts, at(15, 15)));
+        assertTrue(Logic.highlight(n, alerts, at(15, 30) - 1));
+        assertFalse(Logic.highlight(n, alerts, at(15, 30)));
+        assertFalse(Logic.highlight(n, alerts, at(16, 0)));
+        alerts.leadOn = 10; n.next = Logic.ON;
+        assertFalse(Logic.highlight(n, alerts, at(15, 19)));
+        assertTrue(Logic.highlight(n, alerts, at(15, 20)));
+        n.next = Logic.UNKNOWN;
+        assertFalse(Logic.highlight(n, alerts, at(15, 25)));
+    }
+
+    @Test
+    public void everyFullWidgetUsesTheTwoPartLayoutEvenWithALowLauncherHeight() {
+        for (int[] size : new int[][] {{200,110},{250,120},{300,130},{300,160},{360,180},{420,220}}) {
+            Logic.WidgetLayout w = Logic.widgetLayout(size[0], size[1], true);
+            assertTrue(w.twoParts);
+            assertTrue(w.columnWidth > 0);
+            assertTrue(w.rowHeight > 0);
+            assertTrue(w.rowTop + w.rowHeight <= w.barTop);
+            assertTrue(w.barTop + w.barHeight + w.labelHeight <= size[1] - w.pad + .01f);
+            assertTrue(w.textSize >= 12 && w.textSize <= 19);
+        }
+        assertFalse(Logic.widgetLayout(180,80,true).twoParts);
+        assertFalse(Logic.widgetLayout(360,80,true).twoParts);
+    }
+
+    @Test
+    public void widgetPanesKeepTheKnownStartAndHonestFutureWhenNoChangeIsPublished() {
+        Logic.Now n = Logic.now(repeat('1',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("з 00:00", ""), Arrays.asList(Logic.widgetStart(n)));
+        assertEquals(Arrays.asList("Сьогодні й завтра", "Без вимкнень", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n = Logic.now(repeat('1',48) + repeat('2',48), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Завтра", "Графіка ще немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n = Logic.now(repeat('2',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        n.since = "з 22:00 учора";
+        assertEquals(Arrays.asList("з 22:00", "учора"), Arrays.asList(Logic.widgetStart(n)));
+        n.since = "з 22:00 28.10";
+        assertEquals(Arrays.asList("з 22:00", "28.10"), Arrays.asList(Logic.widgetStart(n)));
+        n = Logic.now(repeat('0',96), OCT30, at(12,0), false);
+        assertEquals(Arrays.asList("Далі", "Без змін", "до кінця графіка"), Arrays.asList(Logic.widgetFuture(n)));
+    }
+
+    @Test
+    public void fourWeeksUseCompletedDaysAndPositiveDailyAverages() {
+        java.util.Map<LocalDate,String> h = new java.util.HashMap<>();
+        LocalDate today = LocalDate.of(2026, 11, 1);
+        for (int i = 1; i <= 28; i++) h.put(today.minusDays(i), repeat('1', 36) + repeat('0', 12));
+        h.put(today, repeat('0', 48)); // today is still changing; exclude it
+        List<Logic.WeekStat> weeks = Logic.fourWeeks(h, today);
+        assertEquals(4, weeks.size());
+        assertEquals(LocalDate.of(2026,10,4), weeks.get(0).from);
+        assertEquals(today.minusDays(1), weeks.get(3).to);
+        for (Logic.WeekStat w : weeks) {
+            assertEquals(7, w.known);
+            assertEquals(1080, w.onMinutes);
+            assertEquals(75, w.onPercent);
+        }
+        assertEquals(0, Logic.weekChange(weeks));
+        h.put(today.minusDays(1), repeat('1',48));
+        assertEquals(51, Logic.weekChange(Logic.fourWeeks(h,today)));
+        h.put(today.minusDays(1), repeat('0',48));
+        assertEquals(-154, Logic.weekChange(Logic.fourWeeks(h,today)));
+    }
+
+    @Test
+    public void fourWeeksNeverTreatMissingOrPartialSchedulesAsZeroPower() {
+        java.util.Map<LocalDate,String> h = new java.util.HashMap<>();
+        LocalDate today = LocalDate.of(2027,1,2);
+        for (int i = 1; i <= 28; i++) h.put(today.minusDays(i), repeat('1',48));
+        h.remove(today.minusDays(2));
+        h.put(today.minusDays(3), repeat('1',12) + repeat('2',36));
+        List<Logic.WeekStat> weeks = Logic.fourWeeks(h,today);
+        assertEquals(5, weeks.get(3).known);
+        assertEquals(1440, weeks.get(3).onMinutes);
+        assertEquals(100, weeks.get(3).onPercent);
+        assertEquals(Integer.MIN_VALUE, Logic.weekChange(weeks));
+        assertEquals(-1, Logic.fourWeeks(new java.util.HashMap<>(),today).get(0).onMinutes);
+        h.put(today.minusDays(2), repeat('0',48));
+        h.put(today.minusDays(3), repeat('1',46) + repeat('3',2));
+        assertEquals(7, Logic.fourWeeks(h,today).get(3).known);
+        assertEquals(Integer.MIN_VALUE, Logic.weekChange(Logic.fourWeeks(h,today)));
+    }
+
+    @Test
+    public void daySummariesKeepHoursAndShareEvenWhenCompact() {
+        assertEquals("18,5 год · 77 %", Logic.daySummaries(repeat('1',37)+repeat('0',11)).get(2));
+        assertEquals("0 год · 0 %", Logic.daySummaries(repeat('0',48)).get(2));
+        assertEquals("24 год · 100 %", Logic.daySummaries(repeat('1',48)).get(2));
+    }
+
+    @Test
+    public void wholeDayOfUnknownStatusesIsNotPublishedAndNotZeroPower() {
+        Logic.Data d = new Logic.Data();
+        java.util.Map<String, String> day = new java.util.HashMap<>();
+        day.put("GPV1.1", repeat('2', 48));
+        day.put("GPV2.1", repeat('2', 47) + '1');
+        d.days.put(OCT30, day);
+        assertNull(Logic.day(d, "GPV1.1", OCT30));
+        assertEquals(repeat('2', 47) + '1', Logic.day(d, "GPV2.1", OCT30));
+    }
+
+    @Test
+    public void zeroPowerReadsAsHoursLikeEveryOtherDay() {
+        assertEquals("0 год світла · 0 %", Logic.daySummaries(repeat('0', 48)).get(0));
+        assertEquals("0 год", Logic.hoursMinutes(0));
+        assertEquals("45 хв", Logic.hoursMinutes(45));
+    }
+
+    @Test
+    public void barGapNarrowsOnlyWhenAHalfHourNumberWouldOtherwiseVanish() {
+        assertEquals(10f, Logic.statGap(48, 10, 29, 3), 0.01f);   // roomy: as designed
+        assertEquals(6f, Logic.statGap(35, 10, 29, 3), 0.01f);    // tight: the bar keeps the number
+        assertEquals(3f, Logic.statGap(29, 10, 29, 3), 0.01f);    // never bars touching
+    }
+
+    @Test
+    public void legendNamesMissingDataForAWeekWithoutAnyFullDay() {
+        java.util.Map<LocalDate, String> h = new java.util.HashMap<>();
+        for (int i = 1; i <= 28; i++) h.put(OCT30.minusDays(i), repeat('1', 48));
+        assertFalse(Logic.weeksMissData(Logic.fourWeeks(h, OCT30)));
+        for (int i = 22; i <= 28; i++) h.remove(OCT30.minusDays(i));
+        assertTrue(Logic.weeksMissData(Logic.fourWeeks(h, OCT30)));
+    }
+
+    @Test
+    public void anotherQueueIsAnotherHistory() {
+        Logic.Place a = new Logic.Place();
+        a.region = "kyiv_region"; a.group = "GPV1.1"; a.name = "Дім";
+        Logic.Place b = new Logic.Place();
+        b.region = "kyiv_region"; b.group = "GPV1.1"; b.name = "Дача";
+        assertTrue(Logic.sameQueue(a, b));     // a new name keeps the history
+        b.group = "GPV3.2";
+        assertFalse(Logic.sameQueue(a, b));
+        b.group = "GPV1.1"; b.region = "lvivska";
+        assertFalse(Logic.sameQueue(a, b));
+    }
+
+    @Test
+    public void largeWidgetIsLargeBeforeTheLauncherReportsItsCell() {
+        assertEquals(Logic.W_FULL, Logic.widgetForm(Logic.widgetDefaultSize(true)[0], Logic.widgetDefaultSize(true)[1]));
+        assertEquals(Logic.W_ROW, Logic.widgetForm(Logic.widgetDefaultSize(false)[0], Logic.widgetDefaultSize(false)[1]));
+    }
+
+    @Test
+    public void spokenStateHasNoEmptyPauses() throws Exception {
+        Logic.Now n = new Logic.Now();
+        n.title = "Графіка немає"; n.hint = "Щойно обленерго його оприлюднить, він з'явиться тут";
+        assertEquals("Зараз за графіком: Графіка немає. Щойно обленерго його оприлюднить, він з'явиться тут.", Logic.describeNow(n, ""));
+        n = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false);
+        String spoken = Logic.describeNow(n, "через 2 год");
+        assertTrue(spoken, spoken.startsWith("Зараз за графіком: " + n.title + " " + n.since + ", " + n.already + ". "));
+        assertTrue(spoken, spoken.endsWith(". через 2 год."));
+    }
+
+    @Test
+    public void onlyARealEventWithATimeIsShownBig() throws Exception {
+        // a change with a clock: the big line of the card
+        assertTrue(Logic.hintIsEvent(Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false)));
+        // statements about the schedule: a quiet line
+        assertFalse(Logic.hintIsEvent(Logic.now(repeat('1', 48) + repeat('2', 48), OCT30, at(12, 0), false)));
+        assertFalse(Logic.hintIsEvent(Logic.now(repeat('1', 96), OCT30, at(12, 0), false)));
+        assertFalse(Logic.hintIsEvent(Logic.now(repeat('0', 96), OCT30, at(12, 0), false)));
+        assertFalse(Logic.hintIsEvent(Logic.now(repeat('2', 96), OCT30, at(12, 0), false)));
+        assertFalse(Logic.hintIsEvent(Logic.now(repeat('1', 96), OCT30, at(12, 0), true)));
+    }
+
+    @Test
+    public void timePhrasesAreWhatPeopleSay() throws Exception {
+        String tl = repeat('0', 20) + repeat('1', 76);
+        assertEquals("менш ніж за хвилину", Logic.nextDetail(Logic.now(tl, OCT30, at(10, 0) - 30, false)));
+        assertEquals("через 1 хв", Logic.nextDetail(Logic.now(tl, OCT30, at(10, 0) - 60, false)));
+        assertEquals("щойно", Logic.now(tl, OCT30, at(10, 0) + 30, false).already);
+        assertEquals("уже 1 хв", Logic.now(tl, OCT30, at(10, 1), false).already);
+        assertEquals("1 день 3 год", Logic.waitText(86400 + 3 * 3600));
+        assertEquals("2 дні 1 год", Logic.waitText(2 * 86400 + 3600));
+        assertEquals("5 днів 1 год", Logic.waitText(5 * 86400 + 3600));
+        assertEquals("11 днів 1 год", Logic.waitText(11 * 86400 + 3600));
+        assertEquals("21 день 1 год", Logic.waitText(21 * 86400 + 3600));
+        assertEquals("2 дні", Logic.waitText(2 * 86400 + 60));
     }
 
     private static boolean has(List<Logic.Label> l, int slot) {

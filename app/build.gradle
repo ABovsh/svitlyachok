@@ -18,8 +18,10 @@ android {
         applicationId 'ua.abovsh.svitlo'
         minSdk 26
         targetSdk 35
-        versionCode 11
-        versionName '1.4.0'
+        versionCode 15
+        versionName '1.5.0'
+        manifestPlaceholders = [appLabel: '@string/app_name']
+        buildConfigField 'boolean', 'IS_RC', 'false'
     }
     buildFeatures { buildConfig true }
     signingConfigs {
@@ -43,6 +45,14 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
             signingConfig signingPath ? signingConfigs.release : signingConfigs.debug
         }
+    }
+    buildTypes.create('rc') {
+        initWith buildTypes.release
+        applicationIdSuffix '.rc'
+        versionNameSuffix '-rc.4'
+        manifestPlaceholders = [appLabel: 'Світлячок RC']
+        buildConfigField 'boolean', 'IS_RC', 'true'
+        matchingFallbacks = ['release']
     }
     lint {
         lintConfig file('lint.xml')

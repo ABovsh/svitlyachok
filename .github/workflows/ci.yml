@@ -48,4 +48,4 @@ jobs:
           # The free plan shows nothing for other branches: rc is analysed as the main branch of its own project.
           args: >-
             -Dsonar.java.libraries=${{ env.ANDROID_JAR }}
-            ${{ github.ref == 'refs/heads/rc' && '-Dsonar.projectKey=ABovsh_svitlyachok_rc -Dsonar.branch.name=main' || '' }}
+            ${{ github.ref == 'refs/heads/rc' && '-Dsonar.projectKey=ABovsh_svitlyachok_rc -Dsonar.branch.name=master' || '' }}

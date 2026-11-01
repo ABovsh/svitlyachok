@@ -18,7 +18,7 @@ import java.util.Locale;
 /**
  * The widget as one bitmap (RemoteViews cannot use our fonts). Each widget shows one place: from
  * 2 x 1 the bulb, what is scheduled now and until when; with room, the place's name and what
- * comes after; at 4 x 2, the next 24 hours. Only clock times, never "in N minutes": the widget is
+ * comes after; at 4 x 2, today’s schedule. Only clock times, never "in N minutes": the widget is
  * redrawn at changes, not every minute.
  */
 final class WidgetArt {
@@ -129,7 +129,7 @@ final class WidgetArt {
         return bm;
     }
 
-    /** One place: the bulb and the words; at 4 x 2, the next 24 hours under them. */
+    /** One place: the bulb and the words; at 4 x 2, today’s schedule under them. */
     private static void one(Context c, Brush b, Model m, long now, Frame f, boolean full) {
         if (full) { large(c, b, m, now, f); return; }
         Logic.Now n = m.now;
@@ -178,7 +178,7 @@ final class WidgetArt {
         String[] start = Logic.widgetStart(m.now);
         String[] next = Logic.widgetFuture(m.now);
         float bulb = (w.compact ? 22 : 40) * s;
-        String title = w.compact ? compactTitle(m.now.state) : m.now.title;
+        String title = compactTitle(m.now.state);
         Paint titleSize = text(Ui.heavy(c), w.textSize * s, b.pal.status(m.now.state), Paint.Align.LEFT);
         if (titleSize.measureText(m.now.title) <= width - bulb - 5 * s) title = m.now.title;
         if (w.compact && m.now.next != Logic.UNKNOWN) next[0] = compactEvent(m.now);
@@ -194,8 +194,6 @@ final class WidgetArt {
         future.draw(b, right, rowTop + (rowHeight - future.height()) / 2, Logic.UNKNOWN);
         b.p.setColor(b.pal.line);
         b.cv.drawRect(right - 5 * s, rowTop, right - 4 * s, rowTop + rowHeight, b.p);
-        if (w.barHeading) line(b, "Найближчі 24 години", pad, (w.barTop - 17) * s,
-                text(Ui.bold(c), 12 * s, b.pal.muted, Paint.Align.LEFT));
         b.r2.set(pad, w.barTop * s, f.w - pad, (w.barTop + w.barHeight) * s);
         bar(c, b, m.base, m.tl, now, b.r2, s);
     }
@@ -280,33 +278,30 @@ final class WidgetArt {
         return y + p.getTextSize();
     }
 
-    /** The next 24 hours from now in `area`, with the hours on the clock under it and midnight marked. */
+    /** Today 00–24, fixed clock labels, ordinary past dimming and a marker at now. */
     private static void bar(Context c, Brush b, LocalDate base, String tl, long now, RectF area, float s) {
-        Paint p = b.p;
-        float x = area.left;
-        float y = area.top;
-        float bw = area.width();
-        float bh = area.height();
-        float sw = bw / 48f;
-        int cur = Math.max(0, Logic.index(base, now));
-        float frac = (Logic.z(now).getMinute() % 30) / 30f;
-        BarView.runs(b, tl, cur, 48, frac, area, 1.5f * s);
-        Paint lab = text(Ui.bold(c), 10 * s, b.pal.dim, Paint.Align.CENTER);
-        float lh = lab.measureText("00") / 2;
-        for (int t = 1; t <= 48; t++) {
-            int slot = cur + t;
-            float lx = x + (t - frac) * sw;
-            if (slot % 12 == 0 && lx >= x + lh && lx <= x + bw - lh) {
-                b.cv.drawText(String.format(Locale.ROOT, "%02d", (slot % 48) / 2), lx, y + bh + 13 * s, lab);
-            }
+        // runs() uses r2 for possible outages; keep a separate stable bounds object.
+        RectF bounds = new RectF(area);
+        BarView.runs(b, tl, 0, 48, 0, bounds, 1.5f * s);
+        float at = Math.max(0, Math.min(48, Logic.index(base, now) + (Logic.z(now).getMinute() % 30) / 30f));
+        float marker = bounds.left + bounds.width() * at / 48f;
+        b.path.reset(); b.path.addRoundRect(bounds, bounds.height()/2, bounds.height()/2, android.graphics.Path.Direction.CW);
+        b.cv.save(); b.cv.clipPath(b.path);
+        b.p.setColor(Ui.fade(b.pal.card, b.pal.dark ? .68f : .65f));
+        b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
+        b.p.setColor(Ui.fade(b.pal.text, .14f)); b.p.setStrokeWidth(Math.max(1, s * .7f));
+        for (int hour = 1; hour < 24; hour++) {
+            float x = bounds.left + bounds.width() * hour / 24;
+            b.cv.drawLine(x, bounds.top, x, bounds.bottom, b.p);
         }
-        int mid = 48 - (cur % 48);  // slots from now to midnight
-        float mx = x + (mid - frac) * sw;
-        if (mx > x + 4 * s && mx < x + bw - 4 * s) {
-            p.setColor((b.pal.card & 0x00FFFFFF) | 0xFF000000);
-            b.cv.drawRect(mx - 1.5f * s, y - 2 * s, mx + 1.5f * s, y + bh + 2 * s, p);
-            p.setColor(b.pal.muted);
-            b.cv.drawRect(mx - 0.75f * s, y - 2 * s, mx + 0.75f * s, y + bh + 2 * s, p);
+        b.cv.restore();
+        b.p.setColor(b.pal.text);
+        b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
+        Paint lab = text(Ui.bold(c), 10 * s, b.pal.muted, Paint.Align.CENTER);
+        for (int hour = 0; hour <= 24; hour += 6) {
+            lab.setTextAlign(hour == 0 ? Paint.Align.LEFT : hour == 24 ? Paint.Align.RIGHT : Paint.Align.CENTER);
+            b.cv.drawText(String.format(Locale.ROOT, "%02d", hour), bounds.left + bounds.width() * hour/24,
+                    bounds.bottom + 13*s, lab);
         }
     }
 

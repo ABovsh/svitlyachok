@@ -5,7 +5,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.os.Bundle;
 
-/** One or several places: what now and until when; one place at 4 x 2 also shows the next 24 hours. */
+/** One place: current and next state; a large cell also shows today's schedule. */
 public class LightWidget extends AppWidgetProvider {
     @Override
     public void onUpdate(Context c, AppWidgetManager m, int[] ids) {

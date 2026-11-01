@@ -618,6 +618,58 @@ public final class Logic {
         return out;
     }
 
+    /** Four completed seven-day periods; unknown days never mean zero hours of power. */
+    public static final class WeekStat {
+        public LocalDate from;
+        public LocalDate to;
+        public int known;
+        public int onMinutes = -1;
+        public int onPercent = -1;
+        public int possible;
+        public List<DayStat> days = new ArrayList<>();
+    }
+
+    public static List<WeekStat> fourWeeks(Map<LocalDate, String> history, LocalDate today) {
+        List<WeekStat> out = new ArrayList<>();
+        List<DayStat> days = window(history, today.minusDays(1), 28);
+        for (int i = 0; i < 4; i++) {
+            WeekStat w = new WeekStat();
+            w.from = days.get(i * 7).date;
+            w.to = days.get(i * 7 + 6).date;
+            for (DayStat d : days.subList(i * 7, i * 7 + 7)) {
+                // Only a full published day supports a daily average or a share of 24 hours.
+                if (d.known && d.on + d.off + d.maybe == 48) {
+                    w.days.add(d); w.possible += d.maybe;
+                }
+            }
+            w.known = w.days.size();
+            w.onMinutes = statAverageMinutes(w.days, ON);
+            w.onPercent = statShare(w.days, ON);
+            out.add(w);
+        }
+        return out;
+    }
+
+    /** Minutes of power gained per day vs the previous week; no claim on incomplete data. */
+    public static int weekChange(List<WeekStat> weeks) {
+        if (weeks.size() < 2) return Integer.MIN_VALUE;
+        WeekStat a = weeks.get(weeks.size() - 2), b = weeks.get(weeks.size() - 1);
+        if (a.known != 7 || b.known != 7 || a.possible > 0 || b.possible > 0) return Integer.MIN_VALUE;
+        return b.onMinutes - a.onMinutes;
+    }
+
+    /** Exact positive summaries, from full wording to the narrowest single-line form. */
+    public static List<String> daySummaries(String slots) {
+        int on = count(slots, '1');
+        String pct = Math.round(on * 100f / 48) + " %";
+        String hours = (on % 2 == 0 ? String.valueOf(on / 2) : on / 2 + ",5") + " год";
+        List<String> out = new ArrayList<>();
+        out.add(hoursMinutes(on * 30) + " світла · " + pct);
+        out.add(hours + " світла · " + pct);
+        out.add(hours + " · " + pct);
+        return out;
+    }
+
     /** "У середньому 18 год 20 хв зі світлом на день · 76 %" over the days with a schedule. */
     public static String average(List<DayStat> w) {
         int days = 0;
@@ -1123,7 +1175,7 @@ public final class Logic {
 
     // ---- widget ----------------------------------------------------------------
 
-    /** One row (2 x 1 and wider), or with a bar of the next 24 hours when there is room. */
+    /** One row (2 x 1 and wider), or with today's schedule when there is room. */
     public static final int W_ROW = 0;
     public static final int W_FULL = 1;
 
@@ -1150,7 +1202,6 @@ public final class Logic {
     public static final class WidgetLayout {
         public boolean twoParts;
         public boolean compact;
-        public boolean barHeading;
         public float pad;
         public float textSize;
         public float columnWidth;
@@ -1164,15 +1215,14 @@ public final class Logic {
     public static WidgetLayout widgetLayout(int width, int height, boolean titled) {
         WidgetLayout w = new WidgetLayout();
         w.twoParts = widgetForm(width, height) == W_FULL;
-        w.pad = Math.max(8, Math.min(14, 8 + (height - 110) * .1f));
+        w.pad = Math.max(8, Math.min(10, 8 + (height - 110) * .05f));
         w.textSize = Math.max(12, Math.min(19, height * .15f));
         w.columnWidth = (width - 2 * w.pad - 8) / 2;
         w.labelHeight = 16;
         w.barHeight = height < 150 ? 8 : height < 180 ? 12 : 16;
-        w.barHeading = height >= 180;
         w.barTop = height - w.pad - w.labelHeight - w.barHeight;
         w.rowTop = w.pad + (titled ? w.textSize * .8f + 2 : 0);
-        w.rowHeight = w.barTop - (w.barHeading ? 17 : 0) - 2 - w.rowTop;
+        w.rowHeight = w.barTop - 2 - w.rowTop;
         w.compact = w.columnWidth < 145 || w.rowHeight < 75;
         return w;
     }

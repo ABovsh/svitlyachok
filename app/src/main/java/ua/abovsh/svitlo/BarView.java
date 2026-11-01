@@ -71,12 +71,6 @@ final class BarView extends View {
         if (nowRel > 0) {  // the past of today, veiled
             p.setColor(Ui.fade(pal.card, pal.dark ? 0.68f : 0.65f));
             cv.drawRect(0, top, Math.min(w, nowRel * sw), top + barH, p);
-            p.setColor(Ui.fade(pal.text, .20f));
-            p.setStrokeWidth(Ui.px(getContext(), 1));
-            float pastEnd = Math.min(w, nowRel * sw);
-            cv.save(); cv.clipRect(0, top, pastEnd, top + barH);
-            for (float y = top + Ui.px(getContext(), 5); y < top + barH; y += Ui.px(getContext(), 6)) cv.drawLine(0, y, pastEnd, y, p);
-            cv.restore();
         }
         cv.restore();
         int i = 0;

@@ -261,7 +261,7 @@ final class Sync {
 
     static synchronized void renderWidgets(Context c, long now) {
         AppWidgetManager m = AppWidgetManager.getInstance(c);
-        int[] ids = m.getAppWidgetIds(new ComponentName(c, LightWidget.class));
+        int[] ids = Widgets.ids(c);
         Map<String, WidgetArt.Model> models = new HashMap<>();
         for (int id : ids) {
             String choice = Prefs.widgetChoice(c, id);
@@ -270,7 +270,9 @@ final class Sync {
             Bundle o = m.getAppWidgetOptions(id);
             // Portrait: the real cell is MIN_WIDTH x MAX_HEIGHT.
             int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180));
-            int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 70)));
+            boolean large = m.getAppWidgetInfo(id) != null
+                    && LargeLightWidget.class.getName().equals(m.getAppWidgetInfo(id).provider.getClassName());
+            int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, large ? 150 : 70)));
             String key = WidgetArt.key(c, model, now, wDp, hDp);
             if (key.equals(drawn.get(id))) continue;
             RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget);

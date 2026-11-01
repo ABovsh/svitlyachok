@@ -8,7 +8,7 @@ import android.widget.TextView;
 import java.util.List;
 import java.util.Locale;
 
-/** One chart per period and two precise daily averages; no month paging or second chart. */
+/** Daily detail for a week, positive daily averages for four completed weeks. */
 public class StatsActivity extends Base {
     private int days = 7;
     private String place = "";
@@ -19,51 +19,88 @@ public class StatsActivity extends Base {
 
     @Override
     void render() {
-        int sig = (place + days + Sync.now() / 3600).hashCode();
+        List<Logic.Place> places = Prefs.places(this);
+        if (places.isEmpty()) return;
+        Logic.Place p = Logic.widgetPlace(places, place); place = p.id;
+        java.util.Map<java.time.LocalDate,String> history = Prefs.history(this, p.id);
+        int sig = (place + days + Sync.now() / 3600 + history.toString()).hashCode();
         if (sig == built) return;
         built = sig;
         page.removeAllViews();
         page.addView(topBar("Статистика"), fill());
-        List<Logic.Place> places = Prefs.places(this);
-        if (places.isEmpty()) return;
-        Logic.Place p = Logic.widgetPlace(places, place); place = p.id;
         if (places.size() > 1) page.addView(choose(places, p), gap(8));
+        TextView queue = Ui.text(this, 12, Ui.bold(this), pal.muted);
+        queue.setText("Черга " + Logic.queue(p.group)); page.addView(queue, gap(4));
         page.addView(period(), gap(8));
-        List<Logic.DayStat> w = Logic.window(Prefs.history(this, p.id), Logic.today(Sync.now()), days);
+        List<Logic.DayStat> daily = Logic.window(history, Logic.today(Sync.now()), 7);
+        List<Logic.WeekStat> weeks = Logic.fourWeeks(history, Logic.today(Sync.now()));
+        List<Logic.DayStat> all = new java.util.ArrayList<>();
+        for (Logic.WeekStat w : weeks) all.addAll(w.days);
+        List<Logic.DayStat> shown = days == 7 ? daily : all;
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 12));
         card.setBackground(Ui.card(this, pal, 0));
-        TextView head = Ui.text(this, 18, Ui.heavy(this), pal.text); head.setText("Години за добу");
-        card.addView(head, fill());
+        TextView head = Ui.text(this, 18, Ui.heavy(this), pal.text);
+        head.setText(days == 7 ? "Години за добу" : "Світло за 4 тижні"); card.addView(head, fill());
         TextView range = Ui.text(this, 13, Ui.body(this), pal.muted);
-        range.setText("За графіком · " + date(w.get(0)) + " — " + date(w.get(w.size() - 1)));
+        range.setText(days == 7 ? "За графіком · " + date(daily.get(0)) + " — " + date(daily.get(6))
+                : "У середньому за добу · " + shortDate(weeks.get(0).from) + " — " + shortDate(weeks.get(3).to));
         range.setPadding(0, Ui.dp(this, 6), 0, 0); card.addView(range, fill());
-        StatsChart chart = new StatsChart(this, pal); chart.set(w);
-        LinearLayout.LayoutParams cl = fill(); cl.topMargin = Ui.dp(this, 4); card.addView(chart, cl);
-        if (days > 7) {
-            TextView rounded = Ui.text(this, 12, Ui.body(this), pal.muted);
-            rounded.setText("Числові підписи округлено до годин.");
-            card.addView(rounded, gap(6));
+        StatsChart chart = new StatsChart(this, pal);
+        if (days == 7) chart.set(daily); else chart.setWeeks(weeks);
+        // At very large system fonts, allow room for every week rather than clip its labels.
+        android.widget.HorizontalScrollView chartScroll = new android.widget.HorizontalScrollView(this);
+        chartScroll.setHorizontalScrollBarEnabled(true); chartScroll.setFillViewport(true); chartScroll.addView(chart);
+        LinearLayout.LayoutParams cl = fill(); cl.topMargin = Ui.dp(this, 4); card.addView(chartScroll, cl);
+        card.addView(legend(shown), gap(6));
+        if (days != 7) card.addView(trend(weeks), gap(6));
+        else {
+            TextView avg = Ui.text(this, 14, Ui.heavy(this), pal.text); avg.setText("У середньому на день");
+            card.addView(avg, gap(6));
         }
-        card.addView(legend(w), gap(8));
-        TextView avg = Ui.text(this, 14, Ui.heavy(this), pal.text); avg.setText("У середньому на день");
-        card.addView(avg, gap(6));
         LinearLayout metrics = Ui.row(this); metrics.setBaselineAligned(false);
         LinearLayout.LayoutParams ml = weight(); ml.height = ViewGroup.LayoutParams.MATCH_PARENT;
-        metrics.addView(metric(w, Logic.ON, "Зі світлом"), ml);
         LinearLayout.LayoutParams mr = weight(); mr.height = ViewGroup.LayoutParams.MATCH_PARENT; mr.leftMargin = Ui.dp(this, 6);
-        metrics.addView(metric(w, Logic.OFF, "Без світла"), mr); card.addView(metrics, fill());
+        metrics.addView(metric(days == 7 ? daily : weeks.get(3).days, Logic.ON, days == 7 ? "Зі світлом" : "Останній тиждень"), ml);
+        metrics.addView(metric(shown, days == 7 ? Logic.OFF : Logic.ON, days == 7 ? "Без світла" : "За 4 тижні"), mr);
+        card.addView(metrics, fill());
         TextView coverage = Ui.text(this, 12, Ui.body(this), pal.muted);
-        int count = Logic.statKnownDays(w);
-        String text = count == 0 ? "Ще немає даних за цей період" : "За " + count + " із " + w.size() + " днів";
-        int possible = Logic.statAverageMinutes(w, Logic.MAYBE);
-        if (possible > 0) text += " · можливе вимкнення: " + Logic.hoursMinutes(possible) + " на день";
+        String text;
+        if (days == 7) text = "Днів із графіком: " + Logic.statKnownDays(daily) + " із 7";
+        else {
+            List<String> counts = new java.util.ArrayList<>();
+            for (Logic.WeekStat w : weeks) counts.add(w.known + "/7");
+            text = "Повних днів із графіком: " + String.join(" · ", counts);
+        }
+        int possible = Logic.statAverageMinutes(shown, Logic.MAYBE);
+        if (possible > 0) text += "\nМожливе вимкнення: " + Logic.hoursMinutes(possible) + " на день";
         coverage.setText(text); coverage.setPadding(0, Ui.dp(this, 7), 0, 0); card.addView(coverage, fill());
         page.addView(card, fill());
         TextView note = Ui.text(this, 12, Ui.body(this), pal.muted);
-        note.setText("Це графіки обленерго, а не виміряна наявність світла.\nІсторія зберігається на телефоні до 31 дня.");
-        note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 12), Ui.dp(this, 4), 0);
+        note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка не вважаємо нульовими. Історія — на цьому телефоні.");
+        note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), 0);
         page.addView(note, fill());
+    }
+
+    private View trend(List<Logic.WeekStat> weeks) {
+        int delta = Logic.weekChange(weeks);
+        TextView t = Ui.text(this, 14, Ui.heavy(this), delta == Integer.MIN_VALUE || delta == 0 ? pal.muted : delta > 0 ? pal.onText : pal.offText);
+        String text;
+        if (delta == Integer.MIN_VALUE) text = "Для тенденції потрібні два повні тижні без невизначених годин.";
+        else if (delta == 0) text = "Без змін проти попереднього тижня";
+        else text = (delta > 0 ? "↑ На " : "↓ На ") + Logic.hoursMinutes(Math.abs(delta))
+                + (delta > 0 ? " більше" : " менше") + ", ніж тиждень тому";
+        t.setText(text);
+        if (delta != Integer.MIN_VALUE && delta != 0) {
+            t.setPadding(Ui.dp(this, 9), Ui.dp(this, 7), Ui.dp(this, 9), Ui.dp(this, 7));
+            t.setBackground(Ui.round(pal.soft(delta > 0 ? Logic.ON : Logic.OFF), Ui.px(this, 12)));
+            t.setContentDescription(text + ", світла на день за графіком");
+        }
+        return t;
+    }
+
+    private static String shortDate(java.time.LocalDate date) {
+        return String.format(Locale.ROOT, "%d.%02d", date.getDayOfMonth(), date.getMonthValue());
     }
 
     private static String date(Logic.DayStat d) {
@@ -107,17 +144,20 @@ public class StatsActivity extends Base {
 
     private View period() {
         LinearLayout row = Ui.row(this); row.setBaselineAligned(false);
-        for (int n : new int[] {7, 31}) {
-            TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : "Місяць", n == days, 14);
+        for (int n : new int[] {7, 28}) {
+            TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : "4 тижні", n == days, 14);
             b.setOnClickListener(v -> { days = n; render(); });
-            LinearLayout.LayoutParams lp = weight(); if (n == 31) lp.leftMargin = Ui.dp(this, 6); row.addView(b, lp);
+            LinearLayout.LayoutParams lp = weight(); if (n == 28) lp.leftMargin = Ui.dp(this, 6); row.addView(b, lp);
         }
         return row;
     }
 
     private View legend(List<Logic.DayStat> days) {
         FlowRow row = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 5));
-        legendItem(row, '1', "Зі світлом · год"); legendItem(row, '0', "Без світла · год");
+        legendItem(row, '1', "Зі світлом · год");
+        if (this.days == 7) legendItem(row, '0', "Без світла · год");
+        TextView average = Ui.text(this, 12, Ui.bold(this), pal.accentText);
+        average.setText("┄ Середнє зі світлом"); row.addView(average);
         boolean possible = false; boolean unknown = false;
         for (Logic.DayStat d : days) { possible |= d.maybe > 0; unknown |= !Logic.statKnown(d) || d.on + d.off + d.maybe < 48; }
         if (possible) legendItem(row, '3', "Можливе вимкнення");

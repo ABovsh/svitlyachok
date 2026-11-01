@@ -1090,6 +1090,54 @@ public class LogicTest {
         assertEquals(Arrays.asList("Далі", "Без змін", "до кінця графіка"), Arrays.asList(Logic.widgetFuture(n)));
     }
 
+    @Test
+    public void fourWeeksUseCompletedDaysAndPositiveDailyAverages() {
+        java.util.Map<LocalDate,String> h = new java.util.HashMap<>();
+        LocalDate today = LocalDate.of(2026, 11, 1);
+        for (int i = 1; i <= 28; i++) h.put(today.minusDays(i), repeat('1', 36) + repeat('0', 12));
+        h.put(today, repeat('0', 48)); // today is still changing; exclude it
+        List<Logic.WeekStat> weeks = Logic.fourWeeks(h, today);
+        assertEquals(4, weeks.size());
+        assertEquals(LocalDate.of(2026,10,4), weeks.get(0).from);
+        assertEquals(today.minusDays(1), weeks.get(3).to);
+        for (Logic.WeekStat w : weeks) {
+            assertEquals(7, w.known);
+            assertEquals(1080, w.onMinutes);
+            assertEquals(75, w.onPercent);
+        }
+        assertEquals(0, Logic.weekChange(weeks));
+        h.put(today.minusDays(1), repeat('1',48));
+        assertEquals(51, Logic.weekChange(Logic.fourWeeks(h,today)));
+        h.put(today.minusDays(1), repeat('0',48));
+        assertEquals(-154, Logic.weekChange(Logic.fourWeeks(h,today)));
+    }
+
+    @Test
+    public void fourWeeksNeverTreatMissingOrPartialSchedulesAsZeroPower() {
+        java.util.Map<LocalDate,String> h = new java.util.HashMap<>();
+        LocalDate today = LocalDate.of(2027,1,2);
+        for (int i = 1; i <= 28; i++) h.put(today.minusDays(i), repeat('1',48));
+        h.remove(today.minusDays(2));
+        h.put(today.minusDays(3), repeat('1',12) + repeat('2',36));
+        List<Logic.WeekStat> weeks = Logic.fourWeeks(h,today);
+        assertEquals(5, weeks.get(3).known);
+        assertEquals(1440, weeks.get(3).onMinutes);
+        assertEquals(100, weeks.get(3).onPercent);
+        assertEquals(Integer.MIN_VALUE, Logic.weekChange(weeks));
+        assertEquals(-1, Logic.fourWeeks(new java.util.HashMap<>(),today).get(0).onMinutes);
+        h.put(today.minusDays(2), repeat('0',48));
+        h.put(today.minusDays(3), repeat('1',46) + repeat('3',2));
+        assertEquals(7, Logic.fourWeeks(h,today).get(3).known);
+        assertEquals(Integer.MIN_VALUE, Logic.weekChange(Logic.fourWeeks(h,today)));
+    }
+
+    @Test
+    public void daySummariesKeepHoursAndShareEvenWhenCompact() {
+        assertEquals("18,5 год · 77 %", Logic.daySummaries(repeat('1',37)+repeat('0',11)).get(2));
+        assertEquals("0 год · 0 %", Logic.daySummaries(repeat('0',48)).get(2));
+        assertEquals("24 год · 100 %", Logic.daySummaries(repeat('1',48)).get(2));
+    }
+
     private static boolean has(List<Logic.Label> l, int slot) {
         for (Logic.Label x : l) if (x.slot == slot) return true;
         return false;

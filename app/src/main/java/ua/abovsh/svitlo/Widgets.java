@@ -1,6 +1,7 @@
 package ua.abovsh.svitlo;
 
 import android.app.PendingIntent;
+import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -14,7 +15,12 @@ final class Widgets {
     private Widgets() {}
 
     static int[] ids(Context c) {
-        return AppWidgetManager.getInstance(c).getAppWidgetIds(new ComponentName(c, LightWidget.class));
+        AppWidgetManager m = AppWidgetManager.getInstance(c);
+        int[] small = m.getAppWidgetIds(new ComponentName(c, LightWidget.class));
+        int[] large = m.getAppWidgetIds(new ComponentName(c, LargeLightWidget.class));
+        int[] all = java.util.Arrays.copyOf(small, small.length + large.length);
+        System.arraycopy(large, 0, all, small.length, large.length);
+        return all;
     }
 
     /** The place each placed widget shows. */
@@ -38,11 +44,25 @@ final class Widgets {
      * confirms or cancels there; when placed, PinReceiver records the place for the new widget.
      */
     static void offer(Context c, Logic.Place p) {
+        offer(c, p, () -> {});
+    }
+
+    /** Setup stays alive until the size chooser is dismissed; main needs no completion hook. */
+    static void offer(Context c, Logic.Place p, Runnable closed) {
+        new AlertDialog.Builder(c).setTitle("Віджет для «" + p.name + "»")
+                .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
+                        (dialog, which) -> pin(c, p, which == 1))
+                .setNegativeButton("Скасувати", null)
+                .setOnDismissListener(dialog -> closed.run()).show();
+    }
+
+    private static void pin(Context c, Logic.Place p, boolean large) {
         Intent placed = new Intent(c, PinReceiver.class).putExtra(PinReceiver.PLACE, p.id);
         // mutable, so the system can add the new widget's id; explicit, so nothing else can be aimed at
         int mutable = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
-        PendingIntent done = PendingIntent.getBroadcast(c, p.id.hashCode(), placed,
+        PendingIntent done = PendingIntent.getBroadcast(c, p.id.hashCode() * 2 + (large ? 1 : 0), placed,
                 mutable | PendingIntent.FLAG_UPDATE_CURRENT);
-        AppWidgetManager.getInstance(c).requestPinAppWidget(new ComponentName(c, LightWidget.class), null, done);
+        AppWidgetManager.getInstance(c).requestPinAppWidget(new ComponentName(c,
+                large ? LargeLightWidget.class : LightWidget.class), null, done);
     }
 }

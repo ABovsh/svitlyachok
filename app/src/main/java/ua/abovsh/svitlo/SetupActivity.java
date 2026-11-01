@@ -291,7 +291,7 @@ public class SetupActivity extends Base {
         Sync.apply(getApplicationContext());
         if (first) startActivity(new Intent(this, MainActivity.class));
         // a new place gets its own widget: the launcher asks whether to put it on the home screen
-        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p);
-        finish();
+        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p, this::finish);
+        else finish();
     }
 }

@@ -221,7 +221,7 @@ public class MainActivity extends Base {
         body.addView(footer(p, d, now), fill());
 
         // one widget per place: offered for the place on screen until it has one
-        boolean offer = Widgets.canOffer(this, p);
+        boolean offer = android.appwidget.AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported();
         addWidget.setVisibility(offer ? View.VISIBLE : View.GONE);
         addWidget.setContentDescription("Додати віджет «" + p.name + "» на головний екран");
     }
@@ -484,30 +484,16 @@ public class MainActivity extends Base {
     }
 
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
-        LinearLayout head = Ui.column(this);
-        LinearLayout row = Ui.row(this);
-        TextView name = Ui.text(this, 18, Ui.heavy(this), pal.text);
-        name.setText(title);
-        row.addView(name, weight());
-        LinearLayout summary = Ui.row(this);
-        summary.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        if (slots != null) {
-            TextView total = Ui.text(this, 13, Ui.heavy(this), pal.onText);
-            total.setText(Logic.dayLights(slots).get(0));
-            android.graphics.drawable.Drawable light = getDrawable(R.drawable.ic_notify_on);
-            if (light != null) { light.setTint(pal.onText); light.setBounds(0,0,Ui.dp(this,16),Ui.dp(this,16)); android.text.SpannableStringBuilder caption = new android.text.SpannableStringBuilder("  " + total.getText()); caption.setSpan(new android.text.style.ImageSpan(light, android.text.style.ImageSpan.ALIGN_BOTTOM),0,1,0); total.setText(caption); }
-            total.setGravity(Gravity.END);
-            summary.addView(total, weight());
+        View head;
+        if (slots == null) {
+            TextView name = Ui.text(this, 18, Ui.heavy(this), pal.text);
+            name.setText(title); name.setMinHeight(Ui.dp(this, 40)); name.setGravity(Gravity.CENTER_VERTICAL);
+            head = name;
+        } else {
             ImageView share = iconButton(R.drawable.ic_share, "Поділитися графіком: " + title, v -> Share.send(this, p, date));
             share.setBackground(null);
-            summary.addView(share, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
-            if (stacked()) {
-                head.addView(row, fill()); head.addView(summary, fill());
-            } else {
-                LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.7f);
-                row.addView(summary, right); head.addView(row, fill());
-            }
-        } else head.addView(row, fill());
+            head = new DayHeader(this, pal, title, slots, share);
+        }
         head.setContentDescription(Logic.describe(title, slots)); card.addView(head, fill());
         if (slots == null) {
             TextView none = Ui.text(this, 14, Ui.body(this), pal.muted);

@@ -302,7 +302,7 @@ final class Sync {
             Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1));
             post(c, e.place, CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
-            Prefs.setInt(c, "reminder_delay", (int) Math.max(0, now - e.at));
+            Prefs.reminderTiming(c,e.at,now);
         }
     }
 

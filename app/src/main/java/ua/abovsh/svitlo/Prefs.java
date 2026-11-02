@@ -197,6 +197,11 @@ final class Prefs {
         return a;
     }
 
+    static void reminderTiming(Context c, long planned, long actual) {
+        p(c).edit().putLong("reminder_planned",planned).putLong("reminder_actual",actual)
+                .putInt("reminder_delay",(int)Math.max(0,actual-planned)).apply();
+    }
+
     static void setInt(Context c, String key, int v) {
         p(c).edit().putInt(key, v).apply();
     }

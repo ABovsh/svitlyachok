@@ -152,7 +152,7 @@ final class Share {
             }
             if (nowRel >= 0 && nowRel <= 48) {
                 float x = left + nowRel * sw;
-                b.p.setColor(pal.card);
+                b.p.setColor(Ui.Pal.MARKER_EDGE);
                 b.r.set(x - 2.5f * S, bar.top - 3 * S, x + 2.5f * S, bar.bottom + 3 * S);
                 b.cv.drawRoundRect(b.r, 2.5f * S, 2.5f * S, b.p);
                 b.p.setColor(Ui.Pal.MARKER);

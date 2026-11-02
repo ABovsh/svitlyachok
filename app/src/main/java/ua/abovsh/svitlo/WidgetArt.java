@@ -439,6 +439,8 @@ final class WidgetArt {
         b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
         b.cv.restore();
         hourLines(b, bounds, s);
+        b.p.setColor(Ui.Pal.MARKER_EDGE);
+        b.cv.drawRect(marker - 1.7f*s, bounds.top - 2.7f*s, marker + 1.7f*s, bounds.bottom + 2.7f*s, b.p);
         b.p.setColor(Ui.Pal.MARKER);
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
         Paint lab = text(Ui.bold(c), scale[1], b.pal.muted, Paint.Align.CENTER);

@@ -1641,4 +1641,12 @@ public class LogicTest {
         assertEquals(Logic.INK_DARK, Logic.barHoursInk('3', true, false, false));
         assertEquals(Logic.INK_QUIET, Logic.barHoursInk('3', true, false, true));
     }
+
+    @Test
+    public void theScreenChecksAtTheStartOfEveryMinute() {
+        assertEquals(60_000L, Logic.toNextMinute(1_793_311_200_000L));
+        assertEquals(59_999L, Logic.toNextMinute(1_793_311_200_001L));
+        assertEquals(1L, Logic.toNextMinute(1_793_311_259_999L));
+        assertEquals(30_000L, Logic.toNextMinute(1_793_311_230_000L));
+    }
 }

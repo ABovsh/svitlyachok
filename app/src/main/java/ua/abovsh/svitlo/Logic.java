@@ -1557,6 +1557,11 @@ public final class Logic {
         return now >= from && now < to;
     }
 
+    /** Milliseconds to the next whole minute: every change and every "через N хв" falls on one. */
+    public static long toNextMinute(long nowMs) {
+        return 60_000L - nowMs % 60_000L;
+    }
+
     /** How many equal windows of a day stand in a row: three when they fit, never none. */
     public static int windowColumns(int room, int window, int gap) {
         return Math.max(1, Math.min(3, (room + gap) / (window + gap)));

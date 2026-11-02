@@ -105,6 +105,15 @@ final class Sync {
         armRefresh(c, now);
         armNotify(c, now);
         schedulePeriodic(c);
+        Runnable screen = openScreen;
+        if (screen != null) screen.run();
+    }
+
+    /** The screen on view, told at once when an alarm or a new schedule changes what it shows. */
+    private static volatile Runnable openScreen;
+
+    static void onChanged(Runnable screen) {
+        openScreen = screen;
     }
 
     static String timeline(Context c, Logic.Place p, LocalDate base) {

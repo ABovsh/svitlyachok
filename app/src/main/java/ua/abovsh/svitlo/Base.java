@@ -17,7 +17,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** A scrolling page in the chosen palette, edge to edge, redrawn every 30 s while visible. */
+/** A scrolling page in the chosen palette, edge to edge, redrawn at each minute while visible. */
 abstract class Base extends Activity {
     final Handler handler = new Handler(Looper.getMainLooper());
     Ui.Pal pal;
@@ -27,7 +27,7 @@ abstract class Base extends Activity {
         @Override
         public void run() {
             onTick();
-            handler.postDelayed(this, 30_000);
+            handler.postDelayed(this, Logic.toNextMinute(System.currentTimeMillis()));
         }
     };
 
@@ -35,7 +35,7 @@ abstract class Base extends Activity {
 
     boolean hasClock() { return true; }
 
-    /** Every 30 s while visible; a page that knows when nothing changed skips the work. */
+    /** Each minute while visible; a page that knows when nothing changed skips the work. */
     void onTick() {
         render();
     }
@@ -97,7 +97,7 @@ abstract class Base extends Activity {
             return;
         }
         onTick();
-        if (hasClock()) handler.postDelayed(tick,30_000);
+        if (hasClock()) handler.postDelayed(tick, Logic.toNextMinute(System.currentTimeMillis()));
     }
 
     @Override

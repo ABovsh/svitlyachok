@@ -64,9 +64,16 @@ public class MainActivity extends Base {
     }
 
     @Override
+    protected void onPause() {
+        Sync.onChanged(null);
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         if (body == null) return;
+        Sync.onChanged(() -> runOnUiThread(this::onTick));
         if (Prefs.places(this).isEmpty()) {
             startActivity(new Intent(this, SetupActivity.class));
             finish();
@@ -497,7 +504,7 @@ public class MainActivity extends Base {
         LinearLayout row = stacked() ? Ui.column(this) : Ui.row(this);
         Logic.Alerts wanted = Prefs.alerts(this, p.id);
         TextView alerts = action(Logic.alertsLabel(wanted), wanted.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off, v -> AlertsSheet.show(this, p, this::render));
-        if (wanted.any()) lit(alerts); else quiet(alerts);
+        if (!wanted.any()) quiet(alerts);
         alerts.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(wanted));
         TextView stats = action("Статистика", R.drawable.ic_stats, v -> startActivity(new Intent(this, StatsActivity.class)));
         row.addView(alerts, stacked() ? fill() : weight());
@@ -507,21 +514,11 @@ public class MainActivity extends Base {
         return row;
     }
 
-    /** A button for something switched on: gold, so it is told from "off" at a glance. */
-    private void lit(TextView button) {
-        android.graphics.drawable.GradientDrawable bg = Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, pal.dark ? .26f : .34f)), Ui.px(this, 20));
-        bg.setStroke(Ui.dp(this, 1.5f), pal.accentText);
-        button.setBackground(bg);
-        android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
-        if (image != null) image.setTint(pal.accentText);
-    }
-
-    /** A button for something switched off: no fill, its words and icon step back. */
+    /** A button for something switched off: the same button, its words and icon plainly grey. */
     private void quiet(TextView button) {
-        button.setTextColor(pal.muted);
-        button.setBackground(Ui.outline(pal.line, Ui.px(this, 20), Ui.dp(this, 1.5f)));
+        button.setTextColor(pal.quiet);
         android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
-        if (image != null) image.setTint(pal.muted);
+        if (image != null) image.setTint(pal.quiet);
     }
 
     private View blockedReminders(Logic.Place p) {

@@ -43,12 +43,16 @@ final class Ui {
         final int glow;
         /** How much of the card covers the past on a bar; white hours must still read through it. */
         final float veil;
-        /** The stroke at now, one colour that reads on both themes and on every state. */
-        static final int MARKER = 0xFFFF8A00;
+        /** The stroke at now, one colour for both themes; its edge keeps it apart from a pale background. */
+        static final int MARKER = 0xFFFFD000;
+        static final int MARKER_EDGE = 0xFF22333A;
+        /** Something switched off: plainly grey. */
+        final int quiet;
 
         Pal(boolean dark) {
             this.dark = dark;
             veil = dark ? 0.68f : 0.30f;
+            quiet = dark ? 0xFF7E8D87 : 0xFF87928C;
             if (dark) {
                 bg = 0xFF10191B; card = 0xFF172428; raised = 0xFF203236; line = 0xFF334749;
                 text = 0xFFEFF3EC; muted = 0xFFB3C1BB; dim = 0xFFB3C1BB;

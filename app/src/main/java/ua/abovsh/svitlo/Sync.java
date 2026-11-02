@@ -260,7 +260,9 @@ final class Sync {
             Logic.Alerts a = Prefs.alerts(c, p.id);
             for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
                 boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
-                if (!wanted) continue;
+                // the source may drop a day and bring it back unchanged: that is nothing new to the person
+                if (!wanted || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.text)) continue;
+                Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.text));
                 post(c, p.id, CH_SCHEDULE, n.title, n.text);
             }
         }

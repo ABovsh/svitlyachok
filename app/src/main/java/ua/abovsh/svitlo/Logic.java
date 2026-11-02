@@ -163,7 +163,7 @@ public final class Logic {
                     ? Integer.compare(Integer.parseInt(x[i]), Integer.parseInt(y[i])) : x[i].compareTo(y[i]);
             if (order != 0) return order;
         }
-        return x.length != y.length ? Integer.compare(x.length, y.length) : a.compareTo(b);
+        return x.length == y.length ? a.compareTo(b) : Integer.compare(x.length, y.length);
     }
 
     /** Parse a region file; throws on any shape it does not know, so garbage never replaces good data. */
@@ -1120,6 +1120,7 @@ public final class Logic {
         public static final int CHANGED = 1;
         public int kind;
         public String title = "";
+        public String day = "";
         public String text = "";
     }
 
@@ -1148,7 +1149,10 @@ public final class Logic {
         for (int d = 0; d < 2; d++) {
             LocalDate date = today.plusDays(d);
             Note n = note(p, day(before, p.group, date), day(after, p.group, date), d == 0 ? index(today, now) : 0, d == 0);
-            if (n != null) out.add(n);
+            if (n != null) {
+                n.day = date.toString();
+                out.add(n);
+            }
         }
         return out;
     }
@@ -1164,12 +1168,41 @@ public final class Logic {
             n.text = named(p.name, k == 0 ? uncertainDay(a, "Вимкнень не заплановано") : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
             return n;
         }
-        if (a.substring(from).equals(b.substring(from))) return null;
+        if (!outagesChanged(b, a, from)) return null;
         n.kind = Note.CHANGED;
         n.title = headed(SCHEDULE_MARK, "графік змінився");
         String w = today ? "Сьогодні" : "Завтра";
         n.text = named(p.name, offCount(a) == 0 ? w + ": " + uncertainDay(a, NO_OUTAGES) : w + " " + dayTotal(a) + ": " + list(a));
         return n;
+    }
+
+    /** Whether the outages still ahead moved: a slot that only became known or unknown moves none. */
+    static boolean outagesChanged(String before, String after, int from) {
+        return !aheadOutages(before, from).equals(aheadOutages(after, from));
+    }
+
+    private static String aheadOutages(String day, int from) {
+        return day.substring(from).replace('2', '1');
+    }
+
+    private static final int NOTE_DAYS = 2;
+
+    /** What was said last about each of the latest days, "date=text" on a line each. */
+    static String rememberNote(String memory, String date, String text) {
+        java.util.TreeMap<String, String> days = new java.util.TreeMap<>();
+        for (String line : memory.split("\n")) {
+            int at = line.indexOf('=');
+            if (at > 0) days.put(line.substring(0, at), line.substring(at + 1));
+        }
+        days.put(date, text.replace('\n', ' '));
+        while (days.size() > NOTE_DAYS) days.pollFirstEntry();
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> e : days.entrySet()) out.append(e.getKey()).append('=').append(e.getValue()).append('\n');
+        return out.toString();
+    }
+
+    static boolean noteSeen(String memory, String date, String text) {
+        return java.util.Arrays.asList(memory.split("\n")).contains(date + "=" + text.replace('\n', ' '));
     }
 
     private static String uncertainDay(String day, String clear) {
@@ -1492,7 +1525,6 @@ public final class Logic {
         return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
     }
 
-    /** Hours inside a run of the bar, digits only: "3,5", "4". */
     /** Where the hours of a window stand, in slots: the middle of all of it, so they read as its whole length. */
     public static float barHoursCentre(int from, int to) {
         return (from + to) / 2f;
@@ -1503,6 +1535,7 @@ public final class Logic {
         return now >= 0 && Math.abs(now - barHoursCentre(from, to)) < half;
     }
 
+    /** Hours inside a run of the bar, digits only: "3,5", "4". */
     public static String barHours(int halves) {
         return halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5";
     }

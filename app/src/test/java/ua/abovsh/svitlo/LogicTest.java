@@ -1400,6 +1400,31 @@ public class LogicTest {
         assertEquals("Місто Київ",Logic.regions().get(0).name);assertEquals("kyiv",Logic.regions().get(0).id);
     }
 
+    @Test public void aDayWhoseOutagesStayTheSameIsNotAChange() {
+        String day = repeat('1', 28) + repeat('0', 8) + repeat('1', 12);
+        // a slot that only became known or unknown moves no outage
+        assertFalse(Logic.outagesChanged(day, repeat('1', 28) + repeat('0', 8) + repeat('2', 12), 0));
+        assertFalse(Logic.outagesChanged(day, day, 0));
+        // a real move, a possible outage, an outage ahead that appeared
+        assertTrue(Logic.outagesChanged(day, repeat('1', 30) + repeat('0', 8) + repeat('1', 10), 0));
+        assertTrue(Logic.outagesChanged(day, repeat('1', 28) + repeat('3', 8) + repeat('1', 12), 0));
+        // a change in what has already passed says nothing
+        assertFalse(Logic.outagesChanged(repeat('0', 4) + repeat('1', 44), repeat('1', 48), 10));
+    }
+
+    @Test public void theSameNoticeForTheSameDayIsNotRepeated() {
+        String memory = Logic.rememberNote("", "2026-10-30", "Дім · 1 вимкнення: 14:00 – 18:00");
+        assertTrue(Logic.noteSeen(memory, "2026-10-30", "Дім · 1 вимкнення: 14:00 – 18:00"));
+        assertFalse(Logic.noteSeen(memory, "2026-10-31", "Дім · 1 вимкнення: 14:00 – 18:00"));
+        assertFalse(Logic.noteSeen(memory, "2026-10-30", "Дім · 2 вимкнення"));
+        // only the newest notice of a day and the two latest days are kept
+        memory = Logic.rememberNote(memory, "2026-10-30", "інше");
+        assertFalse(Logic.noteSeen(memory, "2026-10-30", "Дім · 1 вимкнення: 14:00 – 18:00"));
+        memory = Logic.rememberNote(Logic.rememberNote(memory, "2026-10-31", "а"), "2026-11-01", "б");
+        assertFalse(Logic.noteSeen(memory, "2026-10-30", "інше"));
+        assertTrue(Logic.noteSeen(memory, "2026-10-31", "а"));
+    }
+
     @Test public void queuesGoInTheOrderPeopleCount() throws Exception {
         String hours=HOURS_11;
         Logic.Data d=Logic.parse("{\"fact\":{\"data\":{\""+D30+"\":{\"GPV10.1\":"+hours+",\"GPV2.1\":"+hours+",\"GPV1.2\":"+hours+",\"GPV1.1\":"+hours+"}}}}");

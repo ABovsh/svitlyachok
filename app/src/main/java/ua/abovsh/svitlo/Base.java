@@ -130,9 +130,7 @@ abstract class Base extends Activity {
         LinearLayout r = Ui.row(this);
         r.setPadding(0, Ui.dp(this, 11), 0, Ui.dp(this, 11));
         r.addView(label(title, desc), weight());
-        ToggleView tv = new ToggleView(this, pal, on, v -> {
-            l.changed(v);
-        });
+        ToggleView tv = new ToggleView(this, pal, on, l::changed);
         tv.setContentDescription(title);
         LinearLayout.LayoutParams tl = wrap();
         tl.leftMargin = Ui.dp(this, 12);

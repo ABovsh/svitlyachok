@@ -177,7 +177,9 @@ public class MainActivity extends Base {
     private Logic.Now currentNow() {
         List<Logic.Place> places=Prefs.places(this);
         if (places.isEmpty()) return new Logic.Now();
-        Logic.Place p=current(places); Logic.Data d=Store.data(this,p.region); long now=Sync.now();
+        Logic.Place p=current(places);
+        Logic.Data d=Store.data(this,p.region);
+        long now=Sync.now();
         return Logic.nowWithHistory(Logic.timeline(d,p.group,Logic.today(now)),Logic.today(now),now,
                 d!=null && d.none,Prefs.knownHistory(this,p,d));
     }
@@ -277,7 +279,7 @@ public class MainActivity extends Base {
 
         TextView text = Ui.text(this, 14, Ui.body(this), pal.muted);
         text.setLineSpacing(0, 1.1f);
-        text.setText("У вас " + BuildConfig.VERSION_NAME + ". Встановлюється поверх, місця й налаштування збережуться.");
+        text.setText("У вас " + BuildConfig.VERSION_NAME + ". Місця й налаштування збережуться після оновлення.");
         text.setPadding(0, Ui.dp(this, 8), 0, 0);
         card.addView(text, fill());
 
@@ -402,12 +404,10 @@ public class MainActivity extends Base {
         }
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.round(pal.soft(n.state), Ui.px(this, 18)));
-        {
-            TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
-            queue.setText(p.name + " · черга " + Logic.queue(p.group));
-            queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
-            card.addView(queue, fill());
-        }
+        TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
+        queue.setText(p.name + " · черга " + Logic.queue(p.group));
+        queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
+        card.addView(queue, fill());
         card.addView(present(n), fill());
         if (Logic.hintIsEvent(n)) {
             String detail = Logic.nextDetail(n);

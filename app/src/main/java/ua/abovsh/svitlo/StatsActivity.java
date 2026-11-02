@@ -34,7 +34,7 @@ public class StatsActivity extends Base {
         page.addView(period(), gap(8));
         page.addView(card(history), fill());
         TextView note = Ui.text(this, 13, Ui.body(this), pal.muted);
-        note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка не вважаємо нульовими. Історія — на цьому телефоні.");
+        note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка пропускаються в підрахунку. Історія — на цьому телефоні.");
         note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), 0);
         page.addView(note, fill());
     }
@@ -80,11 +80,11 @@ public class StatsActivity extends Base {
 
     private String coverage(List<Logic.DayStat> daily, List<Logic.WeekStat> weeks, List<Logic.DayStat> shown) {
         String text;
-        if (days == 7) text = "Повних днів із графіком: " + Logic.statKnownDays(daily) + " із 7";
+        if (days == 7) text = "Днів із графіком на всі 24 години: " + Logic.statKnownDays(daily) + " із 7";
         else {
             List<String> counts = new java.util.ArrayList<>();
             for (Logic.WeekStat w : weeks) counts.add(w.known + "/7");
-            text = "Повних днів із графіком: " + String.join(" · ", counts);
+            text = "Днів із графіком на всі 24 години: " + String.join(" · ", counts);
         }
         int possible = Logic.statAverageMinutes(shown, Logic.MAYBE);
         return possible > 0 ? text + "\nМожливе вимкнення: " + Logic.hoursMinutes(possible) + " на день" : text;
@@ -96,7 +96,7 @@ public class StatsActivity extends Base {
         if (delta != Integer.MIN_VALUE && delta != 0) ink = delta > 0 ? pal.onText : pal.offText;
         TextView t = Ui.text(this, 14, Ui.heavy(this), ink);
         String text;
-        if (delta == Integer.MIN_VALUE) text = "Для тенденції потрібні два повні тижні без невизначених годин.";
+        if (delta == Integer.MIN_VALUE) text = "Для порівняння потрібні графіки за два повні тижні без можливих вимкнень.";
         else if (delta == 0) text = "Без змін проти попереднього тижня";
         else text = (delta > 0 ? "↑ На " : "↓ На ") + Logic.hoursMinutes(Math.abs(delta))
                 + (delta > 0 ? " більше" : " менше") + ", ніж тиждень тому";

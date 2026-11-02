@@ -67,6 +67,8 @@ final class WidgetArt {
                 && (d.sourceTime <= 0 || now - d.sourceTime <= 48 * 3600L || Logic.currentData(d, now));
     }
 
+    private static String widgetName(Model m) { return (m.stale ? "⚠ " : "") + m.place.name; }
+
     /** Same key, same picture: the widget is not redrawn. */
     static String key(Context c, Model m, long now, int wDp, int hDp) {
         StringBuilder b = new StringBuilder().append(wDp).append('x').append(hDp).append('|').append(Ui.pal(c).dark);
@@ -153,7 +155,7 @@ final class WidgetArt {
         boolean head = m.many || m.stale;
         boolean then = !n.then.isEmpty() && rowH >= (head ? 84 : 62) * s;
         Ui.Pal pal = b.pal;
-        Paint ph = fit(text(Ui.heavy(c), ts * 0.8f, Ui.fade(pal.text, 0.8f), Paint.Align.LEFT), (m.stale ? "⚠ " : "") + m.place.name, tw);
+        Paint ph = fit(text(Ui.heavy(c), ts * 0.8f, Ui.fade(pal.text, 0.8f), Paint.Align.LEFT), widgetName(m), tw);
         Paint pt = fit(text(Ui.heavy(c), ts, pal.status(n.state), Paint.Align.LEFT), n.title, tw);
         Paint pb = fit(text(Ui.display(c), ts * 1.05f, pal.text, Paint.Align.LEFT), n.big, tw);
         Paint pn = fit(text(Ui.bold(c), ts * 0.68f, n.soon ? pal.maybeText : pal.muted, Paint.Align.LEFT), n.then, tw);
@@ -167,7 +169,7 @@ final class WidgetArt {
             block *= k;
         }
         float y = f.pad + (rowH - block) / 2f;
-        if (head) y = line(b, (m.stale ? "⚠ " : "") + m.place.name, tx, y, ph) + g;
+        if (head) y = line(b, widgetName(m), tx, y, ph) + g;
         y = line(b, n.title, tx, y, pt);
         if (!n.big.isEmpty()) y = line(b, n.big, tx, y + g, pb);
         if (then) line(b, n.then, tx, y + g, pn);
@@ -181,8 +183,8 @@ final class WidgetArt {
         float width = w.columnWidth * s;
         float right = pad + width + 8 * s;
         Paint name = fit(text(Ui.heavy(c), w.textSize * .8f * s, b.pal.text, Paint.Align.LEFT),
-                (m.stale ? "⚠ " : "") + m.place.name + " · черга " + Logic.queue(m.place.group), f.w - 2 * pad);
-        line(b, (m.stale ? "⚠ " : "") + m.place.name + " · черга " + Logic.queue(m.place.group), pad, pad, name);
+                widgetName(m) + " · черга " + Logic.queue(m.place.group), f.w - 2 * pad);
+        line(b, widgetName(m) + " · черга " + Logic.queue(m.place.group), pad, pad, name);
         String[] start = Logic.widgetStart(m.now);
         String[] next = Logic.widgetFuture(m.now);
         float bulb = (w.compact ? 18 : 30) * s;
@@ -283,13 +285,13 @@ final class WidgetArt {
         }
 
         private static float baseline(Panel a, Panel b, int row) {
-            return Math.max(a.lines[row] == null ? 0 : a.lines[row].getLineBaseline(0),
-                    b.lines[row] == null ? 0 : b.lines[row].getLineBaseline(0));
+            return Math.max(a.lines[row] == null ? 0 : (float) a.lines[row].getLineBaseline(0),
+                    b.lines[row] == null ? 0 : (float) b.lines[row].getLineBaseline(0));
         }
 
         private static float sharedHeight(Panel a, Panel b, int row) {
-            float below = Math.max(a.lines[row] == null ? 0 : a.lines[row].getHeight()-a.lines[row].getLineBaseline(0),
-                    b.lines[row] == null ? 0 : b.lines[row].getHeight()-b.lines[row].getLineBaseline(0));
+            float below = Math.max(a.lines[row] == null ? 0 : a.lines[row].getHeight()-(float) a.lines[row].getLineBaseline(0),
+                    b.lines[row] == null ? 0 : b.lines[row].getHeight()-(float) b.lines[row].getLineBaseline(0));
             float height = baseline(a,b,row) + below;
             return row == 0 ? Math.max(height, Math.max(a.bulb,b.bulb)) : height;
         }
@@ -321,7 +323,7 @@ final class WidgetArt {
         // runs() uses r2 for possible outages; keep a separate stable bounds object.
         RectF bounds = new RectF(area);
         BarView.runs(b, tl, 0, 48, 0, bounds, 1.5f * s);
-        float at = Math.max(0, Math.min(48, Logic.index(base, now)));
+        float at = Math.max(0, Math.min(48f, (float) Logic.index(base, now)));
         float marker = bounds.left + bounds.width() * at / 48f;
         b.path.reset(); b.path.addRoundRect(bounds, bounds.height()/2, bounds.height()/2, android.graphics.Path.Direction.CW);
         b.cv.save(); b.cv.clipPath(b.path);

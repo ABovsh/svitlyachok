@@ -180,7 +180,7 @@ public class LogicTest {
         Logic.Now n = Logic.now(tl(feed("[]")), OCT30, at(12, 0), true);
         assertEquals(Logic.ON, n.state);
         assertEquals("без вимкнень", n.big);
-        assertEquals("Відключень за графіком не заплановано", n.hint);
+        assertEquals("Вимкнень за графіком не заплановано", n.hint);
     }
 
     @Test
@@ -866,10 +866,10 @@ public class LogicTest {
 
     @Test
     public void hoursInsideTheBarToTenths() {
-        assertEquals("3,5г", Logic.barHours(7));
-        assertEquals("4г", Logic.barHours(8));
-        assertEquals("0,5г", Logic.barHours(1));
-        assertEquals("24г", Logic.barHours(48));
+        assertEquals("3,5 год", Logic.barHours(7));
+        assertEquals("4 год", Logic.barHours(8));
+        assertEquals("0,5 год", Logic.barHours(1));
+        assertEquals("24 год", Logic.barHours(48));
     }
 
     @Test
@@ -1296,5 +1296,14 @@ public class LogicTest {
         LocalDate spring=LocalDate.of(2027,3,28);
         assertEquals(-1,Logic.slotStart(spring,6));assertEquals(-1,Logic.slotStart(spring,7));
         assertTrue(Logic.slotStart(spring,8)>Logic.slotStart(spring,5));
+    }
+
+    @Test public void springJumpUsesFirstRealStateAfterTheGap() {
+        LocalDate day=LocalDate.of(2027,3,28);
+        long now=day.atTime(2,45).atZone(Logic.KYIV).toEpochSecond();
+        String tl=repeat('1',6)+repeat('0',42)+repeat('1',48);
+        Logic.Alerts a=new Logic.Alerts();a.leadOff=0;a.on=false;
+        assertEquals(day.atTime(4,0).atZone(Logic.KYIV).toEpochSecond(),Logic.events(home(),tl,day,now,a).get(0).change);
+        assertEquals("до 04:00",Logic.now(tl,day,now,false).big);
     }
 }

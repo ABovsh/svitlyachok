@@ -153,7 +153,7 @@ public class SetupActivity extends Base {
         TextView s = Ui.text(this, 15, Ui.body(this), pal.muted);
         s.setGravity(Gravity.CENTER);
         s.setLineSpacing(0, 1.1f);
-        s.setText("Графік відключень вашої черги: чи є світло зараз, до котрої години і що буде завтра. "
+        s.setText("Графік вимкнень вашої черги: чи є світло зараз, до котрої години і що буде завтра. "
                 + "Нагадує заздалегідь.");
         w.addView(s);
         return w;

@@ -220,7 +220,8 @@ public final class Logic {
         if (cached == null) return true;
         if (currentData(candidate, now)) return true;
         if (currentData(cached, now)) return false;
-        LocalDate a = latestDay(candidate), b = latestDay(cached);
+        LocalDate a = latestDay(candidate);
+        LocalDate b = latestDay(cached);
         return a != null && (b == null || !a.isBefore(b));
     }
 
@@ -376,6 +377,20 @@ public final class Logic {
         return out;
     }
 
+    /** Changes on actual instants; missing spring slots cannot hide the first state at 04:00. */
+    private static List<int[]> clockChanges(String tl, LocalDate base, int from) {
+        List<int[]> out = new ArrayList<>();
+        if (from < 0 || from >= tl.length() || tl.charAt(from)=='2') return out;
+        char state = tl.charAt(from);
+        for (int i=from+1;i<tl.length();i++) {
+            if (slotStart(base,i)<0) continue;
+            char next=tl.charAt(i);
+            if (next=='2') break;
+            if (next!=state) { out.add(new int[] {i,next}); state=next; }
+        }
+        return out;
+    }
+
     // ---- time words ------------------------------------------------------------
 
     public static String hm(long t) {
@@ -508,10 +523,10 @@ public final class Logic {
             n.hint = "Щойно обленерго його оприлюднить, він з'явиться тут";
         } else if (none) {
             n.big = NO_OUTAGES;
-            n.hint = "Відключень за графіком не заплановано";
+            n.hint = "Вимкнень за графіком не заплановано";
         } else {
-            List<int[]> ch = changesFrom(tl, cur);
-            if (ch.isEmpty()) steady(n, tl, cur, c, base, now);
+            List<int[]> ch = clockChanges(tl, base, cur);
+            if (ch.isEmpty()) steady(n, tl, cur, c);
             else changing(n, ch, c, base, now);
         }
         if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
@@ -546,6 +561,7 @@ public final class Logic {
 
     private static void began(Now n, LocalDate day, int slot, LocalDate base, long now) {
         long start = slotStart(day, slot);
+        while (start < 0 && slot < 48) start=slotStart(day,++slot);
         LocalDate date = z(start).toLocalDate();
         String suffix = "";
         if (date.equals(base.minusDays(1))) suffix = " учора";
@@ -556,7 +572,7 @@ public final class Logic {
     }
 
     /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
-    private static void steady(Now n, String tl, int cur, char c, LocalDate base, long now) {
+    private static void steady(Now n, String tl, int cur, char c) {
         int j = cur;
         while (j < tl.length() && tl.charAt(j) == c) j++;
         if (j < 48 && j < tl.length()) {
@@ -970,13 +986,16 @@ public final class Logic {
     public static List<Event> events(Place p, String tl, LocalDate base, long now, Alerts a) {
         List<Event> out = new ArrayList<>();
         // Scan the known edges, including yesterday supplied by the caller at midnight.
+        char prev = tl.isEmpty() ? '2' : tl.charAt(0);
         for (int slot = 1; slot < tl.length(); slot++) {
-            char prev = tl.charAt(slot - 1), next = tl.charAt(slot);
-            if (prev == next || prev == '2' || next == '2') continue;
             long change = slotStart(base, slot);
             if (change < 0) continue;
-            Event e = event(p, prev, next, change, a);
-            if (e != null && (e.at < e.change ? e.change > now : e.at >= now - LATE_S)) out.add(e);
+            char next=tl.charAt(slot);
+            if (prev != next && prev != '2' && next != '2') {
+                Event e=event(p,prev,next,change,a);
+                if (e != null && (e.at < e.change ? e.change > now : e.at >= now-LATE_S)) out.add(e);
+            }
+            prev=next;
         }
         out.sort((x, y) -> Long.compare(x.at, y.at));
         return out;
@@ -1001,7 +1020,7 @@ public final class Logic {
     /** End of the outage that starts at `change`, or 0 when the data ends first. */
     static long outageEnd(String tl, LocalDate base, long change) {
         int i = index(base, change);
-        for (int[] c : changesFrom(tl, i)) if (c[1] == '1') return slotStart(base, c[0]);
+        for (int[] c : clockChanges(tl, base, i)) if (c[1] == '1') return slotStart(base, c[0]);
         return 0;
     }
 
@@ -1042,7 +1061,7 @@ public final class Logic {
         else if (maybe) state = MAYBE;
         n.state = state; n.change = e.change; n.planned = e.at; n.kind = e.kind;
         n.title = headed(mark(state), eventWhat(e.kind, maybe));
-        n.text = named(e.name, eventWhen(e, end, now));
+        n.text = named(e.name, eventWhen(e, end));
         if (e.at < e.change) n.until = e.change;
         else if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
@@ -1059,7 +1078,7 @@ public final class Logic {
     }
 
     /** "о 18:30, через 15 хв" ahead; at the moment, until when it lasts or since when. */
-    private static String eventWhen(Event e, long end, long now) {
+    private static String eventWhen(Event e, long end) {
         if (e.kind == Event.SOON_OFF || e.kind == Event.SOON_ON) {
             return "о " + hm(e.change);
         }
@@ -1148,7 +1167,7 @@ public final class Logic {
         long midnight = base.plusDays(1).atStartOfDay(KYIV).toEpochSecond();
         if (midnight > now && midnight < best) best = midnight;
         for (String tl : tls) {
-            for (int[] c : changesFrom(tl, index(base, now))) {
+            for (int[] c : clockChanges(tl, base, index(base, now))) {
                 long t = slotStart(base, c[0]);
                 for (long x : new long[] {t - SOON_S, t}) if (x > now && x < best) best = x;
             }
@@ -1165,7 +1184,7 @@ public final class Logic {
         long midnight = base.plusDays(1).atStartOfDay(KYIV).toEpochSecond();
         if (midnight >= at && midnight - at < POLL_S) return true;
         for (String tl : tls) {
-            for (int[] c : changesFrom(tl, index(base, now))) {
+            for (int[] c : clockChanges(tl, base, index(base, now))) {
                 long t = slotStart(base, c[0]);
                 for (long x : new long[] {t - SOON_S, t}) if (x >= at && x - at < POLL_S) return true;
             }
@@ -1371,7 +1390,7 @@ public final class Logic {
 
     /** Hours inside a run of the bar, to tenths: "3,5г", "4г". */
     public static String barHours(int halves) {
-        return (halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5") + "г";
+        return (halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5") + " год";
     }
 
     /** How much light a day brings, from the longest form to the shortest that fits. */
@@ -1484,8 +1503,10 @@ public final class Logic {
     /** Label, exact clock (including tomorrow), and known end; no countdown on a widget. */
     public static String[] widgetNext(Now n) {
         if (n.next == UNKNOWN || n.change <= 0) return new String[] {"", "", ""};
-        String event = n.next == OFF ? "Вимкнуть" : n.next == MAYBE ? "Можливо вимкнуть"
-                : n.state == OFF ? "Увімкнуть" : "Буде світло";
+        String event = "Буде світло";
+        if (n.next == OFF) event = "Вимкнуть";
+        else if (n.next == MAYBE) event = "Можливо вимкнуть";
+        else if (n.state == OFF) event = "Увімкнуть";
         return new String[] {event + (n.tomorrow ? " завтра" : ""), n.changeClock.isEmpty() ? hm(n.change) : n.changeClock, n.endDetail};
     }
 

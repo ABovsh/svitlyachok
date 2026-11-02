@@ -168,7 +168,7 @@ final class Sync {
         int colour = GOLD;
         if (reminder) {
             icon = n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off;
-            colour = n.state == Logic.MAYBE ? GOLD : n.on ? GREEN : RED;
+            colour = reminderColour(n);
         }
         ensureChannels(c);
         long now = now();
@@ -186,13 +186,7 @@ final class Sync {
                 .setContentIntent(PendingIntent.getActivity(c, id, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         if (silent) b.setOnlyAlertOnce(true);
-        if (reminder && n.change > 0) {
-            Bundle extras = new Bundle();
-            extras.putString("reminder_place", place); extras.putLong("reminder_change", n.change);
-            extras.putLong("reminder_planned", n.planned); extras.putInt("reminder_kind", n.kind);
-            b.addExtras(extras);
-            if (n.planned < n.change) b.setWhen(n.change * 1000).setUsesChronometer(true).setChronometerCountDown(true);
-        }
+        if (reminder) decorateReminder(b, place, n);
         if (n.text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(n.text));
         if (n.until > now) b.setTimeoutAfter((n.until - now) * 1000);
         try {
@@ -202,34 +196,57 @@ final class Sync {
         }
     }
 
+    private static int reminderColour(Logic.Notice n) {
+        if (n.state == Logic.MAYBE) return GOLD;
+        return n.on ? GREEN : RED;
+    }
+
+    private static void decorateReminder(Notification.Builder b, String place, Logic.Notice n) {
+        if (n.change <= 0) return;
+        Bundle extras = new Bundle();
+        extras.putString("reminder_place", place); extras.putLong("reminder_change", n.change);
+        extras.putLong("reminder_planned", n.planned); extras.putInt("reminder_kind", n.kind);
+        b.addExtras(extras);
+        if (n.planned < n.change) b.setWhen(n.change * 1000).setUsesChronometer(true).setChronometerCountDown(true);
+    }
+
     /** Only active reminders are eligible: a dismissed reminder is never reconstructed. */
     private static void reconcile(Context c, String region) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
-        long now = now(); LocalDate base = Logic.today(now).minusDays(1);
         for (android.service.notification.StatusBarNotification posted : nm.getActiveNotifications()) {
-            Bundle extras = posted.getNotification().extras;
-            String id = extras.getString("reminder_place", "");
-            Logic.Place p = Prefs.place(c, id);
-            if (p == null || !p.region.equals(region)) continue;
-            Logic.Data data = Store.data(c, region);
-            String yesterday = Prefs.knownHistory(c, p, data).get(base);
-            String tl = (yesterday == null ? Logic.repeat('2',48) : yesterday) + timeline(c,p,base.plusDays(1));
-            long change = extras.getLong("reminder_change");
-            Logic.Event match = null;
-            for (Logic.Event e : Logic.events(Logic.inNotices(p, Prefs.places(c).size()),tl,base,now,Prefs.alerts(c,id))) {
-                if (e.change == change && e.kind == extras.getInt("reminder_kind")) { match = e; break; }
-            }
-            if (match == null) nm.cancel(posted.getId());
-            else {
-                Logic.Notice note = Logic.eventText(match,tl,base,now);
-                if (!note.title.contentEquals(posted.getNotification().extras.getCharSequence(Notification.EXTRA_TITLE, ""))) {
-                    // Recheck active state immediately before an update, narrowing the dismiss race.
-                    boolean active = false;
-                    for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) if (n.getId()==posted.getId()) active=true;
-                    if (active) show(c, posted.getId(), id, posted.getNotification().getChannelId(),note,true,true);
-                }
-            }
+            reconcileOne(c, region, posted, nm);
         }
+    }
+
+    private static void reconcileOne(Context c, String region, android.service.notification.StatusBarNotification posted, NotificationManager nm) {
+        Bundle extras = posted.getNotification().extras;
+        String id = extras.getString("reminder_place", "");
+        Logic.Place p = Prefs.place(c, id);
+        if (p == null || !p.region.equals(region)) return;
+        long now = now();
+        LocalDate base = Logic.today(now).minusDays(1);
+        Logic.Data data = Store.data(c, region);
+        String yesterday = Prefs.knownHistory(c, p, data).get(base);
+        String tl = (yesterday == null ? Logic.repeat('2',48) : yesterday) + timeline(c,p,base.plusDays(1));
+        Logic.Event match = matchingEvent(c,p,extras,tl,base,now);
+        if (match == null) { nm.cancel(posted.getId()); return; }
+        Logic.Notice note = Logic.eventText(match,tl,base,now);
+        CharSequence previous = extras.getCharSequence(Notification.EXTRA_TITLE, "");
+        if (!note.title.contentEquals(previous) && stillActive(nm,posted.getId())) {
+            show(c, posted.getId(), id, posted.getNotification().getChannelId(),note,true,true);
+        }
+    }
+
+    private static Logic.Event matchingEvent(Context c, Logic.Place p, Bundle extras, String tl, LocalDate base, long now) {
+        for (Logic.Event e : Logic.events(Logic.inNotices(p, Prefs.places(c).size()),tl,base,now,Prefs.alerts(c,p.id))) {
+            if (e.change == extras.getLong("reminder_change") && e.kind == extras.getInt("reminder_kind")) return e;
+        }
+        return null;
+    }
+
+    private static boolean stillActive(NotificationManager nm, int id) {
+        for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) if (n.getId()==id) return true;
+        return false;
     }
 
     /** The title in the colour of its kind, where the phone keeps colours in notifications. */

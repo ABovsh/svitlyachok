@@ -188,9 +188,12 @@ final class WidgetArt {
         float room = w.rowHeight * s + freed;
         header(c, b, m, f, w);
         panes(c, b, m, next, new float[] {pad, top, w.columnWidth * s, room, s});
-        if (tomorrow) tomorrowLine(c, b, m, new float[] {pad, w.tomorrowTop * s, f.w - 2 * pad, w.tomorrowHeight * s});
+        boolean secondBar = tomorrow && !Logic.widgetTomorrowMissing(dayOf(m.tl, 48));
+        if (tomorrow && !secondBar) tomorrowLine(c, b, m, new float[] {pad, w.tomorrowTop * s, f.w - 2 * pad, w.tomorrowHeight * s});
+        float labels = (secondBar ? w.tomorrowBarTop + w.tomorrowBarHeight : w.barTop + w.barHeight) * s + freed;
         b.r2.set(pad, w.barTop * s + freed, f.w - pad, (w.barTop + w.barHeight) * s + freed);
-        bar(c, b, m.base, m.tl, now, b.r2, new float[] {s, w.labelSize * s});
+        bar(c, b, m.base, m.tl, now, b.r2, new float[] {s, w.labelSize * s, labels});
+        if (secondBar) tomorrowBar(c, b, m, new RectF(pad, w.tomorrowBarTop * s, f.w - pad, (w.tomorrowBarTop + w.tomorrowBarHeight) * s), s);
     }
 
     private static String dayOf(String tl, int from) {
@@ -391,24 +394,47 @@ final class WidgetArt {
         BarView.runs(b, tl, 0, 48, 0, bounds, 1.5f * s);
         float at = Math.max(0, Math.min(48f, (float) Logic.index(base, now)));
         float marker = bounds.left + bounds.width() * at / 48f;
-        b.path.reset(); b.path.addRoundRect(bounds, bounds.height()/2, bounds.height()/2, android.graphics.Path.Direction.CW);
-        b.cv.save(); b.cv.clipPath(b.path);
+        b.path.reset();
+        b.path.addRoundRect(bounds, bounds.height() / 2, bounds.height() / 2, android.graphics.Path.Direction.CW);
+        b.cv.save();
+        b.cv.clipPath(b.path);
         b.p.setColor(Ui.fade(b.pal.card, b.pal.dark ? 0.68f : 0.65f));
         b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
-        b.p.setColor(Ui.fade(b.pal.text, .14f)); b.p.setStrokeWidth(Math.max(1, s * .7f));
-        for (int hour = 1; hour < 24; hour++) {
-            float x = bounds.left + bounds.width() * hour / 24;
-            b.cv.drawLine(x, bounds.top, x, bounds.bottom, b.p);
-        }
         b.cv.restore();
+        hourLines(b, bounds, s);
         b.p.setColor(b.pal.text);
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
         Paint lab = text(Ui.bold(c), scale[1], b.pal.muted, Paint.Align.CENTER);
         for (int hour = 0; hour <= 24; hour += 6) {
             lab.setTextAlign(hourAlign(hour));
             b.cv.drawText(String.format(Locale.ROOT, "%02d", hour), bounds.left + bounds.width() * hour/24,
-                    bounds.bottom + scale[1] + 1*s, lab);
+                    scale[2] + scale[1] + 1*s, lab);
         }
+    }
+
+    /** Tomorrow under today, on the same hours; it names itself, since it has no marker of now. */
+    private static void tomorrowBar(Context c, Brush b, Model m, RectF bounds, float s) {
+        BarView.runs(b, m.tl, 48, 48, 0, new RectF(bounds), 1.5f * s);
+        hourLines(b, bounds, s);
+        char first = m.tl.charAt(48);
+        int ink = first == '3' ? b.pal.accentInk : b.pal.ink;
+        if (first == '2') ink = b.pal.muted;
+        Paint p = text(Ui.heavy(c), bounds.height() * .72f, ink, Paint.Align.LEFT);
+        b.cv.drawText("завтра", bounds.left + bounds.height() * .5f, bounds.centerY() - (p.descent() + p.ascent()) / 2f, p);
+    }
+
+    private static void hourLines(Brush b, RectF bounds, float s) {
+        b.path.reset();
+        b.path.addRoundRect(bounds, bounds.height() / 2, bounds.height() / 2, android.graphics.Path.Direction.CW);
+        b.cv.save();
+        b.cv.clipPath(b.path);
+        b.p.setColor(Ui.fade(b.pal.text, .14f));
+        b.p.setStrokeWidth(Math.max(1, s * .7f));
+        for (int hour = 1; hour < 24; hour++) {
+            float x = bounds.left + bounds.width() * hour / 24;
+            b.cv.drawLine(x, bounds.top, x, bounds.bottom, b.p);
+        }
+        b.cv.restore();
     }
 
     private static Paint.Align hourAlign(int hour) {

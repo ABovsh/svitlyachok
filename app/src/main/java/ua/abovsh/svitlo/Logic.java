@@ -455,10 +455,10 @@ public final class Logic {
         return h >= QUIET_FROM_H || h < QUIET_TO_H;
     }
 
-    /** "графік оновлено сьогодні о 07:10", "… вчора о 20:25", "… 27.10 о 07:10" */
+    /** "графік опубліковано сьогодні о 07:10", "… вчора о 20:25", "… 27.10 о 07:10" */
     public static String updated(long updated, long now) {
         if (updated <= 0) return "";
-        return "графік оновлено " + dayWord(updated, now) + " о " + hm(updated);
+        return "графік опубліковано " + dayWord(updated, now) + " о " + hm(updated);
     }
 
     private static String dayWord(long t, long now) {
@@ -1364,6 +1364,8 @@ public final class Logic {
         public float labelSize;
         public float tomorrowHeight;
         public float tomorrowTop;
+        public float tomorrowBarTop;
+        public float tomorrowBarHeight;
     }
 
     private static final float CAP = .74f;  // the height of a capital against the font size
@@ -1445,6 +1447,8 @@ public final class Logic {
         w.tomorrowHeight = height >= 135 && width >= 250 ? Math.min(20, height * .11f) : 0;
         w.tomorrowTop = height - w.pad - w.tomorrowHeight;
         w.barTop = w.tomorrowTop - w.labelHeight - w.barHeight;
+        w.tomorrowBarTop = w.barTop + w.barHeight + 2;
+        w.tomorrowBarHeight = w.tomorrowHeight - 2;
         w.rowTop = w.pad + (titled ? w.headerSize * 1.45f : 0);
         w.rowHeight = w.barTop - 2 - w.rowTop;
         return w;
@@ -1468,6 +1472,16 @@ public final class Logic {
     }
 
     /** Hours inside a run of the bar, digits only: "3,5", "4". */
+    /** Where the hours of a window stand, in slots: the middle of all of it, so they read as its whole length. */
+    public static float barHoursCentre(int from, int to) {
+        return (from + to) / 2f;
+    }
+
+    /** Whether the now marker reaches the number; `half` is half the number's width in slots. */
+    public static boolean barHoursCoverNow(int from, int to, float now, float half) {
+        return now >= 0 && Math.abs(now - barHoursCentre(from, to)) < half;
+    }
+
     public static String barHours(int halves) {
         return halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5";
     }

@@ -116,7 +116,7 @@ public class SetupActivity extends Base {
         page.addView(primary(first ? "Почати" : "Зберегти", v -> save()), bl);
 
         if (edit != null && Prefs.places(this).size() > 1) {
-            TextView del = Ui.text(this, 15, Ui.heavy(this), pal.muted);
+            TextView del = Ui.text(this, 15, Ui.heavy(this), pal.offText);
             del.setText("Видалити це місце");
             del.setGravity(Gravity.CENTER);
             del.setMinHeight(Ui.dp(this, 52));

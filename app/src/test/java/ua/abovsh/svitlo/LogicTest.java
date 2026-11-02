@@ -101,9 +101,9 @@ public class LogicTest {
     @Test
     public void updateTimeIsKyivTime() throws Exception {
         assertEquals(1793298300L, data(TODAY_ONLY).updated);
-        assertEquals("графік оновлено вчора о 20:25", Logic.updated(1793298300L, at(9, 0)));
-        assertEquals("графік оновлено сьогодні о 07:10", Logic.updated(at(7, 10), at(9, 0)));
-        assertEquals("графік оновлено 27.10 о 07:10", Logic.updated(at(7, 10) - 3 * 86400, at(9, 0)));
+        assertEquals("графік опубліковано вчора о 20:25", Logic.updated(1793298300L, at(9, 0)));
+        assertEquals("графік опубліковано сьогодні о 07:10", Logic.updated(at(7, 10), at(9, 0)));
+        assertEquals("графік опубліковано 27.10 о 07:10", Logic.updated(at(7, 10) - 3 * 86400, at(9, 0)));
     }
 
     @Test
@@ -403,7 +403,7 @@ public class LogicTest {
             assertEquals("14:30", Logic.hm(at(14, 30)));
             assertEquals("1 год 05 хв", Logic.waitText(3900));
             assertEquals("06:00 – 08:00", Logic.outages(DAY_11, -1).get(0).label);
-            assertEquals("графік оновлено 27.10 о 07:10", Logic.updated(at(7, 10) - 3 * 86400, at(9, 0)));
+            assertEquals("графік опубліковано 27.10 о 07:10", Logic.updated(at(7, 10) - 3 * 86400, at(9, 0)));
         } finally {
             java.util.Locale.setDefault(was);
         }
@@ -1159,6 +1159,27 @@ public class LogicTest {
         assertTrue(Logic.widgetTomorrowMissing(repeat('2', 48)));
         assertFalse(Logic.widgetTomorrowMissing(repeat('1', 48)));
         assertFalse(Logic.widgetTomorrowMissing(repeat('1', 24) + repeat('2', 24)));
+    }
+
+    @Test
+    public void hoursOfAWindowStandInTheMiddleOfTheWholeWindow() {
+        // the number is the length of all of it, wherever now is
+        assertEquals(24f, Logic.barHoursCentre(0, 48), 0f);
+        assertEquals(15f, Logic.barHoursCentre(10, 20), 0f);
+        // the marker passes behind the number only when it reaches it (half a slot each side here)
+        assertTrue(Logic.barHoursCoverNow(10, 20, 15.2f, .5f));
+        assertFalse(Logic.barHoursCoverNow(10, 20, 16f, .5f));
+        assertFalse(Logic.barHoursCoverNow(10, 20, -1f, .5f));
+    }
+
+    @Test
+    public void tomorrowGetsItsBarAsSoonAsItsScheduleExists() {
+        Logic.WidgetLayout w = Logic.widgetLayout(300, 176, true);
+        // the second bar takes the place of the line about tomorrow, the hours stay at the bottom
+        assertEquals(w.barTop + w.barHeight + 2, w.tomorrowBarTop, .01f);
+        assertEquals(w.tomorrowHeight - 2, w.tomorrowBarHeight, .01f);
+        assertTrue(w.tomorrowBarHeight >= 12);
+        assertEquals(176 - w.pad - w.labelHeight, w.tomorrowBarTop + w.tomorrowBarHeight, .01f);
     }
 
     @Test

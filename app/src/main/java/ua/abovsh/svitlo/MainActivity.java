@@ -526,7 +526,7 @@ public class MainActivity extends Base {
         if (d == null || (d.sourceOk && checked > 0 && now - checked <= Logic.STALE_S)) return null;
         TextView t = Ui.text(this, 14, Ui.bold(this), pal.text);
         t.setText("Немає зв'язку з джерелом графіка. Показано дані, перевірені "
-                + Logic.updated(checked, now).replace("графік оновлено ", "") + ".");
+                + Logic.updated(checked, now).replace("графік опубліковано ", "") + ".");
         t.setLineSpacing(0, 1.1f);
         t.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
         t.setBackground(Ui.outline(pal.maybeText, Ui.px(this, 22), Ui.dp(this, 1)));

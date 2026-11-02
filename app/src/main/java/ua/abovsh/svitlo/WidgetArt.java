@@ -439,7 +439,7 @@ final class WidgetArt {
         b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
         b.cv.restore();
         hourLines(b, bounds, s);
-        b.p.setColor(b.pal.marker);
+        b.p.setColor(Ui.Pal.MARKER);
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
         Paint lab = text(Ui.bold(c), scale[1], b.pal.muted, Paint.Align.CENTER);
         for (int hour = 0; hour <= 24; hour += 6) {

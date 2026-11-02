@@ -44,7 +44,7 @@ final class Ui {
         /** How much of the card covers the past on a bar; white hours must still read through it. */
         final float veil;
         /** The stroke at now, one colour that reads on both themes and on every state. */
-        final int marker = 0xFFFF8A00;
+        static final int MARKER = 0xFFFF8A00;
 
         Pal(boolean dark) {
             this.dark = dark;

@@ -155,7 +155,7 @@ final class Share {
                 b.p.setColor(pal.card);
                 b.r.set(x - 2.5f * S, bar.top - 3 * S, x + 2.5f * S, bar.bottom + 3 * S);
                 b.cv.drawRoundRect(b.r, 2.5f * S, 2.5f * S, b.p);
-                b.p.setColor(pal.marker);
+                b.p.setColor(Ui.Pal.MARKER);
                 b.r.set(x - 1.2f * S, bar.top - 2 * S, x + 1.2f * S, bar.bottom + 2 * S);
                 b.cv.drawRoundRect(b.r, 1.2f * S, 1.2f * S, b.p);
             }

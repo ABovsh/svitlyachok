@@ -134,7 +134,7 @@ final class BarView extends View {
         p.setColor(pal.card);
         mark.set(x - rr - 1, top - out, x + rr + 1, top + barH + out);
         cv.drawRoundRect(mark, rr, rr, p);
-        p.setColor(pal.marker);
+        p.setColor(Ui.Pal.MARKER);
         mark.set(x - rr, top - out, x + rr, top + barH + out);
         cv.drawRoundRect(mark, rr, rr, p);
         cv.drawCircle(x, top - out, Ui.px(c, 5), p);

@@ -348,7 +348,7 @@ public class MainActivity extends Base {
                 if (i > 0) rl.topMargin = Ui.dp(this, 6);
                 grid.addView(row, rl);
             }
-            LinearLayout.LayoutParams tl = weight();
+            LinearLayout.LayoutParams tl = columns == 2 ? new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f) : weight();  // one height in a row
             if (i % columns != 0) tl.leftMargin = Ui.dp(this, 6);
             row.addView(tile(places.get(i), places.get(i).id.equals(chosen.id), base, now), tl);
         }
@@ -480,14 +480,23 @@ public class MainActivity extends Base {
 
     private View actions(Logic.Place p) {
         LinearLayout row = stacked() ? Ui.column(this) : Ui.row(this);
-        TextView alerts = action("Нагадування", R.drawable.ic_bell, v -> AlertsSheet.show(this, p, this::render));
-        alerts.setContentDescription("Нагадування, " + p.name + ": " + Logic.alertsSummary(Prefs.alerts(this, p.id)));
+        Logic.Alerts wanted = Prefs.alerts(this, p.id);
+        TextView alerts = action(Logic.alertsLabel(wanted), wanted.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off, v -> AlertsSheet.show(this, p, this::render));
+        if (!wanted.any()) quiet(alerts);
+        alerts.setContentDescription("Нагадування, " + p.name + ": " + Logic.alertsSummary(wanted));
         TextView stats = action("Статистика", R.drawable.ic_stats, v -> startActivity(new Intent(this, StatsActivity.class)));
         row.addView(alerts, stacked() ? fill() : weight());
         LinearLayout.LayoutParams lp = stacked() ? fill() : weight();
         if (stacked()) lp.topMargin = Ui.dp(this, 6); else lp.leftMargin = Ui.dp(this, 6);
         row.addView(stats, lp);
         return row;
+    }
+
+    /** A button for something switched off: its words and icon step back. */
+    private void quiet(TextView button) {
+        button.setTextColor(pal.muted);
+        android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
+        if (image != null) image.setTint(pal.muted);
     }
 
     private View blockedReminders(Logic.Place p) {

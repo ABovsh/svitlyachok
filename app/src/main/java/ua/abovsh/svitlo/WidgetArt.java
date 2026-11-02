@@ -3,8 +3,10 @@ package ua.abovsh.svitlo;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import java.time.LocalDate;
 import java.util.List;
@@ -111,12 +113,17 @@ final class WidgetArt {
         Frame f = new Frame(Math.round(wDp * s), Math.round(hDp * s), s, Math.max(8f, Math.min(14f, hDp * 0.14f)) * s);
         Bitmap bm = Bitmap.createBitmap(f.w, f.h, Bitmap.Config.ARGB_8888);
         boolean live = m != null && !m.gone;
-        int fill = live ? pal.soft(m.now.state) : pal.card;
-        Brush b = new Brush(pal, fill).on(new Canvas(bm));
+        boolean full = Logic.widgetForm(wDp, hDp) == Logic.W_FULL;
+        int left = live ? pal.soft(m.now.state) : pal.card;
+        int right = live ? pal.soft(Logic.widgetRightState(m.now, future(m)[1])) : pal.card;
+        float centre = full ? .5f : (Logic.widgetBulbSegment(wDp) + 3.5f) / wDp;
+        Brush b = new Brush(pal, Logic.widgetGlow(left, right, pal.card, centre, full ? .06f : centre * .5f)).on(new Canvas(bm));
         float r = Math.min(24 * s, f.h / 2.6f);
-        b.p.setColor(fill);  // one fill for the small and the large widget, as on the cards of the app
+        b.p.setShader(glow(f.w, left, right, pal.card, centre));
+        b.p.setDither(true);
         b.r.set(0f, 0f, (float) f.w, (float) f.h);
         b.cv.drawRoundRect(b.r, r, r, b.p);
+        b.p.setShader(null);
         if (m == null) {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);
             String msg = "Оберіть чергу в Світлячку";
@@ -129,9 +136,21 @@ final class WidgetArt {
             b.cv.drawText(a, f.w / 2f, f.h / 2f - 2 * s, fit(t, a, f.w - 2 * f.pad));
             b.cv.drawText(hint, f.w / 2f, f.h / 2f + 14 * s, fit(u, hint, f.w - 2 * f.pad));
         } else {
-            one(c, b, m, now, f, Logic.widgetForm(wDp, hDp) == Logic.W_FULL);
+            one(c, b, m, now, f, full);
         }
         return bm;
+    }
+
+    /** What is now glows from the left edge, what comes next from the right, the card between them. */
+    private static Shader glow(int width, int left, int right, int middle, float centre) {
+        int stops = 17;
+        int[] colours = new int[stops];
+        float[] at = new float[stops];
+        for (int i = 0; i < stops; i++) {
+            at[i] = i / (stops - 1f);
+            colours[i] = Logic.widgetGlow(left, right, middle, centre, at[i]);
+        }
+        return new LinearGradient(0, 0, width, 0, colours, at, Shader.TileMode.CLAMP);
     }
 
     /** Two segments, as the large widget has: on the left what is now, on the right the place and what comes next. */
@@ -145,17 +164,6 @@ final class WidgetArt {
         float left = Logic.widgetBulbSegment(Math.round(f.w / s)) * s;
         String[] next = future(m);
 
-        float wordSize = Math.max(10 * s, Math.min(14 * s, rowH * .19f));
-        Paint word = text(Ui.heavy(c), wordSize, pal.status(n.state), Paint.Align.CENTER);
-        String state = Panes.compactTitle(n.state);
-        fit(word, state, left - 6 * s);
-        float base = f.h - pad;
-        float bulb = Math.min(left * .8f, rowH - wordSize * 1.1f);
-        BulbView.plain(b, n.state, left / 2 + 2 * s, pad + (rowH - wordSize) / 2, bulb);
-        b.cv.drawText(state, left / 2 + 2 * s, base, word);
-        b.p.setColor(Ui.fade(pal.text, .18f));
-        b.cv.drawRect(left + 3 * s, pad, left + 4 * s, f.h - pad, b.p);
-
         float tx = left + 11 * s;
         float tw = f.w - tx - pad * .8f;
         boolean clock = next[1].contains(":");
@@ -168,10 +176,26 @@ final class WidgetArt {
         Paint event = fit(text(Ui.heavy(c), sized[1], n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next), Paint.Align.LEFT), next[0], tw);
         float block = Logic.widgetRowBlock(sized);
         float y = (f.h - block) / 2f;
+        smallNow(c, b, n.state, new float[] {left, y, y + block, sized[1], s});
         capLine(b, widgetName(m), tx, y, name);
-        y += .74f * sized[0] + sized[3];
-        capLine(b, next[0], tx, y, event);
-        b.cv.drawText(next[1], tx, (f.h + block) / 2f, value);
+        float eventTop = clock ? .74f * sized[0] + sized[3]
+                : Logic.widgetEventTop(block, name.getTextSize(), event.getTextSize(), value.getTextSize());
+        capLine(b, next[0], tx, y + eventTop, event);
+        b.cv.drawText(next[1], tx, y + block, value);
+    }
+
+    /** box: segment width, top and bottom of the lines beside it, size of the event, scale. The word stands on the clock's line. */
+    private static void smallNow(Context c, Brush b, int state, float[] box) {
+        float s = box[4];
+        float left = box[0];
+        float centre = left / 2 + 2.5f * s;
+        String words = Panes.compactTitle(state);
+        Paint word = fit(text(Ui.heavy(c), box[3] * .92f, b.pal.status(state), Paint.Align.CENTER), words, left - 11 * s);
+        float room = box[2] - .74f * word.getTextSize() - box[1] - 5 * s;
+        BulbView.plain(b, state, centre, box[1] + room / 2, Math.min(room / .66f, left * .92f));
+        b.cv.drawText(words, centre, box[2], word);
+        b.p.setColor(Ui.fade(b.pal.text, .18f));
+        b.cv.drawRect(left + 3 * s, box[1], left + 4 * s, box[2], b.p);
     }
 
     /** What comes next, for both forms of the widget: a day of no schedule names the last one it knows. */

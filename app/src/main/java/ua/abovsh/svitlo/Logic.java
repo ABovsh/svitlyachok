@@ -43,6 +43,9 @@ public final class Logic {
     public static final int QUIET_FROM_H = 23;
     public static final int QUIET_TO_H = 7;
     static final String NO_OUTAGES = "без вимкнень";
+    private static final String NO_OUTAGES_WIDGET = "Без вимкнень";
+    private static final String NO_CHANGE = "Без змін";
+    private static final String TO_DAY_END = "до кінця дня";
     static final String NOT_PUBLISHED = "ще не опубліковано";
     static final String NO_SCHEDULE = "Графіка немає";
 
@@ -605,7 +608,7 @@ public final class Logic {
             n.big = "до " + until(n.knownUntil,now);
             n.hint = "Далі графіка немає";
         } else if (j < tl.length()) {
-            n.big = "до кінця дня";
+            n.big = TO_DAY_END;
             n.hint = "Графік на завтра ще не опубліковано";
         } else if (c == '1') {
             n.big = NO_OUTAGES;
@@ -1525,6 +1528,49 @@ public final class Logic {
         return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
     }
 
+    /** Whether now stands in this run: its number reads as the window that is going on. */
+    public static boolean barHoursActive(int from, int to, float now) {
+        return now >= from && now < to;
+    }
+
+    /** The button of a place, which says so when nothing will be sent for it. */
+    public static String alertsLabel(Alerts a) {
+        return a.any() ? "Нагадування" : "Без нагадувань";
+    }
+
+    /** The widget's fill at t across it: each state glows from its edge, the card between them. */
+    public static int widgetGlow(int left, int right, int middle, float centre, float t) {
+        if (left == right) return left;
+        if (t < centre) return mixColour(left, middle, smooth(t / centre) * .9f);
+        return mixColour(middle, right, .1f + .9f * smooth((t - centre) / (1 - centre)));
+    }
+
+    private static float smooth(float t) {
+        float v = Math.max(0f, Math.min(1f, t));
+        return v * v * (3 - 2 * v);
+    }
+
+    private static int mixColour(int a, int b, float t) {
+        int out = 0xFF000000;
+        for (int shift = 0; shift <= 16; shift += 8) {
+            int from = (a >> shift) & 0xFF;
+            int to = (b >> shift) & 0xFF;
+            out |= Math.round(from + (to - from) * t) << shift;
+        }
+        return out;
+    }
+
+    /** The state the right of a widget is coloured by: what comes next; when nothing changes, the state itself. */
+    public static int widgetRightState(Now n, String value) {
+        if (n.next != UNKNOWN) return n.next;
+        return value.equals(NO_OUTAGES_WIDGET) || value.equals(NO_CHANGE) ? n.state : UNKNOWN;
+    }
+
+    /** Where the capitals of the event start when words stand in place of a clock: the lines at equal distances. */
+    public static float widgetEventTop(float block, float name, float event, float value) {
+        return CAP * name + (block - CAP * (name + event + value)) / 2;
+    }
+
     /** Where the hours of a window stand, in slots: the middle of all of it, so they read as its whole length. */
     public static float barHoursCentre(int from, int to) {
         return (from + to) / 2f;
@@ -1618,9 +1664,9 @@ public final class Logic {
 
     /** Compact tiles keep a literal state; an unpublished day is never treated as power. */
     public static String tileLine(Now n) {
-        if (n.big.startsWith("до ") && n.state == ON) return "Є " + n.big;
-        if (n.big.startsWith("до ") && n.state == OFF) return "Немає " + n.big;
-        return n.title;
+        if (!n.big.startsWith("до ") || (n.state != ON && n.state != OFF)) return n.title;
+        String until = n.big.equals(TO_DAY_END) ? "до " + MIDNIGHT : n.big.replace("до завтра ", "до ");
+        return (n.state == ON ? "Є " : "Немає ") + until;
     }
 
     /** The state card for a screen reader, without pauses for the parts it does not have. */
@@ -1672,8 +1718,8 @@ public final class Logic {
         if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), NO_SCHEDULE, ""};
         if (n.state == UNKNOWN) return new String[] {"Далі", NO_SCHEDULE, ""};
         if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {"Завтра", "Графіка ще немає", ""};
-        if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", "Без вимкнень", ""};
-        return new String[] {"Далі", "Без змін", "до кінця графіка"};
+        if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", NO_OUTAGES_WIDGET, ""};
+        return new String[] {"Далі", NO_CHANGE, "до кінця графіка"};
     }
 
     static int statValue(DayStat d, int state) {

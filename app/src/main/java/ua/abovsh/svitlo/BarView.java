@@ -22,6 +22,8 @@ final class BarView extends View {
     private final int knob;
     private final int labelH;
     private final RectF box = new RectF();
+    private static final float PATCH_ALPHA = .86f;
+
     private final RectF mark = new RectF();
     private final Path clip = new Path();
     private String slots;
@@ -146,20 +148,28 @@ final class BarView extends View {
         float tw = hours.measureText(t) + room;
         if ((j - i) * sw < tw) return;
         float centre = Logic.barHoursCentre(i, j);
-        boolean past = nowRel >= 0 && centre < nowRel;
+        boolean veiled = nowRel >= 0 && centre < nowRel;
         char ch = at(slots, i);
         float x = centre * sw;
         if (Logic.barHoursCoverNow(i, j, nowRel, tw / 2f / sw)) {
             int fill = Ui.blend(pal.card, Ui.fade(pal.fill(Logic.state(ch)), 0.96f));
-            if (past) fill = Ui.blend(fill, Ui.fade(pal.card, pal.dark ? 0.68f : 0.65f));
-            p.setColor(fill);
-            mark.set(x - tw / 2f, top + Ui.px(getContext(), 4), x + tw / 2f, top + barH - Ui.px(getContext(), 4));
-            cv.drawRoundRect(mark, Ui.px(getContext(), 6), Ui.px(getContext(), 6), p);
+            if (veiled) fill = Ui.blend(fill, Ui.fade(pal.card, pal.dark ? 0.68f : 0.65f));
+            p.setColor(Ui.fade(fill, PATCH_ALPHA));  // the marker only just shows through
+            float half = hours.getTextSize() * .37f + Ui.px(getContext(), 3);
+            float middle = top + barH / 2f;
+            mark.set(x - tw / 2f, middle - half, x + tw / 2f, middle + half);
+            cv.drawRoundRect(mark, Ui.px(getContext(), 5), Ui.px(getContext(), 5), p);
         }
-        int ink = ch == '3' ? pal.accentInk : 0xFFFFFFFF;
-        hours.setColor(past ? pal.muted : ink);
+        hours.setColor(hoursInk(ch, veiled, Logic.barHoursActive(i, j, nowRel)));
         float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;
         cv.drawText(t, x, base, hours);
+    }
+
+    /** A window that is over stays quiet; the one going on reads as strongly as those to come. */
+    private int hoursInk(char ch, boolean veiled, boolean active) {
+        if (veiled && !active) return pal.muted;
+        if (ch == '3') return pal.accentInk;
+        return veiled && !pal.dark ? pal.text : 0xFFFFFFFF;  // white on a veil of the light theme would not read
     }
 
     /** The clock times of the changes under the bar, each with a short tick at its exact place. */

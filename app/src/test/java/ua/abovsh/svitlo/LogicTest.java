@@ -1477,4 +1477,69 @@ public class LogicTest {
         assertEquals(day.atTime(4,0).atZone(Logic.KYIV).toEpochSecond(),Logic.events(home(),tl,day,now,a).get(0).change);
         assertEquals("до 04:00",Logic.now(tl,day,now,false).big);
     }
+
+    @Test
+    public void tileLineKeepsOneShortForm() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.OFF;
+        n.title = "Світла немає";
+        n.big = "до кінця дня";
+        assertEquals("Немає до 24:00", Logic.tileLine(n));
+        n.big = "до завтра 08:00";
+        assertEquals("Немає до 08:00", Logic.tileLine(n));
+        n.state = Logic.ON;
+        n.big = "до завтра 06:30";
+        assertEquals("Є до 06:30", Logic.tileLine(n));
+    }
+
+    @Test
+    public void numberOfTheRunUnderNowIsActive() {
+        assertTrue(Logic.barHoursActive(10, 20, 10f));
+        assertTrue(Logic.barHoursActive(10, 20, 19.5f));
+        assertFalse(Logic.barHoursActive(10, 20, 20f));
+        assertFalse(Logic.barHoursActive(10, 20, 9.5f));
+        assertFalse(Logic.barHoursActive(10, 20, -1f));
+    }
+
+    @Test
+    public void alertsLabelSaysWhenThePlaceHasNone() {
+        Logic.Alerts a = new Logic.Alerts();
+        assertEquals("Нагадування", Logic.alertsLabel(a));
+        a.off = false;
+        a.on = false;
+        assertEquals("Без нагадувань", Logic.alertsLabel(a));
+        a.tomorrow = true;
+        assertEquals("Нагадування", Logic.alertsLabel(a));
+    }
+
+    @Test
+    public void widgetGlowsFromEachEdge() {
+        int red = 0xFF4B2B37;
+        int green = 0xFF1A4334;
+        int card = 0xFF172428;
+        assertEquals(red, Logic.widgetGlow(red, green, card, .33f, 0f));
+        assertEquals(green, Logic.widgetGlow(red, green, card, .33f, 1f));
+        assertEquals(red, Logic.widgetGlow(red, red, card, .33f, .33f));  // one state: one colour
+        int middle = Logic.widgetGlow(red, green, card, .33f, .33f);
+        int gap = Math.abs(((middle >> 16) & 0xFF) - 0x17);
+        assertTrue("the middle stays near the card: " + gap, gap < 8);
+    }
+
+    @Test
+    public void rightOfTheWidgetShowsWhatComesNext() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.ON;
+        n.next = Logic.OFF;
+        assertEquals(Logic.OFF, Logic.widgetRightState(n, "16:00"));
+        n.next = Logic.UNKNOWN;
+        assertEquals(Logic.ON, Logic.widgetRightState(n, "Без вимкнень"));
+        assertEquals(Logic.ON, Logic.widgetRightState(n, "Без змін"));
+        assertEquals(Logic.UNKNOWN, Logic.widgetRightState(n, "Графіка ще немає"));
+    }
+
+    @Test
+    public void wordsInsteadOfAClockStandAtEqualDistances() {
+        // caps .74: name 20, event 10, value 20 in a block of 67: 30 free, half of it above the event
+        assertEquals(29.8f, Logic.widgetEventTop(67f, 20f, 10f, 20f), .01f);
+    }
 }

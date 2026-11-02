@@ -69,7 +69,7 @@ final class AlertsSheet {
         col.addView(grip, gl);
 
         TextView title = Ui.text(a, 19, Ui.display(a), a.pal.text);
-        title.setText("Нагадування · " + place.name);
+        title.setText("Сповіщення · " + place.name);
         title.setPadding(Ui.dp(a, 6), 0, Ui.dp(a, 6), 0);
         col.addView(title, Base.fill());
         TextView where = Ui.text(a, 13, Ui.body(a), a.pal.muted);

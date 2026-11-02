@@ -138,7 +138,7 @@ final class Share {
             return y;
         }
 
-        /** The day's bar with the hours under it and, for today, a white stroke at now. */
+        /** The day's bar with the hours under it and, for today, a stroke at now. */
         private float bar(String slots, float nowRel, float top) {
             RectF bar = new RectF(left, top, right, top + 14 * S);
             BarView.runs(b, slots, 0, 48, 0, bar, 2 * S);
@@ -155,7 +155,7 @@ final class Share {
                 b.p.setColor(pal.card);
                 b.r.set(x - 2.5f * S, bar.top - 3 * S, x + 2.5f * S, bar.bottom + 3 * S);
                 b.cv.drawRoundRect(b.r, 2.5f * S, 2.5f * S, b.p);
-                b.p.setColor(pal.text);
+                b.p.setColor(pal.marker);
                 b.r.set(x - 1.2f * S, bar.top - 2 * S, x + 1.2f * S, bar.bottom + 2 * S);
                 b.cv.drawRoundRect(b.r, 1.2f * S, 1.2f * S, b.p);
             }

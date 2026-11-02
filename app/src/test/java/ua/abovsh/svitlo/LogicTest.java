@@ -886,10 +886,10 @@ public class LogicTest {
         assertEquals(15 * 60L, Logic.soonS(a, Logic.OFF));
         assertEquals(15 * 60L, Logic.soonS(a, Logic.MAYBE));
         assertEquals(10 * 60L, Logic.soonS(a, Logic.ON));
-        a.on = false;  // no reminder: the usual half an hour
-        assertEquals(Logic.SOON_S, Logic.soonS(a, Logic.ON));
-        a.leadOff = 0;  // a reminder at the very moment: still the usual half an hour ahead
-        assertEquals(Logic.SOON_S, Logic.soonS(a, Logic.OFF));
+        a.on = false;  // no notification: a quarter of an hour, so the screen still warns
+        assertEquals(15 * 60L, Logic.soonS(a, Logic.ON));
+        a.leadOff = 0;  // a notification at the very moment: the same quarter of an hour ahead
+        assertEquals(15 * 60L, Logic.soonS(a, Logic.OFF));
     }
 
     @Test
@@ -1175,10 +1175,6 @@ public class LogicTest {
         // the number is the length of all of it, wherever now is
         assertEquals(24f, Logic.barHoursCentre(0, 48), 0f);
         assertEquals(15f, Logic.barHoursCentre(10, 20), 0f);
-        // the marker passes behind the number only when it reaches it (half a slot each side here)
-        assertTrue(Logic.barHoursCoverNow(10, 20, 15.2f, .5f));
-        assertFalse(Logic.barHoursCoverNow(10, 20, 16f, .5f));
-        assertFalse(Logic.barHoursCoverNow(10, 20, -1f, .5f));
     }
 
     @Test
@@ -1504,12 +1500,12 @@ public class LogicTest {
     @Test
     public void alertsLabelSaysWhenThePlaceHasNone() {
         Logic.Alerts a = new Logic.Alerts();
-        assertEquals("Нагадування", Logic.alertsLabel(a));
+        assertEquals("Сповіщення", Logic.alertsLabel(a));
         a.off = false;
         a.on = false;
-        assertEquals("Без нагадувань", Logic.alertsLabel(a));
+        assertEquals("Без сповіщень", Logic.alertsLabel(a));
         a.tomorrow = true;
-        assertEquals("Нагадування", Logic.alertsLabel(a));
+        assertEquals("Сповіщення", Logic.alertsLabel(a));
     }
 
     @Test
@@ -1554,5 +1550,95 @@ public class LogicTest {
         assertEquals("https://bezsvitla.com.ua/kyiv#street-search-widget", kyiv.dso);
         assertEquals("Не знаєте свою чергу? Знайдіть її за адресою на сайті «Без світла» ›", Logic.queueHelp(kyiv));
         assertEquals("Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›", Logic.queueHelp(other));
+    }
+
+    private static Logic.Place place(String id, String name, String region, String group) {
+        Logic.Place p = new Logic.Place();
+        p.id = id;
+        p.name = name;
+        p.region = region;
+        p.group = group;
+        return p;
+    }
+
+    @Test
+    public void aQueueOfARegionCanBeAddedOnlyOnce() {
+        Logic.Place home = place("a", "Дім", "kyiv_region", "GPV3.1");
+        List<Logic.Place> places = Arrays.asList(home, place("b", "Дача", "kyiv", "GPV3.1"));
+        assertEquals(home, Logic.duplicateOf(places, place("n", "Дім", "kyiv_region", "GPV3.1"), null));
+        assertEquals(home, Logic.duplicateOf(places, place("n", "Батьки", "kyiv_region", "GPV3.1"), null));
+        assertNull(Logic.duplicateOf(places, place("n", "Батьки", "kyiv_region", "GPV3.2"), null));
+        assertNull(Logic.duplicateOf(places, place("n", "Батьки", "odesa", "GPV3.1"), null));
+    }
+
+    @Test
+    public void editingAPlaceIsNotADuplicateOfItself() {
+        Logic.Place home = place("a", "Дім", "kyiv_region", "GPV3.1");
+        Logic.Place other = place("b", "Дача", "kyiv_region", "GPV1.1");
+        List<Logic.Place> places = Arrays.asList(home, other);
+        assertNull(Logic.duplicateOf(places, place("a", "Хата", "kyiv_region", "GPV3.1"), home));
+        assertEquals(home, Logic.duplicateOf(places, place("b", "Дача", "kyiv_region", "GPV3.1"), other));
+    }
+
+    @Test
+    public void aDuplicateSavedByAnOlderVersionCanStillBeRenamed() {
+        Logic.Place home = place("a", "Дім", "kyiv_region", "GPV3.1");
+        Logic.Place twin = place("b", "Дім", "kyiv_region", "GPV3.1");
+        assertNull(Logic.duplicateOf(Arrays.asList(home, twin), place("b", "Батьки", "kyiv_region", "GPV3.1"), twin));
+    }
+
+    @Test
+    public void theDuplicateMessageNamesThePlaceAlreadyAdded() {
+        assertEquals("Черга 3.1, Київська область, уже додана як «Дім».",
+                Logic.duplicateMessage(place("a", "Дім", "kyiv_region", "GPV3.1")));
+    }
+
+    @Test
+    public void outageWindowsStandInUpToThreeEqualColumns() {
+        assertEquals(3, Logic.windowColumns(306, 92, 6));
+        assertEquals(3, Logic.windowColumns(1000, 92, 6));
+        assertEquals(3, Logic.windowColumns(288, 92, 6));   // exactly three and two gaps
+        assertEquals(2, Logic.windowColumns(287, 92, 6));
+        assertEquals(1, Logic.windowColumns(189, 92, 6));
+        assertEquals(1, Logic.windowColumns(40, 92, 6));    // never none
+    }
+
+    @Test
+    public void statLineGivesShareAndHoursOnEqualTerms() {
+        assertEquals("69% · 16,5 год", Logic.statLine(69, 16 * 60 + 40));
+        assertEquals("31% · 7,5 год", Logic.statLine(31, 7 * 60 + 20));
+        assertEquals("100% · 24 год", Logic.statLine(100, 24 * 60));
+        assertEquals("0% · 0 год", Logic.statLine(0, 0));
+    }
+
+    @Test
+    public void statLineRoundsToTheHalfHourTheScheduleIsMadeOf() {
+        assertEquals("50% · 12 год", Logic.statLine(50, 12 * 60 + 14));
+        assertEquals("50% · 12,5 год", Logic.statLine(50, 12 * 60 + 15));
+        assertEquals("50% · 12,5 год", Logic.statLine(50, 12 * 60 + 44));
+        assertEquals("50% · 13 год", Logic.statLine(50, 12 * 60 + 45));
+    }
+
+    @Test
+    public void statLineSaysSoWithoutData() {
+        assertEquals("—", Logic.statLine(-1, -1));
+        assertEquals("—", Logic.statLine(50, -1));
+        assertEquals("—", Logic.statLine(-1, 60));
+    }
+
+    @Test
+    public void hoursOnTheBarAreWhiteExceptWhereWhiteCannotRead() {
+        // the light theme: white on every power and outage section, past or not
+        assertEquals(Logic.INK_WHITE, Logic.barHoursInk('1', true, false, false));
+        assertEquals(Logic.INK_WHITE, Logic.barHoursInk('0', true, true, false));
+        assertEquals(Logic.INK_WHITE, Logic.barHoursInk('0', false, false, false));
+        // the dark theme: a window that is over stays quiet, the one going on is white
+        assertEquals(Logic.INK_QUIET, Logic.barHoursInk('1', true, false, true));
+        assertEquals(Logic.INK_WHITE, Logic.barHoursInk('1', true, true, true));
+        assertEquals(Logic.INK_WHITE, Logic.barHoursInk('0', false, false, true));
+        // a possible outage is pale amber: white would not read on it
+        assertEquals(Logic.INK_DARK, Logic.barHoursInk('3', false, false, true));
+        assertEquals(Logic.INK_DARK, Logic.barHoursInk('3', true, false, false));
+        assertEquals(Logic.INK_QUIET, Logic.barHoursInk('3', true, false, true));
     }
 }

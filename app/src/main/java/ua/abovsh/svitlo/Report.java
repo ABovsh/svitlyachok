@@ -31,10 +31,10 @@ final class Report {
         android.content.SharedPreferences timing=c.getSharedPreferences("prefs",Context.MODE_PRIVATE);
         long planned=timing.getLong("reminder_planned",0);
         long actual=timing.getLong("reminder_actual",0);
-        String moments=planned>0 ? "\nПлановий час нагадування: "+java.time.Instant.ofEpochSecond(planned)
-                +"\nФактичний час нагадування: "+java.time.Instant.ofEpochSecond(actual) : "";
-        return Logic.reportText(r) + moments + "\nТочні нагадування: " + (Build.VERSION.SDK_INT<31 || am.canScheduleExactAlarms() ? "доступні" : "недоступні")
-                + "\nОстання затримка нагадування: " + c.getSharedPreferences("prefs",Context.MODE_PRIVATE).getInt("reminder_delay",0) + " с";
+        String moments=planned>0 ? "\nПлановий час сповіщення: "+java.time.Instant.ofEpochSecond(planned)
+                +"\nФактичний час сповіщення: "+java.time.Instant.ofEpochSecond(actual) : "";
+        return Logic.reportText(r) + moments + "\nТочні сповіщення: " + (Build.VERSION.SDK_INT<31 || am.canScheduleExactAlarms() ? "доступні" : "недоступні")
+                + "\nОстання затримка сповіщення: " + c.getSharedPreferences("prefs",Context.MODE_PRIVATE).getInt("reminder_delay",0) + " с";
     }
 
     static void onGitHub(Activity a) {

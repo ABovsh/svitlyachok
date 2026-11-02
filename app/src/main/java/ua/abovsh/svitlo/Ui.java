@@ -41,9 +41,14 @@ final class Ui {
         final int unknown;
         final int ink;
         final int glow;
+        /** How much of the card covers the past on a bar; white hours must still read through it. */
+        final float veil;
+        /** The stroke at now, one colour that reads on both themes and on every state. */
+        final int marker = 0xFFFF8A00;
 
         Pal(boolean dark) {
             this.dark = dark;
+            veil = dark ? 0.68f : 0.30f;
             if (dark) {
                 bg = 0xFF10191B; card = 0xFF172428; raised = 0xFF203236; line = 0xFF334749;
                 text = 0xFFEFF3EC; muted = 0xFFB3C1BB; dim = 0xFFB3C1BB;
@@ -279,24 +284,5 @@ final class Ui {
     /** "п'ятниця, 30 жовтня" */
     static String date(java.time.LocalDate d) {
         return DAYS[d.getDayOfWeek().getValue() - 1] + ", " + d.getDayOfMonth() + " " + MONTHS[d.getMonthValue() - 1];
-    }
-
-    /** A typeface for part of a text: the words heavy, the brackets after them lighter. */
-    static final class Face extends android.text.style.MetricAffectingSpan {
-        private final Typeface typeface;
-
-        Face(Typeface typeface) {
-            this.typeface = typeface;
-        }
-
-        @Override
-        public void updateDrawState(android.text.TextPaint p) {
-            p.setTypeface(typeface);
-        }
-
-        @Override
-        public void updateMeasureState(android.text.TextPaint p) {
-            p.setTypeface(typeface);
-        }
     }
 }

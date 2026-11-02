@@ -191,8 +191,11 @@ public class MainActivity extends Base {
     private String state() {
         StringBuilder b = new StringBuilder().append(Logic.today(Sync.now())).append(Logic.index(Logic.today(Sync.now()),Sync.now())).append(loading).append(Prefs.current(this));
         for (Logic.Place p : Prefs.places(this)) {
-            b.append('|').append(p.id).append(p.name).append(p.group).append(Store.checkedAt(this, p.region))
-                    .append(System.identityHashCode(Store.data(this, p.region)))
+            Logic.Data d = Store.data(this, p.region);
+            Logic.Now n = Logic.now(Logic.timeline(d, p.group, Logic.today(Sync.now())), Logic.today(Sync.now()), Sync.now(), d != null && d.none);
+            b.append('|').append(Logic.highlight(n, Prefs.alerts(this, p.id), Sync.now()));
+            b.append('|').append(p.id).append(p.name).append(p.region).append(p.group).append(Store.checkedAt(this, p.region))
+                    .append(System.identityHashCode(d))
                     .append(Logic.alertsJson(Prefs.alerts(this, p.id)));
         }
         Logic.Now n = currentNow();
@@ -352,7 +355,12 @@ public class MainActivity extends Base {
             if (i % columns != 0) tl.leftMargin = Ui.dp(this, 6);
             row.addView(tile(places.get(i), places.get(i).id.equals(chosen.id), base, now), tl);
         }
-        if (columns == 2 && places.size() % 2 == 1) row.addView(new View(this), weight());
+        if (columns == 2 && places.size() % 2 == 1) {
+            // MATCH_PARENT too: one wrap-content child makes a row of match-parent tiles measure as zero high
+            LinearLayout.LayoutParams empty = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+            empty.leftMargin = Ui.dp(this, 6);  // so the lone tile is as wide as the others
+            row.addView(new View(this), empty);
+        }
         return grid;
     }
 
@@ -363,14 +371,14 @@ public class MainActivity extends Base {
         LinearLayout t = Ui.row(this);
         t.setMinimumHeight(Ui.dp(this, 60));
         int pad = Ui.dp(this, chosen ? 7 : 8);
-        t.setPadding(pad, pad, pad, pad);
+        t.setPadding(pad, pad, Ui.dp(this, 3), pad);  // the lit line of a coming change needs the room
         android.graphics.drawable.GradientDrawable bg = Ui.round(pal.soft(n.state), Ui.px(this, 15));
         bg.setStroke(Ui.dp(this, chosen ? 2 : 1), chosen ? pal.accentText : pal.line);
         t.setBackground(bg);
         BulbView bulb = new BulbView(this, pal);
         bulb.still(); bulb.set(n.state);
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 30));
-        bl.rightMargin = Ui.dp(this, 7);
+        bl.rightMargin = Ui.dp(this, 4);
         t.addView(bulb, bl);
         LinearLayout words = Ui.column(this);
         FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
@@ -385,13 +393,20 @@ public class MainActivity extends Base {
             name.addView(queue);
         }
         words.addView(name, fill());
-        TextView status = Ui.text(this, 14, Ui.bold(this), pal.status(n.state));
+        // the same rule as the big card: lit as soon as the notifications of this place would speak
+        boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
+        TextView status = Ui.text(this, 14, Ui.bold(this), soon ? chipInk(n.next) : pal.status(n.state));
         status.setText(Logic.tileLine(n));
-        status.setPadding(0, Ui.dp(this, 2), 0, 0);
-        words.addView(status, fill());
+        LinearLayout.LayoutParams sl = wrap();
+        sl.topMargin = Ui.dp(this, 2);
+        if (soon) {
+            status.setPadding(Ui.dp(this, 4), Ui.dp(this, 1), Ui.dp(this, 4), Ui.dp(this, 1));
+            status.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 7)));
+        }
+        words.addView(status, sl);
         t.addView(words, weight());
         t.setContentDescription(p.name + ", черга " + Logic.queue(p.group) + ": " + n.title
-                + (n.big.isEmpty() ? "" : ", " + n.big) + (chosen ? ", вибрано" : ", показати графік"));
+                + (n.big.isEmpty() ? "" : ", " + n.big) + (soon ? ", скоро зміна" : "") + (chosen ? ", вибрано" : ", показати графік"));
         t.setOnClickListener(v -> { Prefs.setCurrent(this, p.id); render(); scroll.smoothScrollTo(0, 0); });
         return t;
     }
@@ -405,7 +420,7 @@ public class MainActivity extends Base {
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.round(pal.soft(n.state), Ui.px(this, 18)));
         TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
-        queue.setText(p.name + " · черга " + Logic.queue(p.group));
+        queue.setText(p.name + " · " + where(p));
         queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
         card.addView(queue, fill());
         card.addView(present(n), fill());
@@ -482,8 +497,8 @@ public class MainActivity extends Base {
         LinearLayout row = stacked() ? Ui.column(this) : Ui.row(this);
         Logic.Alerts wanted = Prefs.alerts(this, p.id);
         TextView alerts = action(Logic.alertsLabel(wanted), wanted.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off, v -> AlertsSheet.show(this, p, this::render));
-        if (!wanted.any()) quiet(alerts);
-        alerts.setContentDescription("Нагадування, " + p.name + ": " + Logic.alertsSummary(wanted));
+        if (wanted.any()) lit(alerts); else quiet(alerts);
+        alerts.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(wanted));
         TextView stats = action("Статистика", R.drawable.ic_stats, v -> startActivity(new Intent(this, StatsActivity.class)));
         row.addView(alerts, stacked() ? fill() : weight());
         LinearLayout.LayoutParams lp = stacked() ? fill() : weight();
@@ -492,9 +507,19 @@ public class MainActivity extends Base {
         return row;
     }
 
-    /** A button for something switched off: its words and icon step back. */
+    /** A button for something switched on: gold, so it is told from "off" at a glance. */
+    private void lit(TextView button) {
+        android.graphics.drawable.GradientDrawable bg = Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, pal.dark ? .26f : .34f)), Ui.px(this, 20));
+        bg.setStroke(Ui.dp(this, 1.5f), pal.accentText);
+        button.setBackground(bg);
+        android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
+        if (image != null) image.setTint(pal.accentText);
+    }
+
+    /** A button for something switched off: no fill, its words and icon step back. */
     private void quiet(TextView button) {
         button.setTextColor(pal.muted);
+        button.setBackground(Ui.outline(pal.line, Ui.px(this, 20), Ui.dp(this, 1.5f)));
         android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
         if (image != null) image.setTint(pal.muted);
     }
@@ -510,21 +535,22 @@ public class MainActivity extends Base {
         boolean scheduleBlocked = (wanted.tomorrow || wanted.changes) && schedule != null && schedule.getImportance()==0;
         if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked && !scheduleBlocked)) return null;
         TextView warning = Ui.text(this,14,Ui.heavy(this),pal.offText);
-        warning.setText("Нагадування не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));
+        warning.setText("Сповіщення не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));
         warning.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
         return warning;
     }
 
     private TextView action(String text, int icon, View.OnClickListener listener) {
-        TextView b = Ui.text(this, 14, Ui.heavy(this), pal.text);
-        b.setText(text); b.setMinHeight(Ui.dp(this, 48)); b.setGravity(Gravity.CENTER);
+        TextView b = new ActionButton(this);
+        b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14); b.setTypeface(Ui.heavy(this)); b.setTextColor(pal.text); b.setIncludeFontPadding(false);
+        b.setText(text); b.setMinHeight(Ui.dp(this, 48));
         b.setPadding(Ui.dp(this, 7), Ui.dp(this, 6), Ui.dp(this, 7), Ui.dp(this, 6));
         b.setBackground(Ui.card(this, pal, 0));
         android.graphics.drawable.Drawable image = getDrawable(icon);
-        if (image != null) { image.setTint(pal.text); image.setBounds(0, 0, Ui.dp(this, 18), Ui.dp(this, 18)); }
+        if (image != null) { image = image.mutate(); image.setTint(pal.text); image.setBounds(0, 0, Ui.dp(this, 18), Ui.dp(this, 18)); }
         b.setCompoundDrawables(image, null, null, null);
-        b.setCompoundDrawablePadding(Ui.dp(this, 5));
+        b.setCompoundDrawablePadding(Ui.dp(this, 7));
         b.setOnClickListener(listener);
         return b;
     }
@@ -584,10 +610,8 @@ public class MainActivity extends Base {
             TextView label = Ui.text(this,14,Ui.bold(this),pal.muted);
             boolean certain = false; for (Logic.Outage o : outages) certain |= !o.maybe;
             label.setText(certain ? "Без світла:" : "Можливі вимкнення:"); card.addView(label,fill());
-            FlowRow intervals = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 5));
-            for (Logic.Outage o : outages) intervals.addView(chip(o));
             LinearLayout.LayoutParams lp = fill(); lp.topMargin = Ui.dp(this, 4); lp.bottomMargin = Ui.dp(this, 5);
-            card.addView(intervals, lp);
+            card.addView(windows(outages), lp);
         }
     }
 
@@ -597,16 +621,42 @@ public class MainActivity extends Base {
         return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
 
+    /** The windows of a day as an even grid: columns line up however many windows there are. */
+    private View windows(List<Logic.Outage> outages) {
+        int gap = Ui.dp(this, 6);
+        TextView sample = (TextView) chip(outages.get(0));
+        sample.setText("00:00–00:00");
+        sample.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int room = Ui.dp(this, getResources().getConfiguration().screenWidthDp - 2 * 16 - 2 * 11);
+        int columns = Logic.windowColumns(room, sample.getMeasuredWidth(), gap);
+        LinearLayout grid = Ui.column(this);
+        for (int i = 0; i < outages.size(); i += columns) {
+            LinearLayout row = Ui.row(this);
+            for (int k = 0; k < columns; k++) {
+                LinearLayout.LayoutParams cell = weight();
+                if (k > 0) cell.leftMargin = gap;
+                row.addView(i + k < outages.size() ? chip(outages.get(i + k)) : new View(this), cell);
+            }
+            LinearLayout.LayoutParams rl = fill();
+            if (i > 0) rl.topMargin = Ui.dp(this, 5);
+            grid.addView(row, rl);
+        }
+        return grid;
+    }
+
     /** "06:00–08:00": filled now, tinted later (red, amber for a possible outage), faded when past. */
     private View chip(Logic.Outage o) {
         boolean now = o.when == Logic.Outage.NOW;
         int fill = o.maybe ? pal.maybe : pal.off;
         int ink = o.maybe ? pal.accentInk : pal.ink;
         int text = o.maybe ? pal.maybeText : pal.offText;
-        TextView c = Ui.text(this, 15, Ui.heavy(this), now ? ink : text);
+        if (!o.maybe && pal.dark) text = 0xFFFFC3CB;  // on the stronger tint below
+        TextView c = Ui.text(this, 14, Ui.heavy(this), now ? ink : text);
         c.setText(o.label.replace(" – ", "–"));
-        c.setPadding(Ui.dp(this, 8), Ui.dp(this, 5), Ui.dp(this, 8), Ui.dp(this, 5));
-        int tint = Ui.fade(fill, pal.dark ? 0.22f : 0.14f);
+        c.setGravity(Gravity.CENTER);
+        c.setSingleLine(true);
+        c.setPadding(Ui.dp(this, 3), Ui.dp(this, 6), Ui.dp(this, 3), Ui.dp(this, 6));
+        int tint = Ui.fade(fill, pal.dark ? 0.40f : 0.24f);
         c.setBackground(Ui.round(now ? fill : tint, Ui.px(this, 12)));
         if (o.when == Logic.Outage.PAST) { c.setTextColor(pal.muted); c.setBackground(Ui.round(pal.raised, Ui.px(this, 9))); }
         String when = "";
@@ -614,6 +664,11 @@ public class MainActivity extends Base {
         else if (now) when = ", триває зараз";
         c.setContentDescription((o.maybe ? "можливе вимкнення " : "вимкнення ") + o.label + ", " + o.length + when);
         return c;
+    }
+
+    /** Words on the fill of a state. */
+    private int chipInk(int state) {
+        return state == Logic.MAYBE ? pal.accentInk : pal.ink;
     }
 
     private View footer(Logic.Place p, Logic.Data d, long now) {
@@ -637,12 +692,12 @@ public class MainActivity extends Base {
     }
 
     // First start: notifications (Android 13+), then exemption from battery saving so the
-    // widget and reminders keep working on Samsung and Xiaomi.
+    // widget and notifications keep working on Samsung and Xiaomi.
     private void askNotifications() {
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            new android.app.AlertDialog.Builder(this).setTitle("Нагадування про світло")
-                    .setMessage("Дозвольте сповіщення, щоб отримувати нагадування перед вимкненням і увімкненням світла.")
+            new android.app.AlertDialog.Builder(this).setTitle("Сповіщення про світло")
+                    .setMessage("Дозвольте сповіщення, щоб знати заздалегідь про вимкнення й увімкнення світла.")
                     .setPositiveButton("Продовжити",(dialog,which) -> requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS},1))
                     .setNegativeButton("Пізніше",(dialog,which) -> askBattery()).show();
         } else {
@@ -660,15 +715,15 @@ public class MainActivity extends Base {
         if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         if (!Prefs.once(this, "asked_battery")) return;
         try {
-            new android.app.AlertDialog.Builder(this).setTitle("Вчасні нагадування")
-                    .setMessage("Дозвольте фонову роботу без обмежень батареї, щоб нагадування могли приходити із вимкненим екраном.")
+            new android.app.AlertDialog.Builder(this).setTitle("Вчасні сповіщення")
+                    .setMessage("Дозвольте фонову роботу без обмежень батареї, щоб сповіщення могли приходити із вимкненим екраном.")
                     .setPositiveButton("Відкрити налаштування",(dialog,which) -> {
                         try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                                 Uri.parse("package:"+getPackageName()))); }
                         catch (RuntimeException ignored) { /* Some devices hide this screen. */ }
                     }).setNegativeButton("Пізніше",null).show();
         } catch (Exception ignored) {
-            // some builds hide the dialog; reminders then may come a little late
+            // some builds hide the dialog; notifications then may come a little late
         }
     }
 }

@@ -121,22 +121,12 @@ public class StatsActivity extends Base {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 9), Ui.dp(this, 9), Ui.dp(this, 9), Ui.dp(this, 9));
         box.setBackground(Ui.round(pal.soft(state), Ui.px(this, 13)));
-        FlowRow labels = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 2));
-        TextView title = Ui.text(this, 13, Ui.heavy(this), pal.status(state)); title.setText(name); labels.addView(title);
+        TextView title = Ui.text(this, 13, Ui.heavy(this), pal.status(state)); title.setText(name);
+        box.addView(title, fill());
         int share = Logic.statShare(days, state);
-        TextView pct = Ui.text(this, 13, Ui.body(this), pal.muted); pct.setText(share < 0 ? "" : share + " %"); labels.addView(pct);
-        box.addView(labels, fill());
         int minutes = Logic.statAverageMinutes(days, state);
-        TextView value = Ui.text(this, 22, Ui.display(this), pal.status(state));
-        if (minutes < 0) value.setText("—");
-        else {
-            String hours = String.valueOf(minutes / 60);
-            String text = hours + " год" + (minutes % 60 == 0 ? "" : String.format(Locale.ROOT, " %02d хв", minutes % 60));
-            android.text.SpannableStringBuilder span = new android.text.SpannableStringBuilder(text);
-            span.setSpan(new android.text.style.RelativeSizeSpan(.6f), hours.length(), text.length(), 0);
-            span.setSpan(new Ui.Face(Ui.bold(this)), hours.length(), text.length(), 0);
-            value.setText(span);
-        }
+        TextView value = Ui.text(this, 19, Ui.heavy(this), pal.status(state));
+        value.setText(Logic.statLine(share, minutes));
         value.setPadding(0, Ui.dp(this, 3), 0, 0); box.addView(value, fill());
         box.setContentDescription(name + ": " + (minutes < 0 ? "немає даних" : Logic.hoursMinutes(minutes))
                 + (share < 0 ? "" : ", " + share + " відсотків відомого часу"));

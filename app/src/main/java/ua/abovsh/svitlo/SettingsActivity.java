@@ -22,7 +22,7 @@ public class SettingsActivity extends Base {
         // rebuild only when something here could have changed (back from a place, from system settings)
         StringBuilder b = new StringBuilder(notificationsAllowed() ? "1" : "0");
         for (Logic.Place p : Prefs.places(this)) {
-            b.append('|').append(p.id).append(p.name).append(p.group).append(Logic.alertsJson(Prefs.alerts(this, p.id)));
+            b.append('|').append(p.id).append(p.name).append(p.region).append(p.group).append(Logic.alertsJson(Prefs.alerts(this, p.id)));
         }
         int sig = b.toString().hashCode();
         if (sig == built) return;
@@ -114,7 +114,7 @@ public class SettingsActivity extends Base {
         LinearLayout.LayoutParams xl = fill();
         xl.topMargin = Ui.dp(this, 10);
         page.addView(x, xl);
-        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває кнопка «Нагадування» під графіком. "
+        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває кнопка «Сповіщення» під графіком. "
                 + "Одне сповіщення на місце: нове замінює попереднє. Зміни графіка застосунок перевіряє "
                 + "приблизно раз на 15 хвилин."));
     }
@@ -211,7 +211,7 @@ public class SettingsActivity extends Base {
         about.setLineSpacing(0, 1.1f);
         about.setText("Світлячок " + BuildConfig.VERSION_NAME + "\n\n"
                 + "Графік погодинних вимкнень світла для одного або кількох місць: що зараз, до котрої "
-                + "години і що буде завтра. Нагадує перед вимкненням і увімкненням, має віджети й "
+                + "години і що буде завтра. Сповіщає перед вимкненням і увімкненням, має віджети й "
                 + "статистику за тиждень і 4 тижні.\n\n"
                 + "Нічого не надсилає з телефона. Застосунок лише завантажує з GitHub відкритий файл графіка "
                 + "вашої області й перевіряє, чи вийшла нова версія. Місця, черги й налаштування "
@@ -227,7 +227,7 @@ public class SettingsActivity extends Base {
         page.addView(code, fill());
         TextView why = Ui.text(this, 14, Ui.body(this), pal.muted);
         why.setLineSpacing(0, 1.1f);
-        why.setText("Щоб нагадування приходили вчасно, дозвольте застосунку працювати без обмежень батареї.");
+        why.setText("Щоб сповіщення приходили вчасно, дозвольте застосунку працювати без обмежень батареї.");
         why.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6), 0);
         page.addView(why, fill());
         TextView battery = Ui.text(this, 15, Ui.heavy(this), pal.accentText);

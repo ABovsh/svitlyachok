@@ -159,7 +159,7 @@ abstract class Base extends Activity {
     View leads(int[] leads, int lead, java.util.function.IntConsumer chosen) {
         LinearLayout box = Ui.column(this);
         TextView when = Ui.text(this, 13, Ui.bold(this), pal.muted);
-        when.setText("Коли нагадати");
+        when.setText("Коли сповістити");
         when.setPadding(0, 0, 0, Ui.dp(this, 8));
         box.addView(when, fill());
         FlowRow row = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 6));

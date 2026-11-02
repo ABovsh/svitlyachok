@@ -121,7 +121,7 @@ final class Sync {
 
     static void ensureChannels(Context c) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
-        NotificationChannel remind = new NotificationChannel(CH_REMIND, "Нагадування перед вимкненням і увімкненням",
+        NotificationChannel remind = new NotificationChannel(CH_REMIND, "Сповіщення перед вимкненням і увімкненням",
                 NotificationManager.IMPORTANCE_HIGH);
         nm.createNotificationChannel(remind);
         nm.createNotificationChannel(new NotificationChannel(CH_SCHEDULE, "Новий графік і зміни графіка",

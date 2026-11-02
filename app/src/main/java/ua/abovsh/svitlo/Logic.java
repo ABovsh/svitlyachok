@@ -37,6 +37,8 @@ public final class Logic {
     public static final int UNKNOWN = 2;
     public static final int MAYBE = 3;
     public static final long POLL_S = 15 * 60L;   // the widget fetches by itself this often
+    /** How early a place lights up when its notifications do not say otherwise. */
+    public static final long HIGHLIGHT_S = 15 * 60L;
     public static final long SOON_S = 30 * 60L;   // the screen says "soon" this close to a change
     public static final long LATE_S = 10 * 60L;   // a delayed notification still worth showing
     public static final long STALE_S = 3 * 3600L; // no successful check this long: say so
@@ -335,6 +337,22 @@ public final class Logic {
     /** The same queue of the same region: its saved schedules still describe this place. */
     public static boolean sameQueue(Place a, Place b) {
         return a.region.equals(b.region) && a.group.equals(b.group);
+    }
+
+    /**
+     * The place that already follows this queue of this region, or null. `before` is the place being
+     * edited: it never clashes with itself, and one saved twice by an older version can still be renamed.
+     */
+    public static Place duplicateOf(List<Place> places, Place candidate, Place before) {
+        if (before != null && sameQueue(before, candidate)) return null;
+        for (Place p : places) if (sameQueue(p, candidate) && (before == null || !p.id.equals(before.id))) return p;
+        return null;
+    }
+
+    /** "Черга 3.1, Київська область, уже додана як «Дім»." */
+    public static String duplicateMessage(Place existing) {
+        Region r = region(existing.region);
+        return "Черга " + queue(existing.group) + (r == null ? "" : ", " + r.name) + ", уже додана як «" + existing.name + "».";
     }
 
     /** The 48 slots of a day, or null while it is not published. */
@@ -1539,9 +1557,14 @@ public final class Logic {
         return now >= from && now < to;
     }
 
+    /** How many equal windows of a day stand in a row: three when they fit, never none. */
+    public static int windowColumns(int room, int window, int gap) {
+        return Math.max(1, Math.min(3, (room + gap) / (window + gap)));
+    }
+
     /** The button of a place, which says so when nothing will be sent for it. */
     public static String alertsLabel(Alerts a) {
-        return a.any() ? "Нагадування" : "Без нагадувань";
+        return a.any() ? "Сповіщення" : "Без сповіщень";
     }
 
     /** The widget's fill at t across it: each state glows from its edge, the card between them. */
@@ -1582,9 +1605,23 @@ public final class Logic {
         return (from + to) / 2f;
     }
 
-    /** Whether the now marker reaches the number; `half` is half the number's width in slots. */
-    public static boolean barHoursCoverNow(int from, int to, float now, float half) {
-        return now >= 0 && Math.abs(now - barHoursCentre(from, to)) < half;
+    public static final int INK_WHITE = 0;
+    public static final int INK_QUIET = 1;
+    public static final int INK_DARK = 2;
+
+    /**
+     * The colour of the hours in a run of the bar. White, and on the dark theme a window that is over
+     * steps back; a possible outage is pale amber, where white would not read.
+     */
+    public static int barHoursInk(char slot, boolean past, boolean active, boolean dark) {
+        if (past && !active && dark) return INK_QUIET;
+        return slot == '3' ? INK_DARK : INK_WHITE;
+    }
+
+    /** "69% · 16,5 год": the share and the hours on equal terms, to the half hour the schedule is made of. */
+    public static String statLine(int share, int minutes) {
+        if (share < 0 || minutes < 0) return "—";
+        return share + "% · " + barHours(Math.round(minutes / 30f)) + " год";
     }
 
     /** Hours inside a run of the bar, digits only: "3,5", "4". */
@@ -1623,7 +1660,7 @@ public final class Logic {
         } else if (a.off) {
             lead = a.leadOff;
         }
-        return lead > 0 ? lead * 60L : SOON_S;
+        return lead > 0 ? lead * 60L : HIGHLIGHT_S;
     }
 
     public static boolean highlight(Now n, Alerts alerts, long now) {

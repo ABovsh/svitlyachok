@@ -66,7 +66,6 @@ public class SetupActivity extends Base {
         regions.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
         page.addView(regions, fill());
         fillRegions();
-        page.addView(note("Місто Київ поки не підтримується: його графік публікується в іншому форматі."));
 
         page.addView(heading("Черга"));
         LinearLayout qbox = box();
@@ -158,7 +157,7 @@ public class SetupActivity extends Base {
         s.setGravity(Gravity.CENTER);
         s.setLineSpacing(0, 1.1f);
         s.setText("Графік вимкнень вашої черги: чи є світло зараз, до котрої години і що буде завтра. "
-                + "Нагадує заздалегідь.");
+                + "Сповіщає заздалегідь.");
         w.addView(s);
         return w;
     }
@@ -302,6 +301,15 @@ public class SetupActivity extends Base {
         if (n.isEmpty()) n = "Черга " + Logic.queue(group);
         if (n.length() > MAX_NAME) n = n.substring(0, MAX_NAME);
         List<Logic.Place> places = Prefs.places(this);
+        Logic.Place candidate = new Logic.Place();
+        candidate.region = region;
+        candidate.group = group;
+        Logic.Place twin = Logic.duplicateOf(places, candidate, editId == null ? null : Prefs.place(this, editId));
+        if (twin != null) {
+            new android.app.AlertDialog.Builder(this).setTitle("Таке місце вже додано")
+                    .setMessage(Logic.duplicateMessage(twin)).setPositiveButton("Зрозуміло", null).show();
+            return;
+        }
         if (editId == null && places.size() >= Prefs.MAX_PLACES) {
             Toast.makeText(this, "Можна додати до " + Prefs.MAX_PLACES + " місць", Toast.LENGTH_SHORT).show();
             return;

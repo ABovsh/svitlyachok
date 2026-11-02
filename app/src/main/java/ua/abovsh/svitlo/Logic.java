@@ -114,6 +114,7 @@ public final class Logic {
         public boolean none;          // "data": [] — no outages published at all
         public long sourceTime;
         public boolean sourceOk = true;
+        private Data expiredView;
         public long updated;          // when the oblenergo last changed it, 0 unknown
         public List<String> groups = new ArrayList<>();
     }
@@ -193,11 +194,13 @@ public final class Logic {
                 && now - d.sourceTime <= 48 * 3600L;
     }
 
-    static Data validAt(Data d, long now) {
+    static synchronized Data validAt(Data d, long now) {
         if (d == null || !d.none || noneFresh(d, now)) return d;
-        Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
-        out.sourceOk = d.sourceOk; out.groups = d.groups;
-        return out;
+        if (d.expiredView == null) {
+            Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
+            out.sourceOk = d.sourceOk; out.groups = d.groups; d.expiredView = out;
+        }
+        return d.expiredView;
     }
 
     static LocalDate latestDay(Data d) {
@@ -472,6 +475,7 @@ public final class Logic {
         public String already = "";
         public boolean soon;
         public long change;
+        public long knownUntil;
         public int next = UNKNOWN;
         public boolean tomorrow;
         public String changeClock = "";
@@ -527,7 +531,7 @@ public final class Logic {
             n.hint = "Вимкнень за графіком не заплановано";
         } else {
             List<int[]> ch = clockChanges(tl, base, cur);
-            if (ch.isEmpty()) steady(n, tl, cur, c);
+            if (ch.isEmpty()) steady(n, tl, cur, c, base, now);
             else changing(n, ch, c, base, now);
         }
         if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
@@ -573,11 +577,13 @@ public final class Logic {
     }
 
     /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
-    private static void steady(Now n, String tl, int cur, char c) {
+    private static void steady(Now n, String tl, int cur, char c, LocalDate base, long now) {
         int j = cur;
         while (j < tl.length() && tl.charAt(j) == c) j++;
         if (j < 48 && j < tl.length()) {
-            n.big = "до " + clock(j);
+            n.knownUntil = slotStart(base,j);
+            while (n.knownUntil < 0 && j < 48) n.knownUntil=slotStart(base,++j);
+            n.big = "до " + until(n.knownUntil,now);
             n.hint = "Далі графіка немає";
         } else if (j < tl.length()) {
             n.big = "до кінця дня";
@@ -1523,6 +1529,7 @@ public final class Logic {
     public static String[] widgetFuture(Now n) {
         String[] next = widgetNext(n);
         if (!next[0].isEmpty()) return next;
+        if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), "Графіка немає", ""};
         if (n.state == UNKNOWN) return new String[] {"Далі", "Графіка немає", ""};
         if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {"Завтра", "Графіка ще немає", ""};
         if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", "Без вимкнень", ""};

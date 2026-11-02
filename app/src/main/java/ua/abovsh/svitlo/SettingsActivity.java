@@ -15,6 +15,8 @@ import java.util.List;
 public class SettingsActivity extends Base {
     private int built = -1;
 
+    @Override boolean hasClock() { return false; }
+
     @Override
     void render() {
         // rebuild only when something here could have changed (back from a place, from system settings)

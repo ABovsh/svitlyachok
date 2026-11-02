@@ -413,6 +413,7 @@ public class MainActivity extends Base {
             String detail = Logic.nextDetail(n);
             card.addView(nextEvent(n, detail, Logic.highlight(n, Prefs.alerts(this, p.id), now)), fill());
             card.setContentDescription(Logic.describeNow(n, detail));
+            clockUpdates.add(() -> { Logic.Now live=currentNow(); card.setContentDescription(Logic.describeNow(live,Logic.nextDetail(live))); });
             return card;
         }
         if (d == null) {  // no event: the schedule below already says why, so the card stays compact; only this needs words
@@ -422,6 +423,7 @@ public class MainActivity extends Base {
             card.addView(note, fill());
         }
         card.setContentDescription(Logic.describeNow(n, ""));
+        clockUpdates.add(() -> card.setContentDescription(Logic.describeNow(currentNow(),"")));
         return card;
     }
 

@@ -36,6 +36,8 @@ public class SetupActivity extends Base {
     private Store.Request loadRequest;
     private TextView queueError;
 
+    @Override boolean hasClock() { return false; }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);

@@ -16,6 +16,8 @@ public class WidgetSetupActivity extends Base {
     private int widget = AppWidgetManager.INVALID_APPWIDGET_ID;
     private boolean built;
 
+    @Override boolean hasClock() { return false; }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);

@@ -33,6 +33,8 @@ abstract class Base extends Activity {
 
     abstract void render();
 
+    boolean hasClock() { return true; }
+
     /** Every 30 s while visible; a page that knows when nothing changed skips the work. */
     void onTick() {
         render();
@@ -94,7 +96,8 @@ abstract class Base extends Activity {
             recreate();
             return;
         }
-        handler.post(tick);
+        onTick();
+        if (hasClock()) handler.postDelayed(tick,30_000);
     }
 
     @Override

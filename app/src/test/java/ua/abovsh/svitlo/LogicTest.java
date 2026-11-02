@@ -1238,6 +1238,7 @@ public class LogicTest {
         Logic.Now n = Logic.now(repeat('1',20)+repeat('2',2)+repeat('1',26)+repeat('2',48), OCT30,at(9,0),false);
         assertEquals("до 10:00", n.big);
         assertEquals(Logic.UNKNOWN,n.next);
+        assertEquals(Arrays.asList("Після 10:00","Графіка немає",""),Arrays.asList(Logic.widgetFuture(n)));
     }
     @Test public void overdueAdvanceReminderSurvivesUntilChange() throws Exception {
         Logic.Alerts a = new Logic.Alerts();a.leadOff=60;

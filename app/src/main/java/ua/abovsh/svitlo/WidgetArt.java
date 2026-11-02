@@ -227,79 +227,127 @@ final class WidgetArt {
 
     /** box: x, y, column width, height, scale. Both columns share their rows, so the clocks stand on one line. */
     private static void panes(Context c, Brush b, Model m, String[] next, float[] box) {
-        float width = box[2];
-        float room = box[3];
-        String[] start = Logic.widgetStart(m.now);
-        boolean leftClock = start[0].contains(":");
-        boolean rightClock = next[1].contains(":");
-        Paint clock = text(Ui.display(c), 100, b.pal.text, Paint.Align.LEFT);
-        Paint plain = text(Ui.bold(c), 100, b.pal.text, Paint.Align.LEFT);
-        float s = box[4];
-        float gapX = 6 * s;
-        float detail = Math.max(12 * s, Math.min(16 * s, room * .2f));
-        Paint small = text(Ui.bold(c), detail, b.pal.muted, Paint.Align.LEFT);
-        float leftSpare = start[1].isEmpty() ? 0 : small.measureText(start[1]) + gapX;
-        float rightSpare = next[2].isEmpty() ? 0 : small.measureText(next[2]) + gapX;
-        float wholeLeft = leftClock ? sizeToFit(clock, start[0], width) : Float.MAX_VALUE;
-        float wholeRight = rightClock ? sizeToFit(clock, next[1], width) : Float.MAX_VALUE;
-        float besideLeft = leftClock ? sizeToFit(clock, start[0], Math.max(1, width - leftSpare)) : Float.MAX_VALUE;
-        float besideRight = rightClock ? sizeToFit(clock, next[1], Math.max(1, width - rightSpare)) : Float.MAX_VALUE;
-        float beside = Math.min(room * .54f, Math.min(besideLeft, besideRight));
-        float stacked = Math.min(room * .42f, Math.min(wholeLeft, wholeRight));
-        boolean details = leftSpare + rightSpare > 0;
-        boolean inline = !details || beside >= stacked;
-        float value = inline ? beside : stacked;
-        float head = Math.min(value * .8f, room * (inline ? .30f : .24f));
+        new Panes(c, b, m, next, box).draw();
+    }
 
-        Paint title = text(Ui.heavy(c), head, b.pal.status(m.now.state), Paint.Align.LEFT);
-        Paint label = text(Ui.heavy(c), head, b.pal.muted, Paint.Align.LEFT);
-        Paint left = text(leftClock ? Ui.display(c) : Ui.bold(c), leftClock ? value : head, b.pal.text, Paint.Align.LEFT);
-        Paint right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, b.pal.status(m.now.next), Paint.Align.LEFT);
-        float tall = Math.max(height(left), height(right));
-        float first = height(title);
-        float third = inline || !details ? 0 : height(small);
-        float used = first + tall + third;
-        if (used > room) {  // never past the box: everything shrinks alike
-            float k = room / used;
-            for (Paint p : new Paint[] {title, label, left, right, small}) p.setTextSize(p.getTextSize() * k);
-            first *= k; tall *= k; third *= k; used = room;
+    /** The two columns of a large widget: first the largest sizes that fit, then the drawing. */
+    private static final class Panes {
+        private final Brush b;
+        private final Logic.Now now;
+        private final String[] start;
+        private final String[] next;
+        private final float x;
+        private final float top;
+        private final float width;
+        private final float room;
+        private final float s;
+        private final float gapX;
+        private final Paint small;
+        private final boolean inline;
+        private final Paint title;
+        private final Paint label;
+        private final Paint left;
+        private final Paint right;
+        private final float leftSpare;
+        private final float rightSpare;
+
+        Panes(Context c, Brush b, Model m, String[] next, float[] box) {
+            this.b = b;
+            this.now = m.now;
+            this.next = next;
+            start = Logic.widgetStart(m.now);
+            x = box[0];
+            top = box[1];
+            width = box[2];
+            room = box[3];
+            s = box[4];
+            gapX = 6 * s;
+            float detail = Math.max(12 * s, Math.min(16 * s, room * .2f));
+            small = text(Ui.bold(c), detail, b.pal.muted, Paint.Align.LEFT);
+            leftSpare = spare(start[1]);
+            rightSpare = spare(next[2]);
+            boolean leftClock = start[0].contains(":");
+            boolean rightClock = next[1].contains(":");
+            Paint clock = text(Ui.display(c), 100, b.pal.text, Paint.Align.LEFT);
+            float beside = Math.min(room * .54f, Math.min(clockSize(clock, leftClock, start[0], leftSpare),
+                    clockSize(clock, rightClock, next[1], rightSpare)));
+            float stacked = Math.min(room * .42f, Math.min(clockSize(clock, leftClock, start[0], 0),
+                    clockSize(clock, rightClock, next[1], 0)));
+            inline = leftSpare + rightSpare == 0 || beside >= stacked;
+            float value = inline ? beside : stacked;
+            float head = Math.min(value * .8f, room * (inline ? .30f : .24f));
+            title = text(Ui.heavy(c), head, b.pal.status(now.state), Paint.Align.LEFT);
+            label = text(Ui.heavy(c), head, b.pal.muted, Paint.Align.LEFT);
+            left = text(leftClock ? Ui.display(c) : Ui.bold(c), leftClock ? value : head, b.pal.text, Paint.Align.LEFT);
+            right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, b.pal.status(now.next), Paint.Align.LEFT);
         }
-        float spare = room - used;
-        int gaps = third > 0 ? 2 : 1;
-        float gap = Math.min(spare / (gaps + 2), first * .35f);
-        float y = box[1] + (spare - gap * gaps) / 2;
 
-        // the first row: the bulb and the state, and what comes next
-        float bulb = Math.min(first * 1.25f, room * .4f);
-        float titleX = box[0] + bulb + bulb * .16f;
-        float titleRoom = width - bulb - bulb * .16f;
-        String state = sizeToFit(title, m.now.title, titleRoom) >= 13 * s ? m.now.title : compactTitle(m.now.state);
-        BulbView.draw(b, m.now.state, box[0] + bulb / 2, y + first / 2, bulb, 1);
-        fit(title, state, titleRoom);
-        drawCentred(b, state, titleX, y, first, title);
-        float rightX = box[0] + width + 8 * s;
-        String event = next[0];
-        if (sizeToFit(label, event, width) < 12 * s && m.now.next != Logic.UNKNOWN) event = compactEvent(m.now) + (m.now.tomorrow ? " завтра" : "");
-        fit(label, event, width);
-        drawCentred(b, event, rightX, y, first, label);
+        private float spare(String words) {
+            return words.isEmpty() ? 0 : small.measureText(words) + gapX;
+        }
 
-        // the second row: the clocks on one baseline
-        y += first + gap;
-        float baseline = y + tall - Math.max(left.descent(), right.descent());
-        if (!leftClock) fit(left, start[0], width);
-        if (!rightClock) fit(right, next[1], width);
-        b.cv.drawText(start[0], box[0], baseline, left);
-        b.cv.drawText(next[1], rightX, baseline, right);
-        if (inline) {
-            if (leftSpare > 0) b.cv.drawText(start[1], box[0] + left.measureText(start[0]) + gapX, baseline, small);
+        /** The size at which a clock fits beside `spare`; words that are no clock do not limit it. */
+        private float clockSize(Paint clock, boolean isClock, String words, float spare) {
+            return isClock ? sizeToFit(clock, words, Math.max(1, width - spare)) : Float.MAX_VALUE;
+        }
+
+        void draw() {
+            float tall = Math.max(height(left), height(right));
+            float first = height(title);
+            float third = inline ? 0 : height(small);
+            float used = first + tall + third;
+            if (used > room) {  // never past the box: everything shrinks alike
+                float k = room / used;
+                for (Paint p : new Paint[] {title, label, left, right, small}) p.setTextSize(p.getTextSize() * k);
+                first *= k;
+                tall *= k;
+                third *= k;
+                used = room;
+            }
+            float spare = room - used;
+            int gaps = third > 0 ? 2 : 1;
+            float gap = Math.min(spare / (gaps + 2), first * .35f);
+            float y = top + (spare - gap * gaps) / 2;
+            float rightX = x + width + 8 * s;
+            firstRow(y, first, rightX);
+            y += first + gap;
+            float baseline = y + tall - Math.max(left.descent(), right.descent());
+            clocks(baseline, rightX);
+            if (third > 0) details(y + tall + gap, rightX);
+            b.p.setColor(b.pal.line);
+            b.cv.drawRect(rightX - 5 * s, top, rightX - 4 * s, top + room, b.p);
+        }
+
+        /** The bulb and the state on the left, what comes next on the right. */
+        private void firstRow(float y, float rowHeight, float rightX) {
+            float bulb = Math.min(rowHeight * 1.25f, room * .4f);
+            float titleRoom = width - bulb * 1.16f;
+            String state = sizeToFit(title, now.title, titleRoom) >= 13 * s ? now.title : compactTitle(now.state);
+            BulbView.draw(b, now.state, x + bulb / 2, y + rowHeight / 2, bulb, 1);
+            fit(title, state, titleRoom);
+            drawCentred(b, state, x + bulb * 1.16f, y, rowHeight, title);
+            String event = next[0];
+            if (sizeToFit(label, event, width) < 12 * s && now.next != Logic.UNKNOWN) {
+                event = compactEvent(now) + (now.tomorrow ? " завтра" : "");
+            }
+            fit(label, event, width);
+            drawCentred(b, event, rightX, y, rowHeight, label);
+        }
+
+        private void clocks(float baseline, float rightX) {
+            fit(left, start[0], width);
+            fit(right, next[1], width);
+            b.cv.drawText(start[0], x, baseline, left);
+            b.cv.drawText(next[1], rightX, baseline, right);
+            if (!inline) return;
+            if (leftSpare > 0) b.cv.drawText(start[1], x + left.measureText(start[0]) + gapX, baseline, small);
             if (rightSpare > 0) b.cv.drawText(next[2], rightX + right.measureText(next[1]) + gapX, baseline, small);
-        } else {
-            y += tall + gap;
-            if (leftSpare > 0) { fit(small, start[1], width); line(b, start[1], box[0], y, small); }
-            if (rightSpare > 0) { fit(small, next[2], width); line(b, next[2], rightX, y, small); }
         }
-        b.p.setColor(b.pal.line);
-        b.cv.drawRect(rightX - 5 * s, box[1], rightX - 4 * s, box[1] + room, b.p);
+
+        private void details(float y, float rightX) {
+            if (leftSpare > 0) line(b, start[1], x, y, fit(small, start[1], width));
+            if (rightSpare > 0) line(b, next[2], rightX, y, fit(small, next[2], width));
+        }
     }
 
     private static void drawCentred(Brush b, String words, float x, float y, float rowHeight, Paint p) {
@@ -310,7 +358,7 @@ final class WidgetArt {
     private static void tomorrowLine(Context c, Brush b, Model m, float[] box) {
         String[] words = Logic.widgetTomorrow(dayOf(m.tl, 48));
         Paint p = text(Ui.bold(c), box[3] * .72f, b.pal.text, Paint.Align.LEFT);
-        String shown = sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? words[0] : words[1];
+        String shown = words[sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? 0 : 1];
         fit(p, shown, box[2]);
         drawCentred(b, shown, box[0], box[1], box[3], p);
     }

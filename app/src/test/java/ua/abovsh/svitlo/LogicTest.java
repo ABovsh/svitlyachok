@@ -377,7 +377,7 @@ public class LogicTest {
     @Test
     public void aSharedPictureSaysWhereToGetTheApp() {
         // the picture says everything; the words only where to get the app, no place
-        assertEquals("Завантажити застосунок «Світлячок»: https://github.com/ABovsh/svitlyachok", Logic.SHARE_TEXT);
+        assertEquals("Завантажити застосунок: https://abovsh.github.io/svitlyachok/", Logic.SHARE_TEXT);
     }
 
     @Test
@@ -1047,10 +1047,83 @@ public class LogicTest {
             assertTrue(w.rowHeight > 0);
             assertTrue(w.rowTop + w.rowHeight <= w.barTop);
             assertTrue(w.barTop + w.barHeight + w.labelHeight <= size[1] - w.pad + .01f);
-            assertTrue(w.textSize >= 12 && w.textSize <= 19);
+            assertTrue(w.headerSize >= 11 && w.headerSize <= 18);
+            assertTrue(w.labelSize >= 10 && w.labelSize <= 13);
+            assertTrue(w.rowTop + w.rowHeight + w.tomorrowHeight <= w.barTop);
         }
         assertFalse(Logic.widgetLayout(180,80,true).twoParts);
         assertFalse(Logic.widgetLayout(360,80,true).twoParts);
+    }
+
+    @Test
+    public void aRoomyLargeWidgetGivesItsSpaceToALineAboutTomorrowAndALargerBar() {
+        Logic.WidgetLayout low = Logic.widgetLayout(250, 120, true);
+        assertEquals(0f, low.tomorrowHeight, 0f);
+        Logic.WidgetLayout usual = Logic.widgetLayout(300, 176, true);
+        assertTrue(usual.tomorrowHeight >= 16);
+        assertTrue(usual.barHeight >= 16);
+        assertTrue(usual.rowHeight >= 70);
+        Logic.WidgetLayout tall = Logic.widgetLayout(360, 260, true);
+        assertTrue(tall.barHeight > usual.barHeight);
+        assertTrue(tall.rowHeight > usual.rowHeight);
+    }
+
+    @Test
+    public void widgetTomorrowLineTellsTheDayInTheShortestHonestWords() {
+        assertEquals(Arrays.asList("Завтра без вимкнень", "Завтра без вимкнень"),
+                Arrays.asList(Logic.widgetTomorrow(repeat('1', 48))));
+        assertEquals(Arrays.asList("Завтра: графіка ще немає", "Завтра: графіка ще немає"),
+                Arrays.asList(Logic.widgetTomorrow(repeat('2', 48))));
+        assertEquals(Arrays.asList("Завтра: графіка ще немає", "Завтра: графіка ще немає"),
+                Arrays.asList(Logic.widgetTomorrow(null)));
+        String two = repeat('1', 12) + repeat('0', 6) + repeat('1', 14) + repeat('0', 14) + repeat('1', 2);
+        assertEquals(Arrays.asList("Завтра: 06:00–09:00, 16:00–23:00", "Завтра: 2 вимкнення · 10 год"),
+                Arrays.asList(Logic.widgetTomorrow(two)));
+        String possible = repeat('1', 20) + repeat('3', 10) + repeat('1', 18);
+        assertEquals(Arrays.asList("Завтра можливо: 10:00–15:00", "Завтра можливо: 5 год"),
+                Arrays.asList(Logic.widgetTomorrow(possible)));
+        String partial = repeat('1', 24) + repeat('2', 24);
+        assertEquals(Arrays.asList("Завтра: графік неповний", "Завтра: графік неповний"),
+                Arrays.asList(Logic.widgetTomorrow(partial)));
+    }
+
+    @Test
+    public void widgetTodayTotalIsShownOnlyWhenTheDayHasAnOutage() {
+        assertEquals("", Logic.widgetToday(repeat('1', 48)));
+        assertEquals("", Logic.widgetToday(null));
+        assertEquals("без світла 10 год",
+                Logic.widgetToday(repeat('1', 12) + repeat('0', 6) + repeat('1', 14) + repeat('0', 14) + repeat('1', 2)));
+    }
+
+    @Test
+    public void aNewWidgetIsNotMarkedAsAlreadyShowingAPlace() {
+        Logic.Place home = new Logic.Place(); home.id = "p1";
+        Logic.Place work = new Logic.Place(); work.id = "p2";
+        List<Logic.Place> all = Arrays.asList(home, work);
+        // the launcher has just added it: nothing saved, the other widget shows home
+        assertEquals(Logic.WIDGET_HAS_OTHER, Logic.widgetMark(home, null, all, Arrays.asList("p1")));
+        assertEquals(Logic.WIDGET_FREE, Logic.widgetMark(work, null, all, Arrays.asList("p1")));
+        // reconfiguring an existing widget: its own place is marked
+        assertEquals(Logic.WIDGET_THIS, Logic.widgetMark(work, "p2", all, Arrays.asList("p1")));
+        assertEquals(Logic.WIDGET_HAS_OTHER, Logic.widgetMark(home, "p2", all, Arrays.asList("p1")));
+        // saved empty: an old widget that always showed the first place
+        assertEquals(Logic.WIDGET_THIS, Logic.widgetMark(home, "", all, Arrays.<String>asList()));
+    }
+
+    @Test
+    public void aShownReminderStaysMatchedAfterItsLateWindowWhileTheScheduleKeepsIt() {
+        Logic.Place p = new Logic.Place(); p.id = "p1"; p.name = "Дім";
+        Logic.Alerts a = new Logic.Alerts(); a.off = true; a.leadOff = 0;
+        String tl = repeat('1', 28) + repeat('0', 8) + repeat('1', 60);
+        long change = at(14, 0);
+        // two hours into the outage the event is no longer "upcoming", but the notice is still true
+        boolean upcoming = false;
+        for (Logic.Event e : Logic.events(p, tl, OCT30, at(16, 0), a)) upcoming |= e.change == change;
+        assertFalse(upcoming);
+        Logic.Event found = Logic.shownEvent(p, tl, OCT30, a, change, Logic.Event.AT_OFF, change);
+        assertEquals(change, found.change);
+        // the schedule moved the outage away: it is false now
+        assertNull(Logic.shownEvent(p, repeat('1', 96), OCT30, a, change, Logic.Event.AT_OFF, change));
     }
 
     @Test

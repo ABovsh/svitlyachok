@@ -161,6 +161,11 @@ final class Prefs {
         return p(c).getString("w_" + widget, "");
     }
 
+    /** The saved choice, or null while a just added widget has none. */
+    static String savedWidgetChoice(Context c, int widget) {
+        return p(c).getString("w_" + widget, null);
+    }
+
     static void setWidgetChoice(Context c, int widget, String ids) {
         p(c).edit().putString("w_" + widget, ids).apply();
     }

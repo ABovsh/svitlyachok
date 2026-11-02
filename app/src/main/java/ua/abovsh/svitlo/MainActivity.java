@@ -216,9 +216,9 @@ public class MainActivity extends Base {
     @Override
     void render() {
         if (body == null) return;
-        shown = state();
         List<Logic.Place> places = Prefs.places(this);
         if (places.isEmpty()) return;
+        shown = state();
         long now = Sync.now();
         LocalDate base = Logic.today(now);
         sub.setText(loading ? "оновлюю графік…" : Ui.date(base) + " · за графіком");
@@ -559,7 +559,7 @@ public class MainActivity extends Base {
         }
         head.setContentDescription(Logic.describe(title, slots)); card.addView(head, fill());
         if (slots == null) {
-            TextView none = Ui.text(this, 14, Ui.body(this), pal.muted);
+            TextView none = Ui.text(this, 14, Ui.body(this), pal.maybeText);
             none.setText(notPublished(p, title.startsWith("Завтра")));
             none.setPadding(0, Ui.dp(this, 5), 0, Ui.dp(this, 8));
             card.addView(none, fill()); return;
@@ -611,11 +611,14 @@ public class MainActivity extends Base {
         TextView t = Ui.text(this, 13, Ui.body(this), pal.muted);
         t.setLineSpacing(0, 1.1f);
         List<String> when = new ArrayList<>();
-        if (d != null && d.updated > 0) when.add(cap(Logic.updated(d.updated, now)));
+        String updated = d != null && d.updated > 0 ? cap(Logic.updated(d.updated, now)) : "";
+        if (!updated.isEmpty()) when.add(updated);
         long checked = Store.checkedAt(this, p.region);
         if (checked > 0) when.add("перевірено о\u00A0" + Logic.hm(checked));
-        t.setText((when.isEmpty() ? "" : String.join(" · ", when) + ".\n")
+        android.text.SpannableString words = new android.text.SpannableString((when.isEmpty() ? "" : String.join(" · ", when) + ".\n")
                 + "Графік обленерго, не фактична наявність світла. Оновлюється автоматично.");
+        if (!updated.isEmpty()) words.setSpan(new android.text.style.ForegroundColorSpan(pal.maybeText), 0, updated.length(), 0);
+        t.setText(words);
         t.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         return t;
     }

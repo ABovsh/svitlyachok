@@ -932,7 +932,7 @@ public final class Logic {
     }
 
     /** The words under a shared picture: where to get the app; the picture says the rest. */
-    static final String SHARE_TEXT = "Завантажити застосунок «Світлячок»: https://github.com/ABovsh/svitlyachok";
+    static final String SHARE_TEXT = "Завантажити застосунок: https://abovsh.github.io/svitlyachok/";
 
     /**
      * The place as notifications name it: with one place a name tells nothing, so it is left out;
@@ -1348,34 +1348,77 @@ public final class Logic {
     /** Layout in dp: every full widget keeps both current and future information visible. */
     public static final class WidgetLayout {
         public boolean twoParts;
-        public boolean compact;
         public float pad;
-        public float textSize;
         public float columnWidth;
         public float rowTop;
         public float rowHeight;
         public float barTop;
         public float barHeight;
         public float labelHeight;
+        public float headerSize;
+        public float labelSize;
+        public float tomorrowHeight;
+    }
+
+    public static final int WIDGET_FREE = 0;
+    public static final int WIDGET_THIS = 1;
+    public static final int WIDGET_HAS_OTHER = 2;
+
+    /** How a place is marked when a widget is set up; `saved` is null for a widget just added. */
+    public static int widgetMark(Place p, String saved, List<Place> all, List<String> others) {
+        Place shown = saved == null ? null : widgetPlace(all, saved);
+        if (shown != null && shown.id.equals(p.id)) return WIDGET_THIS;
+        return others.contains(p.id) ? WIDGET_HAS_OTHER : WIDGET_FREE;
+    }
+
+    /** Tomorrow in one line, the fullest form first and the shorter one when it does not fit. */
+    public static String[] widgetTomorrow(String day) {
+        String none = "Завтра: графіка ще немає";
+        if (day == null || count(day, '2') == day.length()) return new String[] {none, none};
+        List<String> labels = new ArrayList<>();
+        for (Outage o : outages(day, -1)) labels.add(o.label.replace(" – ", "–"));
+        if (labels.isEmpty()) {
+            String clear = count(day, '2') > 0 ? "Завтра: графік неповний" : "Завтра без вимкнень";
+            return new String[] {clear, clear};
+        }
+        int certain = offCount(day);
+        if (certain == 0) {
+            return new String[] {"Завтра можливо: " + String.join(", ", labels), "Завтра можливо: " + length(count(day, '3'))};
+        }
+        return new String[] {"Завтра: " + String.join(", ", labels), "Завтра: " + outagesWord(certain) + " · " + length(count(day, '0'))};
+    }
+
+    /** "без світла 10 год" for a day with an outage, otherwise nothing: the bar says the rest. */
+    public static String widgetToday(String day) {
+        return day == null || count(day, '0') == 0 ? "" : dayTotal(day);
+    }
+
+    /** The event of a reminder already on screen, for as long as the schedule keeps it. */
+    public static Event shownEvent(Place p, String tl, LocalDate base, Alerts a, long change, int kind, long planned) {
+        for (Event e : events(p, tl, base, planned, a)) if (e.change == change && e.kind == kind) return e;
+        return null;
     }
 
     private static float widgetBarHeight(int height) {
-        if (height < 150) return 8;
-        return height < 180 ? 12f : 16f;
+        if (height < 130) return 10;
+        if (height < 160) return 14;
+        return height < 200 ? 18f : 22f;
     }
 
+    /** Every dp of a large widget has a job: name, two panes, tomorrow when it fits, today's bar. */
     public static WidgetLayout widgetLayout(int width, int height, boolean titled) {
         WidgetLayout w = new WidgetLayout();
         w.twoParts = widgetForm(width, height) == W_FULL;
         w.pad = Math.max(8f, Math.min(10f, 8 + (height - 110) * .05f));
-        w.textSize = Math.max(12, Math.min(19, height * .15f));
+        w.headerSize = Math.max(11, Math.min(18, height * .11f));
+        w.labelSize = Math.max(10, Math.min(13, height * .07f));
         w.columnWidth = (width - 2 * w.pad - 8) / 2;
-        w.labelHeight = 16;
+        w.labelHeight = w.labelSize + 4;
         w.barHeight = widgetBarHeight(height);
         w.barTop = height - w.pad - w.labelHeight - w.barHeight;
-        w.rowTop = w.pad + (titled ? w.textSize * .8f + 2 : 0);
-        w.rowHeight = w.barTop - 2 - w.rowTop;
-        w.compact = w.columnWidth < 145 || w.rowHeight < 75;
+        w.rowTop = w.pad + (titled ? w.headerSize * 1.45f : 0);
+        w.tomorrowHeight = height >= 135 && width >= 250 ? Math.min(22, height * .12f) : 0;
+        w.rowHeight = w.barTop - 2 - w.rowTop - w.tomorrowHeight;
         return w;
     }
 

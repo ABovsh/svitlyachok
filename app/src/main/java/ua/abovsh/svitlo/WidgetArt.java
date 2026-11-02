@@ -8,9 +8,6 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.Shader;
-import android.text.Layout;
-import android.text.StaticLayout;
-import android.text.TextPaint;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -18,7 +15,7 @@ import java.util.Locale;
 /**
  * The widget as one bitmap (RemoteViews cannot use our fonts). Each widget shows one place: from
  * 2 x 1 the bulb, what is scheduled now and until when; with room, the place's name and what
- * comes after; at 4 x 2, today’s schedule. Only clock times, never "in N minutes": the widget is
+ * comes after; at 4 x 2, today's total, tomorrow and today's schedule. Only clock times, never "in N minutes": the widget is
  * redrawn at changes, not every minute.
  */
 final class WidgetArt {
@@ -88,7 +85,7 @@ final class WidgetArt {
         if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
         return (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
-                + (n.then.isEmpty() ? "" : ", " + n.then);
+                + (n.then.isEmpty() ? "" : ", " + n.then) + ". " + Logic.widgetTomorrow(dayOf(m.tl, 48))[0];
     }
 
     /** The size of the picture and its scale; `pad` is the margin inside the rounded card. */
@@ -175,38 +172,144 @@ final class WidgetArt {
         if (then) line(b, n.then, tx, y + g, pn);
     }
 
-    /** Native fonts in both columns; no full widget silently falls back to the old row. */
+    /** The whole card works: the name and today's total, both panes as large as they fit, tomorrow, the bar. */
     private static void large(Context c, Brush b, Model m, long now, Frame f) {
         Logic.WidgetLayout w = Logic.widgetLayout(Math.round(f.w / f.s), Math.round(f.h / f.s), true);
         float s = f.s;
         float pad = w.pad * s;
-        float width = w.columnWidth * s;
-        float right = pad + width + 8 * s;
-        Paint name = fit(text(Ui.heavy(c), w.textSize * .8f * s, b.pal.text, Paint.Align.LEFT),
-                widgetName(m) + " · черга " + Logic.queue(m.place.group), f.w - 2 * pad);
-        line(b, widgetName(m) + " · черга " + Logic.queue(m.place.group), pad, pad, name);
-        String[] start = Logic.widgetStart(m.now);
         String[] next = Logic.widgetFuture(m.now);
-        float bulb = (w.compact ? 18 : 30) * s;
-        String title = compactTitle(m.now.state);
-        Paint titleSize = text(Ui.heavy(c), w.textSize * s, b.pal.status(m.now.state), Paint.Align.LEFT);
-        if (titleSize.measureText(m.now.title) <= width - bulb - 5 * s) title = m.now.title;
-        if (w.compact && m.now.next != Logic.UNKNOWN) next[0] = compactEvent(m.now) + (m.now.tomorrow ? " завтра" : "");
-        Panel present = new Panel(c, new String[] {title, start[0], start[1]}, new float[] {width, width - bulb - 5 * s, w.textSize * s},
-                new int[] {b.pal.status(m.now.state), b.pal.text, b.pal.muted}, bulb, s);
-        Panel future = new Panel(c, new String[] {next[0], next[1], next[2]}, new float[] {width, width, w.textSize * s},
-                new int[] {b.pal.muted, b.pal.status(m.now.next), b.pal.muted}, 0, s);
-        float rowTop = w.rowTop * s;
-        float rowHeight = w.rowHeight * s;
-        float[] rows = Panel.align(present, future, rowHeight);
-        float total = rows[0] + rows[1] + rows[2] + 2 * present.gap;
-        float top = rowTop + Math.max(0, (rowHeight - total) / 2);
-        present.drawAligned(b, pad, top, m.now.state, rows, future);
-        future.drawAligned(b, right, top, Logic.UNKNOWN, rows, present);
-        b.p.setColor(b.pal.line);
-        b.cv.drawRect(right - 5 * s, rowTop, right - 4 * s, rowTop + rowHeight, b.p);
+        boolean said = next[0].startsWith("Завтра") || next[0].startsWith("Сьогодні й завтра");
+        boolean tomorrow = w.tomorrowHeight > 0 && !said;
+        float top = w.rowTop * s;
+        float room = (w.rowHeight + (tomorrow ? 0 : w.tomorrowHeight)) * s;
+        header(c, b, m, f, w);
+        panes(c, b, m, next, new float[] {pad, top, w.columnWidth * s, room, s});
+        if (tomorrow) tomorrowLine(c, b, m, new float[] {pad, top + room, f.w - 2 * pad, w.tomorrowHeight * s});
         b.r2.set(pad, w.barTop * s, f.w - pad, (w.barTop + w.barHeight) * s);
-        bar(c, b, m.base, m.tl, now, b.r2, s);
+        bar(c, b, m.base, m.tl, now, b.r2, new float[] {s, w.labelSize * s});
+    }
+
+    private static String dayOf(String tl, int from) {
+        String day = tl.substring(from, from + 48);
+        return day.replace("2", "").isEmpty() ? null : day;
+    }
+
+    private static void header(Context c, Brush b, Model m, Frame f, Logic.WidgetLayout w) {
+        float s = f.s;
+        float pad = w.pad * s;
+        float full = f.w - 2 * pad;
+        String title = widgetName(m) + " · черга " + Logic.queue(m.place.group);
+        Paint name = fit(text(Ui.heavy(c), w.headerSize * s, b.pal.text, Paint.Align.LEFT), title, full);
+        line(b, title, pad, pad, name);
+        String total = Logic.widgetToday(dayOf(m.tl, 0));
+        if (total.isEmpty()) return;
+        Paint side = text(Ui.bold(c), w.headerSize * .78f * s, b.pal.muted, Paint.Align.RIGHT);
+        float free = full - name.measureText(title) - 10 * s;
+        String wide = "сьогодні " + total;
+        String words = side.measureText(wide) <= free ? wide : total;
+        if (side.measureText(words) > free) return;  // the name matters more
+        float baseline = pad - name.ascent();
+        b.cv.drawText(words, f.w - pad, baseline, side);
+    }
+
+    private static float height(Paint p) {
+        return p.descent() - p.ascent();
+    }
+
+    /** The largest size at which `words` fit `width`. */
+    private static float sizeToFit(Paint p, String words, float width) {
+        if (words.isEmpty()) return Float.MAX_VALUE;
+        return p.getTextSize() * width / p.measureText(words);
+    }
+
+    /** box: x, y, column width, height, scale. Both columns share their rows, so the clocks stand on one line. */
+    private static void panes(Context c, Brush b, Model m, String[] next, float[] box) {
+        float width = box[2];
+        float room = box[3];
+        String[] start = Logic.widgetStart(m.now);
+        boolean leftClock = start[0].contains(":");
+        boolean rightClock = next[1].contains(":");
+        Paint clock = text(Ui.display(c), 100, b.pal.text, Paint.Align.LEFT);
+        Paint plain = text(Ui.bold(c), 100, b.pal.text, Paint.Align.LEFT);
+        float s = box[4];
+        float gapX = 6 * s;
+        float detail = Math.max(12 * s, Math.min(16 * s, room * .2f));
+        Paint small = text(Ui.bold(c), detail, b.pal.muted, Paint.Align.LEFT);
+        float leftSpare = start[1].isEmpty() ? 0 : small.measureText(start[1]) + gapX;
+        float rightSpare = next[2].isEmpty() ? 0 : small.measureText(next[2]) + gapX;
+        float wholeLeft = leftClock ? sizeToFit(clock, start[0], width) : Float.MAX_VALUE;
+        float wholeRight = rightClock ? sizeToFit(clock, next[1], width) : Float.MAX_VALUE;
+        float besideLeft = leftClock ? sizeToFit(clock, start[0], Math.max(1, width - leftSpare)) : Float.MAX_VALUE;
+        float besideRight = rightClock ? sizeToFit(clock, next[1], Math.max(1, width - rightSpare)) : Float.MAX_VALUE;
+        float beside = Math.min(room * .54f, Math.min(besideLeft, besideRight));
+        float stacked = Math.min(room * .42f, Math.min(wholeLeft, wholeRight));
+        boolean details = leftSpare + rightSpare > 0;
+        boolean inline = !details || beside >= stacked;
+        float value = inline ? beside : stacked;
+        float head = Math.min(value * .8f, room * (inline ? .30f : .24f));
+
+        Paint title = text(Ui.heavy(c), head, b.pal.status(m.now.state), Paint.Align.LEFT);
+        Paint label = text(Ui.heavy(c), head, b.pal.muted, Paint.Align.LEFT);
+        Paint left = text(leftClock ? Ui.display(c) : Ui.bold(c), leftClock ? value : head, b.pal.text, Paint.Align.LEFT);
+        Paint right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, b.pal.status(m.now.next), Paint.Align.LEFT);
+        float tall = Math.max(height(left), height(right));
+        float first = height(title);
+        float third = inline || !details ? 0 : height(small);
+        float used = first + tall + third;
+        if (used > room) {  // never past the box: everything shrinks alike
+            float k = room / used;
+            for (Paint p : new Paint[] {title, label, left, right, small}) p.setTextSize(p.getTextSize() * k);
+            first *= k; tall *= k; third *= k; used = room;
+        }
+        float spare = room - used;
+        int gaps = third > 0 ? 2 : 1;
+        float gap = Math.min(spare / (gaps + 2), first * .35f);
+        float y = box[1] + (spare - gap * gaps) / 2;
+
+        // the first row: the bulb and the state, and what comes next
+        float bulb = Math.min(first * 1.25f, room * .4f);
+        float titleX = box[0] + bulb + bulb * .16f;
+        float titleRoom = width - bulb - bulb * .16f;
+        String state = sizeToFit(title, m.now.title, titleRoom) >= 13 * s ? m.now.title : compactTitle(m.now.state);
+        BulbView.draw(b, m.now.state, box[0] + bulb / 2, y + first / 2, bulb, 1);
+        fit(title, state, titleRoom);
+        drawCentred(b, state, titleX, y, first, title);
+        float rightX = box[0] + width + 8 * s;
+        String event = next[0];
+        if (sizeToFit(label, event, width) < 12 * s && m.now.next != Logic.UNKNOWN) event = compactEvent(m.now) + (m.now.tomorrow ? " завтра" : "");
+        fit(label, event, width);
+        drawCentred(b, event, rightX, y, first, label);
+
+        // the second row: the clocks on one baseline
+        y += first + gap;
+        float baseline = y + tall - Math.max(left.descent(), right.descent());
+        if (!leftClock) fit(left, start[0], width);
+        if (!rightClock) fit(right, next[1], width);
+        b.cv.drawText(start[0], box[0], baseline, left);
+        b.cv.drawText(next[1], rightX, baseline, right);
+        if (inline) {
+            if (leftSpare > 0) b.cv.drawText(start[1], box[0] + left.measureText(start[0]) + gapX, baseline, small);
+            if (rightSpare > 0) b.cv.drawText(next[2], rightX + right.measureText(next[1]) + gapX, baseline, small);
+        } else {
+            y += tall + gap;
+            if (leftSpare > 0) { fit(small, start[1], width); line(b, start[1], box[0], y, small); }
+            if (rightSpare > 0) { fit(small, next[2], width); line(b, next[2], rightX, y, small); }
+        }
+        b.p.setColor(b.pal.line);
+        b.cv.drawRect(rightX - 5 * s, box[1], rightX - 4 * s, box[1] + room, b.p);
+    }
+
+    private static void drawCentred(Brush b, String words, float x, float y, float rowHeight, Paint p) {
+        b.cv.drawText(words, x, y + (rowHeight - height(p)) / 2 - p.ascent(), p);
+    }
+
+    /** box: x, y, width, height. All of tomorrow's outages when they fit, otherwise their count and total. */
+    private static void tomorrowLine(Context c, Brush b, Model m, float[] box) {
+        String[] words = Logic.widgetTomorrow(dayOf(m.tl, 48));
+        Paint p = text(Ui.bold(c), box[3] * .72f, b.pal.text, Paint.Align.LEFT);
+        String shown = sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? words[0] : words[1];
+        fit(p, shown, box[2]);
+        drawCentred(b, shown, box[0], box[1], box[3], p);
     }
 
     private static String compactTitle(int state) {
@@ -220,98 +323,6 @@ final class WidgetArt {
         return now.next == Logic.OFF ? "Вимкнуть" : "Можливо";
     }
 
-    /** Measured text blocks reflow within a column, preserving all schedule information. */
-    private static final class Panel {
-        private final String[] strings;
-        private final TextPaint[] paints = new TextPaint[3];
-        private final StaticLayout[] lines = new StaticLayout[3];
-        private final float width;
-        private final float titleWidth;
-        private float bulb;
-        private float gap;
-
-        /** words: title, value, detail; sizes: width, title width, text size; inks in the order of the words. */
-        Panel(Context c, String[] words, float[] sizes, int[] inks, float bulb, float scale) {
-            strings = words;
-            String value = words[1];
-            float size = sizes[2];
-            this.width = sizes[0]; this.titleWidth = sizes[1]; this.bulb = bulb; gap = 2 * scale;
-            int titleInk = inks[0];
-            int valueInk = inks[1];
-            int detailInk = inks[2];
-            paints[0] = new TextPaint(text(Ui.heavy(c), size * .74f, titleInk, Paint.Align.LEFT));
-            paints[1] = new TextPaint(text(value.contains(":") ? Ui.display(c) : Ui.bold(c),
-                    size * (value.contains(":") ? 1.05f : .74f), valueInk, Paint.Align.LEFT));
-            paints[2] = new TextPaint(text(Ui.bold(c), Math.max(13 * scale, size * .68f), detailInk, Paint.Align.LEFT));
-            if (value.contains(":")) fit(paints[1], value, sizes[0]);
-            reflow();
-        }
-
-        private void reflow() {
-            for (int i = 0; i < lines.length; i++) {
-                if (strings[i].isEmpty()) { lines[i] = null; continue; }
-                lines[i] = StaticLayout.Builder.obtain(strings[i], 0, strings[i].length(), paints[i],
-                        Math.max(1, Math.round(i == 0 ? titleWidth : width)))
-                        .setAlignment(Layout.Alignment.ALIGN_NORMAL).setIncludePad(false).build();
-            }
-        }
-
-        private float titleHeight() {
-            return lines[0] == null ? bulb : Math.max(bulb, (float) lines[0].getHeight());
-        }
-
-        float height() {
-            float h = titleHeight();
-            for (int i = 1; i < lines.length; i++) if (lines[i] != null) h += gap + lines[i].getHeight();
-            return h;
-        }
-
-        static float[] align(Panel a, Panel b, float room) {
-            float value = Math.min(a.paints[1].getTextSize(), b.paints[1].getTextSize());
-            a.paints[1].setTextSize(value); b.paints[1].setTextSize(value);
-            a.reflow(); b.reflow();
-            float[] rows = new float[3];
-            for (int attempt = 0; attempt < 10; attempt++) {
-                float total = 2 * a.gap;
-                for (int i = 0; i < 3; i++) { rows[i] = sharedHeight(a,b,i); total += rows[i]; }
-                if (total <= room) break;
-                float ratio = Math.min(.98f, (room - 1) / total);
-                for (Panel panel : new Panel[] {a,b}) {
-                    for (TextPaint paint : panel.paints) paint.setTextSize(paint.getTextSize() * ratio);
-                    panel.bulb *= ratio; panel.gap *= ratio; panel.reflow();
-                }
-            }
-            return rows;
-        }
-
-        private static float baseline(Panel a, Panel b, int row) {
-            return Math.max(a.lines[row] == null ? 0 : (float) a.lines[row].getLineBaseline(0),
-                    b.lines[row] == null ? 0 : (float) b.lines[row].getLineBaseline(0));
-        }
-
-        private static float sharedHeight(Panel a, Panel b, int row) {
-            float below = Math.max(a.lines[row] == null ? 0 : a.lines[row].getHeight()-(float) a.lines[row].getLineBaseline(0),
-                    b.lines[row] == null ? 0 : b.lines[row].getHeight()-(float) b.lines[row].getLineBaseline(0));
-            float height = baseline(a,b,row) + below;
-            return row == 0 ? Math.max(height, Math.max(a.bulb,b.bulb)) : height;
-        }
-
-        void drawAligned(Brush b, float x, float y, int state, float[] rows, Panel other) {
-            if (bulb > 0) BulbView.draw(b,state,x+bulb/2,y+rows[0]/2,bulb,1);
-            for (int i=0;i<3;i++) {
-                StaticLayout line = lines[i];
-                if (line != null) drawLine(b.cv,line,x+(i==0 && bulb>0 ? bulb+5*gap/2 : 0),
-                        y + baseline(this,other,i) - line.getLineBaseline(0));
-                y += rows[i] + gap;
-            }
-        }
-
-        private static void drawLine(Canvas cv, StaticLayout line, float x, float y) {
-            if (line == null) return;
-            cv.save(); cv.translate(x, y); line.draw(cv); cv.restore();
-        }
-    }
-
     /** A line of text whose top is at y; returns the y under it. */
     private static float line(Brush b, String text, float x, float y, Paint p) {
         b.cv.drawText(text, x, y - p.ascent(), p);
@@ -319,7 +330,8 @@ final class WidgetArt {
     }
 
     /** Today 00–24, fixed clock labels, ordinary past dimming and a marker at now. */
-    private static void bar(Context c, Brush b, LocalDate base, String tl, long now, RectF area, float s) {
+    private static void bar(Context c, Brush b, LocalDate base, String tl, long now, RectF area, float[] scale) {
+        float s = scale[0];
         // runs() uses r2 for possible outages; keep a separate stable bounds object.
         RectF bounds = new RectF(area);
         BarView.runs(b, tl, 0, 48, 0, bounds, 1.5f * s);
@@ -337,11 +349,11 @@ final class WidgetArt {
         b.cv.restore();
         b.p.setColor(b.pal.text);
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
-        Paint lab = text(Ui.bold(c), 10 * s, b.pal.muted, Paint.Align.CENTER);
+        Paint lab = text(Ui.bold(c), scale[1], b.pal.muted, Paint.Align.CENTER);
         for (int hour = 0; hour <= 24; hour += 6) {
             lab.setTextAlign(hourAlign(hour));
             b.cv.drawText(String.format(Locale.ROOT, "%02d", hour), bounds.left + bounds.width() * hour/24,
-                    bounds.bottom + 13*s, lab);
+                    bounds.bottom + scale[1] + 1*s, lab);
         }
     }
 

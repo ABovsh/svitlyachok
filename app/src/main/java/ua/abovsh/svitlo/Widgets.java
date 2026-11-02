@@ -34,6 +34,17 @@ final class Widgets {
         return out;
     }
 
+    /** The places shown by all widgets except this one. */
+    static List<String> placesOfOthers(Context c, int widget) {
+        List<Logic.Place> all = Prefs.places(c);
+        List<String> out = new ArrayList<>();
+        for (int id : ids(c)) {
+            Logic.Place p = id == widget ? null : Logic.widgetPlace(all, Prefs.widgetChoice(c, id));
+            if (p != null) out.add(p.id);
+        }
+        return out;
+    }
+
     /** Whether the app can offer a widget for this place: it has none yet and the launcher can pin. */
     static boolean canOffer(Context c, Logic.Place p) {
         return AppWidgetManager.getInstance(c).isRequestPinAppWidgetSupported() && Logic.needsWidget(p.id, places(c));

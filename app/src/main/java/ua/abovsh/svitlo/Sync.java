@@ -224,25 +224,20 @@ final class Sync {
         String id = extras.getString("reminder_place", "");
         Logic.Place p = Prefs.place(c, id);
         if (p == null || !p.region.equals(region)) return;
-        long now = now();
-        LocalDate base = Logic.today(now).minusDays(1);
+        LocalDate base = Logic.today(now()).minusDays(1);
         Logic.Data data = Store.data(c, region);
         String yesterday = Prefs.knownHistory(c, p, data).get(base);
         String tl = (yesterday == null ? Logic.repeat('2',48) : yesterday) + timeline(c,p,base.plusDays(1));
-        Logic.Event match = matchingEvent(c,p,extras,tl,base,now);
+        Logic.Event match = Logic.shownEvent(Logic.inNotices(p, Prefs.places(c).size()),tl,base,Prefs.alerts(c,p.id),
+                extras.getLong("reminder_change"),extras.getInt("reminder_kind"),extras.getLong("reminder_planned"));
         if (match == null) { nm.cancel(posted.getId()); return; }
         Logic.Notice note = Logic.eventText(match,tl,base);
         CharSequence previous = extras.getCharSequence(Notification.EXTRA_TITLE, "");
-        if (!note.title.contentEquals(previous) && stillActive(nm,posted.getId())) {
+        CharSequence previousText = extras.getCharSequence(Notification.EXTRA_TEXT, "");
+        boolean changed = !note.title.contentEquals(previous) || !note.text.contentEquals(previousText);
+        if (changed && stillActive(nm,posted.getId())) {
             show(c, posted.getId(), id, posted.getNotification().getChannelId(),note,true,true);
         }
-    }
-
-    private static Logic.Event matchingEvent(Context c, Logic.Place p, Bundle extras, String tl, LocalDate base, long now) {
-        for (Logic.Event e : Logic.events(Logic.inNotices(p, Prefs.places(c).size()),tl,base,now,Prefs.alerts(c,p.id))) {
-            if (e.change == extras.getLong("reminder_change") && e.kind == extras.getInt("reminder_kind")) return e;
-        }
-        return null;
     }
 
     private static boolean stillActive(NotificationManager nm, int id) {
@@ -346,7 +341,7 @@ final class Sync {
             int[] cell = Logic.widgetDefaultSize(info != null
                     && LargeLightWidget.class.getName().equals(info.provider.getClassName()));
             int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, cell[0]));
-            int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
+            int hDp = Math.min(260, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
             String key = BuildConfig.VERSION_CODE + "|" + c.getResources().getConfiguration().fontScale + "|" + WidgetArt.key(c, model, now, wDp, hDp);
             if (key.equals(drawn.get(id))) continue;
             RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget);

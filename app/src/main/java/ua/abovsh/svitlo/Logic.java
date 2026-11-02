@@ -1370,19 +1370,27 @@ public final class Logic {
 
     private static final float CAP = .74f;  // the height of a capital against the font size
 
-    /** Sizes of a small widget {name, state, clock, detail, gap}: the clock leads, as large as it fits. */
-    public static float[] widgetRowSizes(float rowHeight, float clockFit, boolean named, boolean detail) {
-        float clock = Math.min(clockFit, rowHeight * (named || detail ? .42f : .56f));
-        float[] sized = {clock * .62f, clock * .78f, clock, clock * .62f, clock * .3f};
-        float block = widgetRowBlock(sized, named, detail);
-        if (block > rowHeight) for (int i = 0; i < sized.length; i++) sized[i] *= rowHeight / block;
+    /** Sizes of a small widget {name, event, clock, gap}: the words keep their size, the clock takes what the width gives. */
+    public static float[] widgetRowSizes(float rowHeight, float clockFit) {
+        float word = Math.max(9, rowHeight * .21f);
+        float[] sized = {word, word * .97f, Math.min(clockFit, rowHeight * .5f), 0};
+        float caps = widgetRowBlock(sized);
+        if (caps > rowHeight) {
+            for (int i = 0; i < 3; i++) sized[i] *= rowHeight / caps;
+            caps = rowHeight;
+        }
+        sized[3] = Math.min((rowHeight - caps) / 2, sized[2] * .5f);
         return sized;
     }
 
     /** The height of those lines from the top of the first capital to the last baseline. */
-    public static float widgetRowBlock(float[] sizes, boolean named, boolean detail) {
-        return CAP * (sizes[1] + sizes[2] + (named ? sizes[0] : 0) + (detail ? sizes[3] : 0))
-                + sizes[4] * (1 + (named ? 1 : 0) + (detail ? 1 : 0));
+    public static float widgetRowBlock(float[] sizes) {
+        return CAP * (sizes[0] + sizes[1] + sizes[2]) + 2 * sizes[3];
+    }
+
+    /** The width of the segment with the bulb, in dp. */
+    public static float widgetBulbSegment(int width) {
+        return Math.min(64, Math.max(36, width * .31f));
     }
 
     public static boolean widgetTomorrowMissing(String day) {

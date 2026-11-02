@@ -88,6 +88,16 @@ final class BulbView extends View {
         b.p.setStyle(Paint.Style.FILL);
     }
 
+    /** Without the disc: on a widget the whole card already carries the colour of the state. */
+    static void plain(Brush b, int state, float cx, float cy, float size) {
+        float line = size * 0.045f;
+        glass(b, state, cx, cy, size, line);
+        cap(b, state, cx, cy, size, line);
+        if (state == Logic.ON) rays(b, cx, cy - size * 0.09f, size, line);
+        else if (state == Logic.OFF) crossOut(b, cx, cy, size, line);
+        b.p.setStyle(Paint.Style.FILL);
+    }
+
     private static void disc(Brush b, int state, float cx, float cy, float size, float glow) {
         Paint p = b.p;
         float r = size / 2f;

@@ -1138,19 +1138,28 @@ public class LogicTest {
     }
 
     @Test
-    public void aSmallWidgetGivesTheClockTheLargestLetters() {
-        // 180 x 80 with a name: everything fits, the clock leads and the name stays quiet
-        float[] sized = Logic.widgetRowSizes(64, 20, true, false);
-        assertEquals(20f, sized[2], .01f);
-        assertTrue(sized[0] < sized[1]);
+    public void aSmallWidgetFillsItsRightSegmentWithTheClockLeading() {
+        // 190 x 100: name and event alike, the clock largest, the lines spread over the height
+        float[] sized = Logic.widgetRowSizes(74, 40);
+        assertEquals(37f, sized[2], .01f);
+        assertEquals(sized[0], sized[1], 1f);
         assertTrue(sized[1] < sized[2]);
-        assertTrue(Logic.widgetRowBlock(sized, true, false) <= 64);
-        // a tall widget grows until the width stops it
-        assertEquals(26f, Logic.widgetRowSizes(120, 26, true, true)[2], .01f);
+        assertTrue(Logic.widgetRowBlock(sized) <= 74.01f);
+        assertTrue(Logic.widgetRowBlock(sized) >= 70);
+        // a narrow widget: the width stops the clock, the words keep their size
+        assertEquals(26f, Logic.widgetRowSizes(74, 26)[2], .01f);
+        assertEquals(sized[0], Logic.widgetRowSizes(74, 26)[0], .01f);
         // a low widget shrinks everything alike rather than losing a line
-        float[] low = Logic.widgetRowSizes(30, 40, true, false);
-        assertTrue(Logic.widgetRowBlock(low, true, false) <= 30.01f);
+        float[] low = Logic.widgetRowSizes(26, 40);
+        assertTrue(Logic.widgetRowBlock(low) <= 26.01f);
         assertTrue(low[2] > low[1]);
+    }
+
+    @Test
+    public void aSmallWidgetKeepsItsBulbSegmentNarrow() {
+        assertEquals(59f, Logic.widgetBulbSegment(190), .5f);
+        assertEquals(64f, Logic.widgetBulbSegment(360), .01f);  // a wide row does not grow it for nothing
+        assertEquals(36f, Logic.widgetBulbSegment(110), .5f);
     }
 
     @Test

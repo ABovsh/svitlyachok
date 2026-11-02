@@ -1396,11 +1396,18 @@ public class LogicTest {
         assertEquals(e.change,Logic.eventText(e,tl(TODAY_ONLY),OCT30).until);
     }
     @Test public void supportedRegionsIncludeCherkasyAndKharkiv() {
-        assertEquals(16,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);
+        assertEquals(17,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);
+        assertEquals("Місто Київ",Logic.regions().get(0).name);assertEquals("kyiv",Logic.regions().get(0).id);
+    }
+
+    @Test public void queuesGoInTheOrderPeopleCount() throws Exception {
+        String hours=HOURS_11;
+        Logic.Data d=Logic.parse("{\"fact\":{\"data\":{\""+D30+"\":{\"GPV10.1\":"+hours+",\"GPV2.1\":"+hours+",\"GPV1.2\":"+hours+",\"GPV1.1\":"+hours+"}}}}");
+        assertEquals(Arrays.asList("GPV1.1","GPV1.2","GPV2.1","GPV10.1"),d.groups);
     }
 
     @Test public void liveNewRegionFixturesParse() throws Exception {
-        for (String region : new String[] {"cherkasy","kharkiv"}) {
+        for (String region : new String[] {"cherkasy","kharkiv","kyiv"}) {
             try (java.io.InputStream input=getClass().getResourceAsStream("/"+region+".json")) {
                 assertTrue(input!=null);
                 Logic.Data d=Logic.parse(new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));

@@ -76,6 +76,7 @@ public final class Logic {
 
     /** Open community archives of the oblenergo schedules on GitHub, one JSON format for all. */
     private static final Region[] REGIONS = {
+        new Region("kyiv", "Місто Київ", "https://www.dtek-kem.com.ua/ua/shutdowns", B42 + "kyiv.json"),
         new Region("kyiv_region", "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
         new Region("vinnytsia", "Вінницька область", "https://www.voe.com.ua/",
                 "https://raw.githubusercontent.com/vn-progr/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
@@ -153,6 +154,18 @@ public final class Logic {
         return max;
     }
 
+    /** Queues in the order people count them: 1.1, 1.2, 2.1, 10.1. */
+    static int compareGroups(String a, String b) {
+        String[] x = queue(a).split("\\.");
+        String[] y = queue(b).split("\\.");
+        for (int i = 0; i < Math.min(x.length, y.length); i++) {
+            int order = x[i].matches("\\d{1,6}") && y[i].matches("\\d{1,6}")
+                    ? Integer.compare(Integer.parseInt(x[i]), Integer.parseInt(y[i])) : x[i].compareTo(y[i]);
+            if (order != 0) return order;
+        }
+        return x.length != y.length ? Integer.compare(x.length, y.length) : a.compareTo(b);
+    }
+
     /** Parse a region file; throws on any shape it does not know, so garbage never replaces good data. */
     public static Data parse(String raw) throws BadFile {
         if (nesting(raw) > MAX_NESTING) throw new BadFile("nested too deep");
@@ -160,7 +173,7 @@ public final class Logic {
             JSONObject file = new JSONObject(raw);
             JSONObject fact = file.getJSONObject("fact");
             Data d = new Data();
-            TreeSet<String> groups = new TreeSet<>();
+            TreeSet<String> groups = new TreeSet<>(Logic::compareGroups);
             Object data = fact.get("data");
             if (data instanceof JSONArray list) {
                 if (list.length() > 0) throw new BadFile("unknown data list");

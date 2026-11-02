@@ -1047,9 +1047,10 @@ public class LogicTest {
             assertTrue(w.rowHeight > 0);
             assertTrue(w.rowTop + w.rowHeight <= w.barTop);
             assertTrue(w.barTop + w.barHeight + w.labelHeight <= size[1] - w.pad + .01f);
-            assertTrue(w.headerSize >= 11 && w.headerSize <= 18);
+            assertTrue(w.headerSize >= 11 && w.headerSize <= 13);
             assertTrue(w.labelSize >= 10 && w.labelSize <= 13);
-            assertTrue(w.rowTop + w.rowHeight + w.tomorrowHeight <= w.barTop);
+            assertEquals(size[1] - w.pad - w.tomorrowHeight, w.tomorrowTop, .01f);
+            assertTrue(w.barTop + w.barHeight + w.labelHeight <= w.tomorrowTop + .01f);
         }
         assertFalse(Logic.widgetLayout(180,80,true).twoParts);
         assertFalse(Logic.widgetLayout(360,80,true).twoParts);
@@ -1134,6 +1135,30 @@ public class LogicTest {
         d.days.put(LocalDate.of(2026, 10, 3), new java.util.HashMap<>());
         d.days.put(LocalDate.of(2026, 10, 17), new java.util.HashMap<>());
         assertEquals("17.10", Logic.lastScheduleDay(d));
+    }
+
+    @Test
+    public void aSmallWidgetGivesTheClockTheLargestLetters() {
+        // 180 x 80 with a name: everything fits, the clock leads and the name stays quiet
+        float[] sized = Logic.widgetRowSizes(64, 20, true, false);
+        assertEquals(20f, sized[2], .01f);
+        assertTrue(sized[0] < sized[1]);
+        assertTrue(sized[1] < sized[2]);
+        assertTrue(Logic.widgetRowBlock(sized, true, false) <= 64);
+        // a tall widget grows until the width stops it
+        assertEquals(26f, Logic.widgetRowSizes(120, 26, true, true)[2], .01f);
+        // a low widget shrinks everything alike rather than losing a line
+        float[] low = Logic.widgetRowSizes(30, 40, true, false);
+        assertTrue(Logic.widgetRowBlock(low, true, false) <= 30.01f);
+        assertTrue(low[2] > low[1]);
+    }
+
+    @Test
+    public void aMissingTomorrowIsRecognisedSoItCanStayQuiet() {
+        assertTrue(Logic.widgetTomorrowMissing(null));
+        assertTrue(Logic.widgetTomorrowMissing(repeat('2', 48)));
+        assertFalse(Logic.widgetTomorrowMissing(repeat('1', 48)));
+        assertFalse(Logic.widgetTomorrowMissing(repeat('1', 24) + repeat('2', 24)));
     }
 
     @Test

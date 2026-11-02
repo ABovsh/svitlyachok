@@ -144,34 +144,34 @@ final class WidgetArt {
         Logic.Now n = m.now;
         float s = f.s;
         float rowH = f.h - 2 * f.pad;
-        float bulb = Math.min(Math.min(rowH * 0.85f, 60 * s), f.w * 0.27f);  // narrow: the words come first
-        BulbView.draw(b, n.state, f.pad + bulb / 2f, f.pad + rowH / 2f, bulb, 1f);
+        float bulb = Math.min(Math.min(rowH * 0.85f, 60 * s), f.w * 0.24f);  // narrow: the words come first
+        BulbView.draw(b, n.state, f.pad + bulb / 2f, f.h / 2f, bulb, 1f);
 
         float tx = f.pad + bulb + Math.max(8 * s, bulb * 0.18f);
         float tw = f.w - tx - f.pad * 0.8f;
-        float ts = Math.max(12f, Math.min(19f, f.h / s * 0.24f)) * s;
         // with several places the name is always there: a widget must say whose schedule it shows
         boolean head = m.many || m.stale;
         boolean then = !n.then.isEmpty() && rowH >= (head ? 84 : 62) * s;
         Ui.Pal pal = b.pal;
-        Paint ph = fit(text(Ui.heavy(c), ts * 0.8f, Ui.fade(pal.text, 0.8f), Paint.Align.LEFT), widgetName(m), tw);
-        Paint pt = fit(text(Ui.heavy(c), ts, pal.status(n.state), Paint.Align.LEFT), n.title, tw);
-        Paint pb = fit(text(Ui.display(c), ts * 1.05f, pal.text, Paint.Align.LEFT), n.big, tw);
-        Paint pn = fit(text(Ui.bold(c), ts * 0.68f, n.soon ? pal.maybeText : pal.muted, Paint.Align.LEFT), n.then, tw);
-        float g = ts * 0.32f;
-        float block = (head ? height(ph) + g : 0) + height(pt)
-                + (n.big.isEmpty() ? 0 : g + height(pb)) + (then ? g + height(pn) : 0);
-        if (block > rowH * 0.94f) {  // a low widget: every line shrinks alike, none is dropped
-            float k = rowH * 0.94f / block;
-            for (Paint p : new Paint[] {ph, pt, pb, pn}) p.setTextSize(p.getTextSize() * k);
-            g *= k;
-            block *= k;
-        }
-        float y = f.pad + (rowH - block) / 2f;
-        if (head) y = line(b, widgetName(m), tx, y, ph) + g;
-        y = line(b, n.title, tx, y, pt);
-        if (!n.big.isEmpty()) y = line(b, n.big, tx, y + g, pb);
-        if (then) line(b, n.then, tx, y + g, pn);
+        Paint pb = text(Ui.display(c), 100, pal.text, Paint.Align.LEFT);
+        float[] sized = Logic.widgetRowSizes(rowH, n.big.isEmpty() ? Float.MAX_VALUE : sizeToFit(pb, n.big, tw), head, then);
+        Paint ph = fit(text(Ui.bold(c), sized[0], Ui.fade(pal.text, 0.8f), Paint.Align.LEFT), widgetName(m), tw);
+        Paint pt = fit(text(Ui.heavy(c), sized[1], pal.status(n.state), Paint.Align.LEFT), n.title, tw);
+        pb.setTextSize(sized[2]);
+        Paint pn = fit(text(Ui.bold(c), sized[3], n.soon ? pal.maybeText : pal.muted, Paint.Align.LEFT), n.then, tw);
+        float block = Logic.widgetRowBlock(sized, head, then) - (n.big.isEmpty() ? .74f * sized[2] + sized[4] : 0);
+        float y = (f.h - block) / 2f;  // the letters themselves are centred, not their line boxes
+        if (head) y = capLine(b, widgetName(m), tx, y, ph) + sized[4];
+        y = capLine(b, n.title, tx, y, pt);
+        if (!n.big.isEmpty()) y = capLine(b, n.big, tx, y + sized[4], pb);
+        if (then) capLine(b, n.then, tx, y + sized[4], pn);
+    }
+
+    /** A line whose capitals start at y, measured by the size it was meant to have; returns its baseline. */
+    private static float capLine(Brush b, String words, float x, float y, Paint p) {
+        float baseline = y + p.getTextSize() * .74f;
+        b.cv.drawText(words, x, baseline, p);
+        return baseline;
     }
 
     /** The whole card works: the name and today's total, both panes as large as they fit, tomorrow, the bar. */
@@ -184,11 +184,12 @@ final class WidgetArt {
         boolean said = next[0].startsWith("Завтра") || next[0].startsWith("Сьогодні й завтра");
         boolean tomorrow = w.tomorrowHeight > 0 && !said;
         float top = w.rowTop * s;
-        float room = (w.rowHeight + (tomorrow ? 0 : w.tomorrowHeight)) * s;
+        float freed = tomorrow ? 0 : w.tomorrowHeight * s;  // no line under the bar: everything above takes its place
+        float room = w.rowHeight * s + freed;
         header(c, b, m, f, w);
         panes(c, b, m, next, new float[] {pad, top, w.columnWidth * s, room, s});
-        if (tomorrow) tomorrowLine(c, b, m, new float[] {pad, top + room, f.w - 2 * pad, w.tomorrowHeight * s});
-        b.r2.set(pad, w.barTop * s, f.w - pad, (w.barTop + w.barHeight) * s);
+        if (tomorrow) tomorrowLine(c, b, m, new float[] {pad, w.tomorrowTop * s, f.w - 2 * pad, w.tomorrowHeight * s});
+        b.r2.set(pad, w.barTop * s + freed, f.w - pad, (w.barTop + w.barHeight) * s + freed);
         bar(c, b, m.base, m.tl, now, b.r2, new float[] {s, w.labelSize * s});
     }
 
@@ -202,11 +203,11 @@ final class WidgetArt {
         float pad = w.pad * s;
         float full = f.w - 2 * pad;
         String title = widgetName(m) + " · черга " + Logic.queue(m.place.group);
-        Paint name = fit(text(Ui.heavy(c), w.headerSize * s, b.pal.text, Paint.Align.LEFT), title, full);
+        Paint name = fit(text(Ui.bold(c), w.headerSize * s, Ui.fade(b.pal.text, .85f), Paint.Align.LEFT), title, full);
         line(b, title, pad, pad, name);
         String total = Logic.widgetToday(dayOf(m.tl, 0));
         if (total.isEmpty()) return;
-        Paint side = text(Ui.bold(c), w.headerSize * .78f * s, b.pal.muted, Paint.Align.RIGHT);
+        Paint side = text(Ui.bold(c), w.headerSize * .9f * s, b.pal.muted, Paint.Align.RIGHT);
         float free = full - name.measureText(title) - 10 * s;
         String wide = "сьогодні " + total;
         String words = side.measureText(wide) <= free ? wide : total;
@@ -367,8 +368,10 @@ final class WidgetArt {
 
     /** box: x, y, width, height. All of tomorrow's outages when they fit, otherwise their count and total. */
     private static void tomorrowLine(Context c, Brush b, Model m, float[] box) {
-        String[] words = Logic.widgetTomorrow(dayOf(m.tl, 48));
-        Paint p = text(Ui.bold(c), box[3] * .72f, b.pal.text, Paint.Align.LEFT);
+        String day = dayOf(m.tl, 48);
+        String[] words = Logic.widgetTomorrow(day);
+        boolean missing = Logic.widgetTomorrowMissing(day);  // nothing to read here: it stays out of the way
+        Paint p = text(Ui.body(c), box[3] * (missing ? .56f : .7f), missing ? Ui.fade(b.pal.muted, .6f) : b.pal.text, Paint.Align.LEFT);
         String shown = words[sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? 0 : 1];
         fit(p, shown, box[2]);
         drawCentred(b, shown, box[0], box[1], box[3], p);
@@ -390,7 +393,7 @@ final class WidgetArt {
         float marker = bounds.left + bounds.width() * at / 48f;
         b.path.reset(); b.path.addRoundRect(bounds, bounds.height()/2, bounds.height()/2, android.graphics.Path.Direction.CW);
         b.cv.save(); b.cv.clipPath(b.path);
-        b.p.setColor(Ui.fade(b.pal.card, Ui.PAST_VEIL));
+        b.p.setColor(Ui.fade(b.pal.card, b.pal.dark ? 0.68f : 0.65f));
         b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
         b.p.setColor(Ui.fade(b.pal.text, .14f)); b.p.setStrokeWidth(Math.max(1, s * .7f));
         for (int hour = 1; hour < 24; hour++) {

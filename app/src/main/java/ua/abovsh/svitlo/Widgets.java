@@ -55,15 +55,15 @@ final class Widgets {
      * confirms or cancels there; when placed, PinReceiver records the place for the new widget.
      */
     static void offer(Context c, Logic.Place p) {
-        offer(c, p, () -> {});
+        offer(c, p, "Скасувати", () -> {});
     }
 
     /** Setup stays alive until the size chooser is dismissed; main needs no completion hook. */
-    static void offer(Context c, Logic.Place p, Runnable closed) {
+    static void offer(Context c, Logic.Place p, String decline, Runnable closed) {
         new AlertDialog.Builder(c).setTitle("Віджет для «" + p.name + "»")
                 .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
                         (dialog, which) -> pin(c, p, which == 1))
-                .setNegativeButton("Скасувати", null)
+                .setNegativeButton(decline, null)
                 .setOnDismissListener(dialog -> closed.run()).show();
     }
 

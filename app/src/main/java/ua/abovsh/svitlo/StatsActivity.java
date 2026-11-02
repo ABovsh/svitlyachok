@@ -69,7 +69,7 @@ public class StatsActivity extends Base {
         LinearLayout metrics = Ui.row(this); metrics.setBaselineAligned(false);
         LinearLayout.LayoutParams ml = weight(); ml.height = ViewGroup.LayoutParams.MATCH_PARENT;
         LinearLayout.LayoutParams mr = weight(); mr.height = ViewGroup.LayoutParams.MATCH_PARENT; mr.leftMargin = Ui.dp(this, 6);
-        metrics.addView(metric(days == 7 ? daily : weeks.get(3).days, Logic.ON, days == 7 ? "Зі світлом" : "Останній тиждень"), ml);
+        metrics.addView(metric(days == 7 ? daily : weeks.get(3).days, Logic.ON, days == 7 ? "Зі світлом" : "За тиждень"), ml);
         metrics.addView(metric(shown, days == 7 ? Logic.OFF : Logic.ON, days == 7 ? "Без світла" : "За 4 тижні"), mr);
         card.addView(metrics, fill());
         TextView coverage = Ui.text(this, 13, Ui.body(this), pal.muted);

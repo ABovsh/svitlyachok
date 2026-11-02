@@ -1363,6 +1363,28 @@ public final class Logic {
         public float headerSize;
         public float labelSize;
         public float tomorrowHeight;
+        public float tomorrowTop;
+    }
+
+    private static final float CAP = .74f;  // the height of a capital against the font size
+
+    /** Sizes of a small widget {name, state, clock, detail, gap}: the clock leads, as large as it fits. */
+    public static float[] widgetRowSizes(float rowHeight, float clockFit, boolean named, boolean detail) {
+        float clock = Math.min(clockFit, rowHeight * (named || detail ? .42f : .56f));
+        float[] sized = {clock * .62f, clock * .78f, clock, clock * .62f, clock * .3f};
+        float block = widgetRowBlock(sized, named, detail);
+        if (block > rowHeight) for (int i = 0; i < sized.length; i++) sized[i] *= rowHeight / block;
+        return sized;
+    }
+
+    /** The height of those lines from the top of the first capital to the last baseline. */
+    public static float widgetRowBlock(float[] sizes, boolean named, boolean detail) {
+        return CAP * (sizes[1] + sizes[2] + (named ? sizes[0] : 0) + (detail ? sizes[3] : 0))
+                + sizes[4] * (1 + (named ? 1 : 0) + (detail ? 1 : 0));
+    }
+
+    public static boolean widgetTomorrowMissing(String day) {
+        return day == null || count(day, '2') == day.length();
     }
 
     public static final int WIDGET_FREE = 0;
@@ -1379,7 +1401,7 @@ public final class Logic {
     /** Tomorrow in one line, the fullest form first and the shorter one when it does not fit. */
     public static String[] widgetTomorrow(String day) {
         String none = "Завтра: графіка ще немає";
-        if (day == null || count(day, '2') == day.length()) return new String[] {none, none};
+        if (widgetTomorrowMissing(day)) return new String[] {none, none};
         List<String> labels = new ArrayList<>();
         for (Outage o : outages(day, -1)) labels.add(o.label.replace(" – ", "–"));
         if (labels.isEmpty()) {
@@ -1415,15 +1437,16 @@ public final class Logic {
         WidgetLayout w = new WidgetLayout();
         w.twoParts = widgetForm(width, height) == W_FULL;
         w.pad = Math.max(8f, Math.min(10f, 8 + (height - 110) * .05f));
-        w.headerSize = Math.max(11, Math.min(18, height * .11f));
+        w.headerSize = Math.max(11, Math.min(13, height * .08f));
         w.labelSize = Math.max(10, Math.min(13, height * .07f));
         w.columnWidth = (width - 2 * w.pad - 8) / 2;
         w.labelHeight = w.labelSize + 4;
         w.barHeight = widgetBarHeight(height);
-        w.barTop = height - w.pad - w.labelHeight - w.barHeight;
+        w.tomorrowHeight = height >= 135 && width >= 250 ? Math.min(20, height * .11f) : 0;
+        w.tomorrowTop = height - w.pad - w.tomorrowHeight;
+        w.barTop = w.tomorrowTop - w.labelHeight - w.barHeight;
         w.rowTop = w.pad + (titled ? w.headerSize * 1.45f : 0);
-        w.tomorrowHeight = height >= 135 && width >= 250 ? Math.min(22, height * .12f) : 0;
-        w.rowHeight = w.barTop - 2 - w.rowTop - w.tomorrowHeight;
+        w.rowHeight = w.barTop - 2 - w.rowTop;
         return w;
     }
 

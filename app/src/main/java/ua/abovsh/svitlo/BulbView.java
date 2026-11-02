@@ -127,8 +127,7 @@ final class BulbView extends View {
         glass.lineTo(cx - s * 0.09f, cy + s * 0.17f);
         glass.close();
         if (state == Logic.ON || state == Logic.MAYBE) {
-            int colour = b.pal.dark ? 0xFFA2F5BF : 0xFF207447;
-            if (state != Logic.ON) colour = Ui.fade(lit, 0.55f);
+            int colour = state == Logic.ON ? b.pal.onText : Ui.fade(lit, 0.55f);
             p.setColor(colour);
             b.cv.drawPath(glass, p);
         }
@@ -144,7 +143,7 @@ final class BulbView extends View {
 
     private static void cap(Brush b, int state, float cx, float cy, float s, float line) {
         int colour = b.pal.status(state);
-        if (state == Logic.ON) colour = b.pal.dark ? 0xFF398460 : 0xFF174A32;
+        if (state == Logic.ON) colour = Ui.fade(b.pal.onText, 0.72f);  // the same green as the words, a little quieter than the glass
         b.p.setColor(colour);
         float cw = s * 0.10f;
         b.r.set(cx - cw, cy + s * 0.20f, cx + cw, cy + s * 0.245f);
@@ -158,7 +157,7 @@ final class BulbView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeWidth(line);
-        p.setColor(b.pal.dark ? 0xFFA2F5BF : 0xFF207447);
+        p.setColor(b.pal.onText);
         for (int a = 200; a <= 340; a += 35) {
             double rad = Math.toRadians(a);
             float c = (float) Math.cos(rad);

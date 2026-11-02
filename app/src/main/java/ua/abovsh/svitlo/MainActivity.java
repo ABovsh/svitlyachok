@@ -463,7 +463,7 @@ public class MainActivity extends Base {
         android.graphics.drawable.GradientDrawable nextBg = Ui.round(soon ? pal.fill(n.next) : pal.soft(n.next), Ui.px(this, 15));
         if (soon) nextBg.setStroke(Ui.dp(this, 2), pal.status(n.next));
         int eventInk = pal.status(n.next);
-        if (soon) eventInk = n.next == Logic.ON || n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+        if (soon) eventInk = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         next.setBackground(nextBg);
         TextView event = Ui.text(this, 26, Ui.heavy(this), eventInk);
         event.setText(n.hint);

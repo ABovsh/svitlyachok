@@ -290,6 +290,12 @@ public class SetupActivity extends Base {
         scroll.smoothScrollTo(0,queues.getTop());
     }
 
+    /** The new place is added and chosen: the main screen shows it, wherever adding began. */
+    private void showNewPlace() {
+        startActivity(new Intent(this, MainActivity.class));
+        finish();
+    }
+
     private void save() {
         if (group.isEmpty()) { showQueueError(); return; }
         String n = name.getText().toString().trim();
@@ -323,7 +329,8 @@ public class SetupActivity extends Base {
         Sync.apply(getApplicationContext());
         if (first) startActivity(new Intent(this, MainActivity.class));
         // a new place gets its own widget: the launcher asks whether to put it on the home screen
-        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p, this::finish);
+        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p, "Пропустити", this::showNewPlace);
+        else if (!first && editId == null) showNewPlace();
         else finish();
     }
 }

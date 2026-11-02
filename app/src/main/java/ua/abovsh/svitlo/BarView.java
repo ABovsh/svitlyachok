@@ -69,7 +69,7 @@ final class BarView extends View {
         fills(cv, sw, top);
         lines(cv, sw, top);
         if (nowRel > 0) {  // the past of today, veiled
-            p.setColor(Ui.fade(pal.card, Ui.PAST_VEIL));
+            p.setColor(Ui.fade(pal.card, pal.dark ? 0.68f : 0.65f));
             cv.drawRect(0, top, Math.min(w, nowRel * sw), top + barH, p);
         }
         cv.restore();
@@ -152,8 +152,9 @@ final class BarView extends View {
             else if (nx - x0 >= tw) x1 = nx;
         }
         if (x1 - x0 < tw) return;
-        int ink = at(slots, i) == '3' || at(slots,i) == '1' ? pal.accentInk : 0xFFFFFFFF;
-        hours.setColor(ink);
+        int ink = at(slots, i) == '3' ? pal.accentInk : 0xFFFFFFFF;
+        boolean past = x1 <= nx + 0.5f;
+        hours.setColor(past ? pal.muted : ink);
         float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;
         cv.drawText(t, (x0 + x1) / 2f, base, hours);
     }

@@ -105,15 +105,15 @@ final class Sync {
         armRefresh(c, now);
         armNotify(c, now);
         schedulePeriodic(c);
-        Runnable screen = openScreen;
+        Runnable screen = openScreen.get();
         if (screen != null) screen.run();
     }
 
     /** The screen on view, told at once when an alarm or a new schedule changes what it shows. */
-    private static volatile Runnable openScreen;
+    private static final java.util.concurrent.atomic.AtomicReference<Runnable> openScreen = new java.util.concurrent.atomic.AtomicReference<>();
 
     static void onChanged(Runnable screen) {
-        openScreen = screen;
+        openScreen.set(screen);
     }
 
     static String timeline(Context c, Logic.Place p, LocalDate base) {

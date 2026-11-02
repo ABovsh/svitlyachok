@@ -40,8 +40,13 @@ final class Store {
     /** A job owns its cancellation; stopping one job cannot disconnect another caller. */
     static final class Request {
         volatile boolean stopped;
+        private final java.util.concurrent.atomic.AtomicReference<Thread> worker = new java.util.concurrent.atomic.AtomicReference<>();
         private final java.util.concurrent.atomic.AtomicReference<HttpURLConnection> connection = new java.util.concurrent.atomic.AtomicReference<>();
-        void cancel() { stopped = true; HttpURLConnection c = connection.getAndSet(null); if (c != null) c.disconnect(); }
+        void cancel() {
+            stopped = true;
+            Thread thread = worker.get(); if (thread != null) thread.interrupt();
+            HttpURLConnection c = connection.getAndSet(null); if (c != null) DEADLINES.execute(c::disconnect);
+        }
         void connect(HttpURLConnection c) throws IOException {
             connection.set(c);
             if (stopped) { c.disconnect(); throw new IOException("stopped"); }
@@ -74,6 +79,7 @@ final class Store {
         long remaining = deadlineMs == Long.MAX_VALUE ? 30_000 : Math.min(30_000, deadlineMs - System.currentTimeMillis());
         if (remaining <= 0) return FAILED;
         long end = SystemClock.elapsedRealtime() + remaining;
+        request.worker.set(Thread.currentThread());
         boolean locked = false;
         try {
             locked = FETCHING.tryLock(remaining, TimeUnit.MILLISECONDS);
@@ -81,7 +87,7 @@ final class Store {
             return fetchLocked(c, region, end, always, request);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); return FAILED;
-        } finally { if (locked) FETCHING.unlock(); }
+        } finally { request.worker.compareAndSet(Thread.currentThread(), null); if (locked) FETCHING.unlock(); }
     }
     private static int fetchLocked(Context c, String region, long end, boolean always, Request request) {
         if (!always && !Logic.dueForFetch(checkedAt(c, region), Sync.now())) return SAME;

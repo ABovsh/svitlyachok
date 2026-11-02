@@ -495,7 +495,9 @@ public class MainActivity extends Base {
         android.app.NotificationChannel quiet = nm.getNotificationChannel(Sync.CH_QUIET);
         boolean channelBlocked = (wanted.off || wanted.on) && ch != null && ch.getImportance() == 0;
         boolean quietBlocked = Prefs.quietNights(this) && quiet != null && quiet.getImportance() == 0;
-        if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked)) return null;
+        android.app.NotificationChannel schedule = nm.getNotificationChannel(Sync.CH_SCHEDULE);
+        boolean scheduleBlocked = (wanted.tomorrow || wanted.changes) && schedule != null && schedule.getImportance()==0;
+        if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked && !scheduleBlocked)) return null;
         TextView warning = Ui.text(this,14,Ui.heavy(this),pal.offText);
         warning.setText("Нагадування не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));
         warning.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)

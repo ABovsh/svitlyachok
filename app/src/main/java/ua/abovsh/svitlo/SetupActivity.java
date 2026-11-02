@@ -33,6 +33,8 @@ public class SetupActivity extends Base {
     private LinearLayout preview;
     private boolean loading;
     private boolean confirmedQueueChange;
+    private Store.Request loadRequest;
+    private TextView queueError;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -259,20 +261,29 @@ public class SetupActivity extends Base {
     /** The region's file: its queues and the preview. */
     private void load() {
         String r = region;
+        if (loadRequest != null) loadRequest.cancel();
+        Store.Request request = new Store.Request(); loadRequest = request;
         loading = true;
         if (Store.data(this, r) == null) fillPreview(null);
         new Thread(() -> {
-            Store.fetch(getApplicationContext(), r);
+            Store.fetch(getApplicationContext(), r, Long.MAX_VALUE, true, request);
             runOnUiThread(() -> {
+                if (loadRequest != request || isFinishing()) return;
                 loading = false;
-                if (!isFinishing() && r.equals(region)) fillQueues();
+                if (r.equals(region)) fillQueues();
             });
         }).start();
     }
 
+    @Override protected void onDestroy() {
+        if (loadRequest != null) loadRequest.cancel();
+        super.onDestroy();
+    }
+
     private void save() {
         if (group.isEmpty()) {
-            TextView error = Ui.text(this,14,Ui.heavy(this),pal.offText);
+            if (queueError != null) queues.removeView(queueError);
+            TextView error = Ui.text(this,14,Ui.heavy(this),pal.offText); queueError=error;
             error.setText("Оберіть чергу, щоб зберегти місце");
             queues.addView(error,fill()); error.announceForAccessibility(error.getText());
             scroll.smoothScrollTo(0,queues.getTop());

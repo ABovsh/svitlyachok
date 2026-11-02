@@ -383,10 +383,11 @@ public final class Logic {
         if (from < 0 || from >= tl.length() || tl.charAt(from)=='2') return out;
         char state = tl.charAt(from);
         for (int i=from+1;i<tl.length();i++) {
-            if (slotStart(base,i)<0) continue;
-            char next=tl.charAt(i);
-            if (next=='2') break;
-            if (next!=state) { out.add(new int[] {i,next}); state=next; }
+            if (slotStart(base,i)>=0) {
+                char next=tl.charAt(i);
+                if (next=='2') break;
+                if (next!=state) { out.add(new int[] {i,next}); state=next; }
+            }
         }
         return out;
     }

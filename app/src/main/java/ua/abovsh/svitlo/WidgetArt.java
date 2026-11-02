@@ -344,6 +344,17 @@ final class WidgetArt {
             if (rightSpare > 0) b.cv.drawText(next[2], rightX + right.measureText(next[1]) + gapX, baseline, small);
         }
 
+        private static String compactTitle(int state) {
+            if (state == Logic.ON) return "Є";
+            if (state == Logic.OFF) return "Немає";
+            return state == Logic.MAYBE ? "Можливо" : "Невідомо";
+        }
+
+        private static String compactEvent(Logic.Now now) {
+            if (now.next == Logic.ON) return now.state == Logic.OFF ? "Увімкнуть" : "Буде світло";
+            return now.next == Logic.OFF ? "Вимкнуть" : "Можливо";
+        }
+
         private void details(float y, float rightX) {
             if (leftSpare > 0) line(b, start[1], x, y, fit(small, start[1], width));
             if (rightSpare > 0) line(b, next[2], rightX, y, fit(small, next[2], width));
@@ -361,17 +372,6 @@ final class WidgetArt {
         String shown = words[sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? 0 : 1];
         fit(p, shown, box[2]);
         drawCentred(b, shown, box[0], box[1], box[3], p);
-    }
-
-    private static String compactTitle(int state) {
-        if (state == Logic.ON) return "Є";
-        if (state == Logic.OFF) return "Немає";
-        return state == Logic.MAYBE ? "Можливо" : "Невідомо";
-    }
-
-    private static String compactEvent(Logic.Now now) {
-        if (now.next == Logic.ON) return now.state == Logic.OFF ? "Увімкнуть" : "Буде світло";
-        return now.next == Logic.OFF ? "Вимкнуть" : "Можливо";
     }
 
     /** A line of text whose top is at y; returns the y under it. */

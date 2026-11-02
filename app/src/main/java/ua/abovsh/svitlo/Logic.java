@@ -44,6 +44,7 @@ public final class Logic {
     public static final int QUIET_TO_H = 7;
     static final String NO_OUTAGES = "без вимкнень";
     static final String NOT_PUBLISHED = "ще не опубліковано";
+    static final String NO_SCHEDULE = "Графіка немає";
 
     private Logic() {}
 
@@ -496,7 +497,7 @@ public final class Logic {
             case ON: return "Світло є";
             case OFF: return "Світла немає";
             case MAYBE: return "Можливе вимкнення";
-            default: return "Графіка немає";
+            default: return NO_SCHEDULE;
         }
     }
 
@@ -1529,8 +1530,8 @@ public final class Logic {
     public static String[] widgetFuture(Now n) {
         String[] next = widgetNext(n);
         if (!next[0].isEmpty()) return next;
-        if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), "Графіка немає", ""};
-        if (n.state == UNKNOWN) return new String[] {"Далі", "Графіка немає", ""};
+        if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), NO_SCHEDULE, ""};
+        if (n.state == UNKNOWN) return new String[] {"Далі", NO_SCHEDULE, ""};
         if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {"Завтра", "Графіка ще немає", ""};
         if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", "Без вимкнень", ""};
         return new String[] {"Далі", "Без змін", "до кінця графіка"};

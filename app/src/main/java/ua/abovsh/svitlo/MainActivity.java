@@ -359,7 +359,7 @@ public class MainActivity extends Base {
     private View tile(Logic.Place p, boolean chosen, LocalDate base, long now) {
         Logic.Data d = Store.data(this, p.region);
         Logic.Now n = Logic.now(Logic.timeline(d, p.group, base), base, now, d != null && d.none);
-        if (d == null) { n.title = "Завантажую"; n.big = ""; }
+        if (d == null) { n.title = loading ? "Завантажую" : "Графіка немає"; n.big = ""; }
         LinearLayout t = Ui.row(this);
         t.setMinimumHeight(Ui.dp(this, 60));
         int pad = Ui.dp(this, chosen ? 7 : 8);
@@ -399,7 +399,7 @@ public class MainActivity extends Base {
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
         Logic.Now n = Logic.nowWithHistory(tl, base, now, d != null && d.none, Prefs.knownHistory(this, p, d));
         if (d == null) {
-            n.title = "Завантажую графік"; n.big = "";
+            n.title = loading ? "Завантажую графік" : "Графіка немає"; n.big = "";
             n.hint = "Інтернет потрібен для першого завантаження"; n.hintIn = "";
         }
         LinearLayout card = Ui.column(this);

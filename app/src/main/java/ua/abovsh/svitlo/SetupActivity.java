@@ -280,15 +280,16 @@ public class SetupActivity extends Base {
         super.onDestroy();
     }
 
+    private void showQueueError() {
+        if (queueError != null) queues.removeView(queueError);
+        queueError = Ui.text(this,14,Ui.heavy(this),pal.offText);
+        queueError.setText("Оберіть чергу, щоб зберегти місце");
+        queues.addView(queueError,fill()); queueError.announceForAccessibility(queueError.getText());
+        scroll.smoothScrollTo(0,queues.getTop());
+    }
+
     private void save() {
-        if (group.isEmpty()) {
-            if (queueError != null) queues.removeView(queueError);
-            TextView error = Ui.text(this,14,Ui.heavy(this),pal.offText); queueError=error;
-            error.setText("Оберіть чергу, щоб зберегти місце");
-            queues.addView(error,fill()); error.announceForAccessibility(error.getText());
-            scroll.smoothScrollTo(0,queues.getTop());
-            return;
-        }
+        if (group.isEmpty()) { showQueueError(); return; }
         String n = name.getText().toString().trim();
         if (n.isEmpty()) n = "Черга " + Logic.queue(group);
         if (n.length() > MAX_NAME) n = n.substring(0, MAX_NAME);

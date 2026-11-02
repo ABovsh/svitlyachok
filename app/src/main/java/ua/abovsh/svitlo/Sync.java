@@ -168,6 +168,7 @@ final class Sync {
         int colour = GOLD;
         if (reminder) {
             icon = n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off;
+            if (n.state == Logic.MAYBE) icon = R.drawable.ic_notify_maybe;
             colour = reminderColour(n);
         }
         ensureChannels(c);

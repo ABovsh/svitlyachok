@@ -1127,6 +1127,16 @@ public class LogicTest {
     }
 
     @Test
+    public void aWidgetWithoutAScheduleNamesTheDayOfTheLastOne() {
+        Logic.Data d = new Logic.Data();
+        assertEquals("", Logic.lastScheduleDay(d));
+        assertEquals("", Logic.lastScheduleDay(null));
+        d.days.put(LocalDate.of(2026, 10, 3), new java.util.HashMap<>());
+        d.days.put(LocalDate.of(2026, 10, 17), new java.util.HashMap<>());
+        assertEquals("17.10", Logic.lastScheduleDay(d));
+    }
+
+    @Test
     public void widgetPanesKeepTheKnownStartAndHonestFutureWhenNoChangeIsPublished() {
         Logic.Now n = Logic.now(repeat('1',96), OCT30, at(12,0), false);
         assertEquals(Arrays.asList("з 00:00", ""), Arrays.asList(Logic.widgetStart(n)));

@@ -229,10 +229,15 @@ public final class Logic {
         return a != null && (b == null || !a.isBefore(b));
     }
 
+    /** "17.10": the last day the source has a schedule for, empty when it has none. */
+    public static String lastScheduleDay(Data d) {
+        LocalDate last = latestDay(d);
+        return last == null ? "" : String.format(Locale.ROOT, "%d.%02d", last.getDayOfMonth(), last.getMonthValue());
+    }
+
     static String missingSchedule(Data d) {
         LocalDate last = latestDay(d);
-        return last == null ? "Нового графіка немає" : "Нового графіка немає · останній був "
-                + String.format(Locale.ROOT, "%d.%02d", last.getDayOfMonth(), last.getMonthValue());
+        return last == null ? "Нового графіка немає" : "Нового графіка немає · останній був " + lastScheduleDay(d);
     }
 
     private static void readDays(JSONObject days, Data d, Set<String> groups) throws BadFile, JSONException {

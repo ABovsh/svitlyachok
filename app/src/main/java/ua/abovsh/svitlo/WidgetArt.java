@@ -30,6 +30,7 @@ final class WidgetArt {
         LocalDate base;
         String tl;
         Logic.Now now;
+        String lastDay = "";  // the last day with a schedule, for a widget without one
     }
 
     /** The place chosen for one widget (by id; the first place when none was chosen). */
@@ -49,6 +50,7 @@ final class WidgetArt {
         Logic.Data data = Store.data(c, p.region);
         m.stale = !dataFresh(c, p, data, now);
         m.tl = Logic.timeline(data, p.group, m.base);
+        m.lastDay = Logic.lastScheduleDay(data);
         m.now = Logic.nowWithHistory(m.tl, m.base, now, data != null && data.none, Prefs.knownHistory(c, p, data));
         if (data == null) {
             m.now.title = "Немає графіка";
@@ -73,7 +75,7 @@ final class WidgetArt {
         if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
         b.append('|').append(m.stale).append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
-                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon);
+                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lastDay);
         if (Logic.widgetForm(wDp, hDp) == Logic.W_FULL) {  // the bar moves every half hour
             b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since).append('|').append(n.hint).append('|').append(n.next);
         }
@@ -157,8 +159,8 @@ final class WidgetArt {
         Paint pb = fit(text(Ui.display(c), ts * 1.05f, pal.text, Paint.Align.LEFT), n.big, tw);
         Paint pn = fit(text(Ui.bold(c), ts * 0.68f, n.soon ? pal.maybeText : pal.muted, Paint.Align.LEFT), n.then, tw);
         float g = ts * 0.32f;
-        float block = (head ? ph.getTextSize() + g : 0) + pt.getTextSize()
-                + (n.big.isEmpty() ? 0 : g + pb.getTextSize()) + (then ? g + pn.getTextSize() : 0);
+        float block = (head ? height(ph) + g : 0) + height(pt)
+                + (n.big.isEmpty() ? 0 : g + height(pb)) + (then ? g + height(pn) : 0);
         if (block > rowH * 0.94f) {  // a low widget: every line shrinks alike, none is dropped
             float k = rowH * 0.94f / block;
             for (Paint p : new Paint[] {ph, pt, pb, pn}) p.setTextSize(p.getTextSize() * k);
@@ -178,6 +180,7 @@ final class WidgetArt {
         float s = f.s;
         float pad = w.pad * s;
         String[] next = Logic.widgetFuture(m.now);
+        if (m.now.state == Logic.UNKNOWN && !m.lastDay.isEmpty()) next = new String[] {"Останній графік", m.lastDay, ""};
         boolean said = next[0].startsWith("Завтра") || next[0].startsWith("Сьогодні й завтра");
         boolean tomorrow = w.tomorrowHeight > 0 && !said;
         float top = w.rowTop * s;

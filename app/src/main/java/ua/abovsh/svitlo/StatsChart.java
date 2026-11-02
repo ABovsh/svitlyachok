@@ -151,7 +151,7 @@ final class StatsChart extends View {
     private void number(Canvas cv,String text,float x,float y,float segment,int outsideInk,boolean upper) {
         if(value.measureText(text)>bar.width()-Ui.px(getContext(),2)) return;
         boolean inside=segment>=value.getFontSpacing()+Ui.px(getContext(),5);
-        int ink=inside?pal.ink:outsideInk;
+        int ink = inside ? pal.ink : outsideInk;
         if(!inside) {
             y=upper?bar.top-Ui.px(getContext(),4):bar.bottom-segment-Ui.px(getContext(),4);
             // a short green segment under a tall red one: most of its number stands on the red

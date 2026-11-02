@@ -33,6 +33,8 @@ abstract class Base extends Activity {
 
     abstract void render();
 
+    boolean hasClock() { return true; }
+
     /** Every 30 s while visible; a page that knows when nothing changed skips the work. */
     void onTick() {
         render();
@@ -94,7 +96,8 @@ abstract class Base extends Activity {
             recreate();
             return;
         }
-        handler.post(tick);
+        onTick();
+        if (hasClock()) handler.postDelayed(tick,30_000);
     }
 
     @Override
@@ -130,10 +133,7 @@ abstract class Base extends Activity {
         LinearLayout r = Ui.row(this);
         r.setPadding(0, Ui.dp(this, 11), 0, Ui.dp(this, 11));
         r.addView(label(title, desc), weight());
-        ToggleView tv = new ToggleView(this, pal, on, v -> {
-            l.changed(v);
-            Sync.apply(getApplicationContext());
-        });
+        ToggleView tv = new ToggleView(this, pal, on, l::changed);
         tv.setContentDescription(title);
         LinearLayout.LayoutParams tl = wrap();
         tl.leftMargin = Ui.dp(this, 12);
@@ -195,7 +195,7 @@ abstract class Base extends Activity {
 
     /** A small caps heading over a card. */
     TextView heading(String s) {
-        TextView t = Ui.text(this, 12, Ui.heavy(this), pal.muted);
+        TextView t = Ui.text(this, 13, Ui.heavy(this), pal.muted);
         t.setText(s.toUpperCase(Ui.UK));
         t.setLetterSpacing(0.12f);
         t.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), 0, Ui.dp(this, 6));

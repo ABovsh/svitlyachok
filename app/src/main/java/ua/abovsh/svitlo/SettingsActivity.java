@@ -15,6 +15,8 @@ import java.util.List;
 public class SettingsActivity extends Base {
     private int built = -1;
 
+    @Override boolean hasClock() { return false; }
+
     @Override
     void render() {
         // rebuild only when something here could have changed (back from a place, from system settings)
@@ -208,9 +210,9 @@ public class SettingsActivity extends Base {
         TextView about = Ui.text(this, 14, Ui.body(this), pal.muted);
         about.setLineSpacing(0, 1.1f);
         about.setText("Світлячок " + BuildConfig.VERSION_NAME + "\n\n"
-                + "Графік погодинних відключень світла для одного або кількох місць: що зараз, до котрої "
+                + "Графік погодинних вимкнень світла для одного або кількох місць: що зараз, до котрої "
                 + "години і що буде завтра. Нагадує перед вимкненням і увімкненням, має віджети й "
-                + "статистику за тиждень і місяць.\n\n"
+                + "статистику за тиждень і 4 тижні.\n\n"
                 + "Нічого не надсилає з телефона. Застосунок лише завантажує з GitHub відкритий файл графіка "
                 + "вашої області й перевіряє, чи вийшла нова версія. Місця, черги й налаштування "
                 + "зберігаються тільки на цьому телефоні. Без облікового запису, реклами й аналітики.\n\n"
@@ -241,13 +243,13 @@ public class SettingsActivity extends Base {
         page.addView(battery, fill());
     }
 
-    /** "Завантажити версію 1.3.0 ›" when a newer one is known, otherwise "Перевірити зараз". */
+    /** "Оновити до версії 1.3.0 ›" when a newer one is known, otherwise "Перевірити зараз". */
     private View updateRow() {
         TextView t = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         t.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
         Logic.Release r = Updates.latest(this);
         if (r != null) {
-            t.setText("Завантажити версію " + r.version + " ›");
+            t.setText("Оновити до версії " + r.version + " ›");
             t.setOnClickListener(v -> {
                 t.setOnClickListener(null);
                 t.setText("Завантажую… 0 %");

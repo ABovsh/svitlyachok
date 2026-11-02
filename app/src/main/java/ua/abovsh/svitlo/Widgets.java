@@ -34,6 +34,17 @@ final class Widgets {
         return out;
     }
 
+    /** The places shown by all widgets except this one. */
+    static List<String> placesOfOthers(Context c, int widget) {
+        List<Logic.Place> all = Prefs.places(c);
+        List<String> out = new ArrayList<>();
+        for (int id : ids(c)) {
+            Logic.Place p = id == widget ? null : Logic.widgetPlace(all, Prefs.widgetChoice(c, id));
+            if (p != null) out.add(p.id);
+        }
+        return out;
+    }
+
     /** Whether the app can offer a widget for this place: it has none yet and the launcher can pin. */
     static boolean canOffer(Context c, Logic.Place p) {
         return AppWidgetManager.getInstance(c).isRequestPinAppWidgetSupported() && Logic.needsWidget(p.id, places(c));
@@ -44,15 +55,15 @@ final class Widgets {
      * confirms or cancels there; when placed, PinReceiver records the place for the new widget.
      */
     static void offer(Context c, Logic.Place p) {
-        offer(c, p, () -> {});
+        offer(c, p, "Скасувати", () -> {});
     }
 
     /** Setup stays alive until the size chooser is dismissed; main needs no completion hook. */
-    static void offer(Context c, Logic.Place p, Runnable closed) {
+    static void offer(Context c, Logic.Place p, String decline, Runnable closed) {
         new AlertDialog.Builder(c).setTitle("Віджет для «" + p.name + "»")
                 .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
                         (dialog, which) -> pin(c, p, which == 1))
-                .setNegativeButton("Скасувати", null)
+                .setNegativeButton(decline, null)
                 .setOnDismissListener(dialog -> closed.run()).show();
     }
 

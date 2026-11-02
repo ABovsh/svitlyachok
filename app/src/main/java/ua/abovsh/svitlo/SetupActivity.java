@@ -32,6 +32,11 @@ public class SetupActivity extends Base {
     private LinearLayout queues;
     private LinearLayout preview;
     private boolean loading;
+    private boolean confirmedQueueChange;
+    private Store.Request loadRequest;
+    private TextView queueError;
+
+    @Override boolean hasClock() { return false; }
 
     @Override
     protected void onCreate(Bundle state) {
@@ -111,15 +116,17 @@ public class SetupActivity extends Base {
         page.addView(primary(first ? "Почати" : "Зберегти", v -> save()), bl);
 
         if (edit != null && Prefs.places(this).size() > 1) {
-            TextView del = Ui.text(this, 15, Ui.heavy(this), pal.muted);
+            TextView del = Ui.text(this, 15, Ui.heavy(this), pal.offText);
             del.setText("Видалити це місце");
             del.setGravity(Gravity.CENTER);
             del.setMinHeight(Ui.dp(this, 52));
             del.setOnClickListener(v -> {
-                Prefs.removePlace(this, edit.id);
-                Sync.forget(getApplicationContext(), edit.id);
-                Sync.apply(getApplicationContext());
-                finish();
+                new android.app.AlertDialog.Builder(this).setTitle("Видалити «" + edit.name + "»?")
+                        .setMessage("Разом із місцем буде видалено його збережену статистику.")
+                        .setPositiveButton("Видалити",(dialog,which) -> {
+                            Prefs.removePlace(this,edit.id); Sync.forget(getApplicationContext(),edit.id);
+                            Sync.apply(getApplicationContext()); finish();
+                        }).setNegativeButton("Скасувати",null).show();
             });
             LinearLayout.LayoutParams dl = fill();
             dl.topMargin = Ui.dp(this, 8);
@@ -150,7 +157,7 @@ public class SetupActivity extends Base {
         TextView s = Ui.text(this, 15, Ui.body(this), pal.muted);
         s.setGravity(Gravity.CENTER);
         s.setLineSpacing(0, 1.1f);
-        s.setText("Графік відключень вашої черги: чи є світло зараз, до котрої години і що буде завтра. "
+        s.setText("Графік вимкнень вашої черги: чи є світло зараз, до котрої години і що буде завтра. "
                 + "Нагадує заздалегідь.");
         w.addView(s);
         return w;
@@ -238,7 +245,7 @@ public class SetupActivity extends Base {
         TextView help = Ui.text(this, 14, Ui.bold(this), r != null && !r.dso.isEmpty() ? pal.accentText : pal.muted);
         help.setLineSpacing(0, 1.1f);
         if (r != null && !r.dso.isEmpty()) {
-            help.setText("Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›");
+            help.setText(Logic.queueHelp(r));
             help.setOnClickListener(v -> {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(r.dso)));
@@ -256,22 +263,41 @@ public class SetupActivity extends Base {
     /** The region's file: its queues and the preview. */
     private void load() {
         String r = region;
+        if (loadRequest != null) loadRequest.cancel();
+        Store.Request request = new Store.Request(); loadRequest = request;
         loading = true;
         if (Store.data(this, r) == null) fillPreview(null);
         new Thread(() -> {
-            Store.fetch(getApplicationContext(), r);
+            Store.fetch(getApplicationContext(), r, Long.MAX_VALUE, true, request);
             runOnUiThread(() -> {
+                if (loadRequest != request || isFinishing()) return;
                 loading = false;
-                if (!isFinishing() && r.equals(region)) fillQueues();
+                if (r.equals(region)) fillQueues();
             });
         }).start();
     }
 
+    @Override protected void onDestroy() {
+        if (loadRequest != null) loadRequest.cancel();
+        super.onDestroy();
+    }
+
+    private void showQueueError() {
+        if (queueError != null) queues.removeView(queueError);
+        queueError = Ui.text(this,14,Ui.heavy(this),pal.offText);
+        queueError.setText("Оберіть чергу, щоб зберегти місце");
+        queues.addView(queueError,fill()); queueError.announceForAccessibility(queueError.getText());
+        scroll.smoothScrollTo(0,queues.getTop());
+    }
+
+    /** The new place is added and chosen: the main screen shows it, wherever adding began. */
+    private void showNewPlace() {
+        startActivity(new Intent(this, MainActivity.class));
+        finish();
+    }
+
     private void save() {
-        if (group.isEmpty()) {
-            Toast.makeText(this, "Оберіть чергу", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (group.isEmpty()) { showQueueError(); return; }
         String n = name.getText().toString().trim();
         if (n.isEmpty()) n = "Черга " + Logic.queue(group);
         if (n.length() > MAX_NAME) n = n.substring(0, MAX_NAME);
@@ -286,6 +312,13 @@ public class SetupActivity extends Base {
         p.region = region;
         p.group = group;
         Logic.Place before = editId == null ? null : Prefs.place(this, editId);
+        if (before != null && !Logic.sameQueue(before,p) && !confirmedQueueChange) {
+            new android.app.AlertDialog.Builder(this).setTitle("Змінити чергу?")
+                    .setMessage("Збережену статистику цього місця буде видалено: вона стосується попередньої черги.")
+                    .setPositiveButton("Змінити",(dialog,which) -> {confirmedQueueChange=true;save();})
+                    .setNegativeButton("Скасувати",null).show();
+            return;
+        }
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
         if (before != null && !Logic.sameQueue(before, p)) {  // statistics and "з 14:30" belong to the old queue
@@ -294,9 +327,17 @@ public class SetupActivity extends Base {
         }
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
+        leave(first, p);
+    }
+
+    private void leave(boolean first, Logic.Place p) {
         if (first) startActivity(new Intent(this, MainActivity.class));
+        if (first || editId != null) {
+            finish();
+            return;
+        }
         // a new place gets its own widget: the launcher asks whether to put it on the home screen
-        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p, this::finish);
-        else finish();
+        if (Widgets.canOffer(this, p)) Widgets.offer(this, p, "Пропустити", this::showNewPlace);
+        else showNewPlace();
     }
 }

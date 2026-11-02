@@ -16,6 +16,8 @@ public class WidgetSetupActivity extends Base {
     private int widget = AppWidgetManager.INVALID_APPWIDGET_ID;
     private boolean built;
 
+    @Override boolean hasClock() { return false; }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -36,24 +38,26 @@ public class WidgetSetupActivity extends Base {
     void render() {
         if (built || isFinishing()) return;
         built = true;
-        page.addView(topBar("Віджет"), fill());
+        String saved = Prefs.savedWidgetChoice(this, widget);
+        page.addView(topBar(saved == null ? "Новий віджет" : "Віджет"), fill());
         TextView ask = Ui.text(this, 15, Ui.body(this), pal.muted);
-        ask.setText("Яке місце показувати на цьому віджеті? Для іншого місця додайте ще один віджет.");
+        ask.setText(saved == null ? "Оберіть місце для цього віджета. Без вибору віджет не буде додано."
+                : "Яке місце показувати на цьому віджеті?");
         ask.setLineSpacing(0, 1.1f);
         ask.setPadding(Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 12));
         page.addView(ask, fill());
         LinearLayout box = box();
         List<Logic.Place> places = Prefs.places(this);
-        Logic.Place current = Logic.widgetPlace(places, Prefs.widgetChoice(this, widget));
+        List<String> others = Widgets.placesOfOthers(this, widget);
         for (int i = 0; i < places.size(); i++) {
             Logic.Place p = places.get(i);
             if (i > 0) box.addView(divider());
-            box.addView(row(p, current != null && p.id.equals(current.id)), fill());
+            box.addView(row(p, Logic.widgetMark(p, saved, places, others)), fill());
         }
         page.addView(box, fill());
     }
 
-    private LinearLayout row(Logic.Place p, boolean chosen) {
+    private LinearLayout row(Logic.Place p, int mark) {
         LinearLayout r = Ui.row(this);
         r.setGravity(Gravity.CENTER_VERTICAL);
         r.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
@@ -66,28 +70,37 @@ public class WidgetSetupActivity extends Base {
         w.setPadding(0, Ui.dp(this, 3), 0, 0);
         t.addView(w);
         r.addView(t, weight());
-        if (chosen) {
-            TextView now = Ui.text(this, 12, Ui.heavy(this), pal.accentInk);
+        String said = "";
+        if (mark == Logic.WIDGET_THIS) {
+            TextView now = Ui.text(this, 13, Ui.heavy(this), pal.accentInk);
             now.setText("на віджеті");
             now.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
             now.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
             r.addView(now, wrap());
+            said = ", зараз на віджеті";
+        } else if (mark == Logic.WIDGET_HAS_OTHER) {
+            TextView other = Ui.text(this, 13, Ui.bold(this), pal.muted);
+            other.setText("уже є віджет");
+            other.setPadding(Ui.dp(this, 8), 0, 0, 0);
+            r.addView(other, wrap());
+            said = ", уже є інший віджет";
         }
         ImageView go = new ImageView(this);
         go.setImageResource(R.drawable.ic_chevron);
         go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
         go.setScaleType(ImageView.ScaleType.CENTER);
         r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 32), Ui.dp(this, 44)));
-        r.setContentDescription(p.name + (chosen ? ", зараз на віджеті" : "") + ", показувати на віджеті");
+        r.setContentDescription(p.name + said + ", показувати на віджеті");
         r.setOnClickListener(v -> done(p.id));
         return r;
     }
 
     private void done(String place) {
         Prefs.setWidgetChoice(this, widget, place);
-        Sync.forgetWidgets();
-        Sync.apply(getApplicationContext());
+        // the launcher keeps the widget only on this result: it comes first, whatever the redraw does
         setResult(RESULT_OK, new Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widget));
         finish();
+        Sync.forgetWidgets();
+        Sync.apply(getApplicationContext());
     }
 }

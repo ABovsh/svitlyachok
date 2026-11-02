@@ -82,7 +82,7 @@ final class Prefs {
         list.removeIf(pl -> pl.id.equals(id));
         savePlaces(c, list);
         h(c).edit().remove(id).apply();
-        p(c).edit().remove(ALERTS + id).remove("mute_" + id).apply();
+        p(c).edit().remove(ALERTS + id).remove("mute_" + id).remove(NOTES + id).apply();
         if (id.equals(current(c))) setCurrent(c, "");
     }
 
@@ -161,6 +161,11 @@ final class Prefs {
         return p(c).getString("w_" + widget, "");
     }
 
+    /** The saved choice, or null while a just added widget has none. */
+    static String savedWidgetChoice(Context c, int widget) {
+        return p(c).getString("w_" + widget, null);
+    }
+
     static void setWidgetChoice(Context c, int widget, String ids) {
         p(c).edit().putString("w_" + widget, ids).apply();
     }
@@ -195,6 +200,22 @@ final class Prefs {
         a.tomorrow = sp.getBoolean("note_tomorrow", Logic.DEFAULT_TOMORROW);
         a.changes = sp.getBoolean("note_change", Logic.DEFAULT_CHANGES);
         return a;
+    }
+
+    private static final String NOTES = "notes_";
+
+    /** What the last schedule notices of a place said (see Logic.rememberNote). */
+    static String notes(Context c, String place) {
+        return p(c).getString(NOTES + place, "");
+    }
+
+    static void setNotes(Context c, String place, String memory) {
+        p(c).edit().putString(NOTES + place, memory).apply();
+    }
+
+    static void reminderTiming(Context c, long planned, long actual) {
+        p(c).edit().putLong("reminder_planned",planned).putLong("reminder_actual",actual)
+                .putInt("reminder_delay",(int)Math.max(0,actual-planned)).apply();
     }
 
     static void setInt(Context c, String key, int v) {

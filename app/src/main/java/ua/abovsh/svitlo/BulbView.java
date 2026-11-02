@@ -88,6 +88,16 @@ final class BulbView extends View {
         b.p.setStyle(Paint.Style.FILL);
     }
 
+    /** Without the disc: on a widget the whole card already carries the colour of the state. */
+    static void plain(Brush b, int state, float cx, float cy, float size) {
+        float line = size * 0.045f;
+        glass(b, state, cx, cy, size, line);
+        cap(b, state, cx, cy, size, line);
+        if (state == Logic.ON) rays(b, cx, cy - size * 0.09f, size, line);
+        else if (state == Logic.OFF) crossOut(b, cx, cy, size, line);
+        b.p.setStyle(Paint.Style.FILL);
+    }
+
     private static void disc(Brush b, int state, float cx, float cy, float size, float glow) {
         Paint p = b.p;
         float r = size / 2f;
@@ -127,7 +137,8 @@ final class BulbView extends View {
         glass.lineTo(cx - s * 0.09f, cy + s * 0.17f);
         glass.close();
         if (state == Logic.ON || state == Logic.MAYBE) {
-            p.setColor(state == Logic.ON ? lit : Ui.fade(lit, 0.55f));
+            int colour = state == Logic.ON ? b.pal.onText : Ui.fade(lit, 0.55f);
+            p.setColor(colour);
             b.cv.drawPath(glass, p);
         }
         if (state != Logic.ON) {
@@ -141,7 +152,9 @@ final class BulbView extends View {
     }
 
     private static void cap(Brush b, int state, float cx, float cy, float s, float line) {
-        b.p.setColor(b.pal.status(state));
+        int colour = b.pal.status(state);
+        if (state == Logic.ON) colour = Ui.fade(b.pal.onText, 0.72f);  // the same green as the words, a little quieter than the glass
+        b.p.setColor(colour);
         float cw = s * 0.10f;
         b.r.set(cx - cw, cy + s * 0.20f, cx + cw, cy + s * 0.245f);
         b.cv.drawRoundRect(b.r, line, line, b.p);
@@ -154,7 +167,7 @@ final class BulbView extends View {
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeWidth(line);
-        p.setColor(b.pal.fill(Logic.ON));
+        p.setColor(b.pal.onText);
         for (int a = 200; a <= 340; a += 35) {
             double rad = Math.toRadians(a);
             float c = (float) Math.cos(rad);

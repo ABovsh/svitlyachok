@@ -241,21 +241,21 @@ public class LogicTest {
         // what happens, then when; a coloured mark and the place in front
         String t = tl(TODAY_ONLY);
         Logic.Event e = Logic.events(home(), t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
-        Logic.Notice s = Logic.eventText(e, t, OCT30, at(14, 2));
+        Logic.Notice s = Logic.eventText(e, t, OCT30);
         // the place opens the second line: the title stays short enough for one line
         assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", s.title);
         assertEquals("Дім · о 14:30", s.text);
         assertFalse(s.on);
         assertEquals(at(14, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
-        Logic.Notice n = Logic.eventText(on, t, OCT30, at(18, 15));
+        Logic.Notice n = Logic.eventText(on, t, OCT30);
         assertEquals("\uD83D\uDFE2 Скоро увімкнуть світло", n.title);
         assertEquals("Дім · о 18:30", n.text);
         assertTrue(n.on);
         assertEquals(at(18, 30), n.until);
         String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
         Logic.Event m = Logic.events(home(), maybe, OCT30, at(9, 0), new Logic.Alerts()).get(0);
-        assertEquals("\uD83D\uDFE0 Можливе вимкнення", Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
+        assertEquals("\uD83D\uDFE0 Можливе вимкнення", Logic.eventText(m, maybe, OCT30).title);
     }
 
     @Test
@@ -268,11 +268,11 @@ public class LogicTest {
         assertEquals(2, ev.size());
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
-        Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30, at(14, 30));
+        Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30);
         assertEquals("\uD83D\uDD34 Вимкнення за графіком", off.title);
         assertEquals("Дім · до 18:30", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
-        Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30, at(18, 30));
+        Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30);
         assertEquals("\uD83D\uDFE2 Світло має з'явитися", on.title);
         assertEquals("Дім · за графіком з 18:30", on.text);
     }
@@ -283,7 +283,7 @@ public class LogicTest {
         Logic.Alerts a = new Logic.Alerts();
         a.leadOff = 0;
         Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), a).get(0);
-        Logic.Notice s = Logic.eventText(e, open, OCT30, at(6, 0));
+        Logic.Notice s = Logic.eventText(e, open, OCT30);
         assertEquals("Дім · за графіком", s.text);
         assertEquals(at(10, 0), s.until);
     }
@@ -808,7 +808,7 @@ public class LogicTest {
         String t = tl(TODAY_ONLY);
         Logic.Event e = Logic.events(only, t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
         assertEquals("p1", e.place);
-        Logic.Notice n = Logic.eventText(e, t, OCT30, at(14, 2));
+        Logic.Notice n = Logic.eventText(e, t, OCT30);
         assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", n.title);
         assertEquals("о 14:30", n.text);
         List<Logic.Note> tomorrow = Logic.notes(only, data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
@@ -1254,7 +1254,7 @@ public class LogicTest {
     }
     @Test public void advanceReminderExpiresAtItsChange() throws Exception {
         Logic.Event e=Logic.events(home(),tl(TODAY_ONLY),OCT30,at(12,0),new Logic.Alerts()).get(0);
-        assertEquals(e.change,Logic.eventText(e,tl(TODAY_ONLY),OCT30,at(14,15)).until);
+        assertEquals(e.change,Logic.eventText(e,tl(TODAY_ONLY),OCT30).until);
     }
     @Test public void supportedRegionsIncludeCherkasyAndKharkiv() {
         assertEquals(16,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);

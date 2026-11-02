@@ -95,7 +95,7 @@ final class Store {
         if (source == null) return FAILED;
         int best = FAILED;
         for (String url : source.urls) {
-            if (request.stopped || SystemClock.elapsedRealtime() >= end) break;
+            if (expired(request, end)) break;
             int result = fetchFrom(c, region, url, end, request);
             if (result != FAILED) {
                 best = best == NEW || result == NEW ? NEW : SAME;
@@ -103,6 +103,9 @@ final class Store {
             }
         }
         return best;
+    }
+    private static boolean expired(Request request, long end) {
+        return request.stopped || SystemClock.elapsedRealtime() >= end;
     }
     private static int fetchFrom(Context c, String region, String url, long end, Request request) {
         if (!url.startsWith("https://")) return FAILED;

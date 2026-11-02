@@ -230,7 +230,7 @@ final class Sync {
         String tl = (yesterday == null ? Logic.repeat('2',48) : yesterday) + timeline(c,p,base.plusDays(1));
         Logic.Event match = matchingEvent(c,p,extras,tl,base,now);
         if (match == null) { nm.cancel(posted.getId()); return; }
-        Logic.Notice note = Logic.eventText(match,tl,base,now);
+        Logic.Notice note = Logic.eventText(match,tl,base);
         CharSequence previous = extras.getCharSequence(Notification.EXTRA_TITLE, "");
         if (!note.title.contentEquals(previous) && stillActive(nm,posted.getId())) {
             show(c, posted.getId(), id, posted.getNotification().getChannelId(),note,true,true);
@@ -298,7 +298,7 @@ final class Sync {
         for (Object[] x : upcoming(c, now)) {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now) break;
-            Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1), now);
+            Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1));
             post(c, e.place, CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
             Prefs.setInt(c, "reminder_delay", (int) Math.max(0, now - e.at));

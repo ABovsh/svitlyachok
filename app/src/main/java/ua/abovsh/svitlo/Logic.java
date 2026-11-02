@@ -1051,7 +1051,7 @@ public final class Logic {
      * and when. It is no
      * longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
      */
-    public static Notice eventText(Event e, String tl, LocalDate base, long now) {
+    public static Notice eventText(Event e, String tl, LocalDate base) {
         Notice n = new Notice();
         n.on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
         int i = index(base, e.change);

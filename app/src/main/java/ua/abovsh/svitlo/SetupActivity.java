@@ -32,6 +32,7 @@ public class SetupActivity extends Base {
     private LinearLayout queues;
     private LinearLayout preview;
     private boolean loading;
+    private boolean confirmedQueueChange;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -116,10 +117,12 @@ public class SetupActivity extends Base {
             del.setGravity(Gravity.CENTER);
             del.setMinHeight(Ui.dp(this, 52));
             del.setOnClickListener(v -> {
-                Prefs.removePlace(this, edit.id);
-                Sync.forget(getApplicationContext(), edit.id);
-                Sync.apply(getApplicationContext());
-                finish();
+                new android.app.AlertDialog.Builder(this).setTitle("Видалити «" + edit.name + "»?")
+                        .setMessage("Разом із місцем буде видалено його збережену статистику.")
+                        .setPositiveButton("Видалити",(dialog,which) -> {
+                            Prefs.removePlace(this,edit.id); Sync.forget(getApplicationContext(),edit.id);
+                            Sync.apply(getApplicationContext()); finish();
+                        }).setNegativeButton("Скасувати",null).show();
             });
             LinearLayout.LayoutParams dl = fill();
             dl.topMargin = Ui.dp(this, 8);
@@ -269,7 +272,10 @@ public class SetupActivity extends Base {
 
     private void save() {
         if (group.isEmpty()) {
-            Toast.makeText(this, "Оберіть чергу", Toast.LENGTH_SHORT).show();
+            TextView error = Ui.text(this,14,Ui.heavy(this),pal.offText);
+            error.setText("Оберіть чергу, щоб зберегти місце");
+            queues.addView(error,fill()); error.announceForAccessibility(error.getText());
+            scroll.smoothScrollTo(0,queues.getTop());
             return;
         }
         String n = name.getText().toString().trim();
@@ -286,6 +292,13 @@ public class SetupActivity extends Base {
         p.region = region;
         p.group = group;
         Logic.Place before = editId == null ? null : Prefs.place(this, editId);
+        if (before != null && !Logic.sameQueue(before,p) && !confirmedQueueChange) {
+            new android.app.AlertDialog.Builder(this).setTitle("Змінити чергу?")
+                    .setMessage("Збережену статистику цього місця буде видалено: вона стосується попередньої черги.")
+                    .setPositiveButton("Змінити",(dialog,which) -> {confirmedQueueChange=true;save();})
+                    .setNegativeButton("Скасувати",null).show();
+            return;
+        }
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
         if (before != null && !Logic.sameQueue(before, p)) {  // statistics and "з 14:30" belong to the old queue

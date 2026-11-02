@@ -132,7 +132,6 @@ abstract class Base extends Activity {
         r.addView(label(title, desc), weight());
         ToggleView tv = new ToggleView(this, pal, on, v -> {
             l.changed(v);
-            Sync.apply(getApplicationContext());
         });
         tv.setContentDescription(title);
         LinearLayout.LayoutParams tl = wrap();
@@ -195,7 +194,7 @@ abstract class Base extends Activity {
 
     /** A small caps heading over a card. */
     TextView heading(String s) {
-        TextView t = Ui.text(this, 12, Ui.heavy(this), pal.muted);
+        TextView t = Ui.text(this, 13, Ui.heavy(this), pal.muted);
         t.setText(s.toUpperCase(Ui.UK));
         t.setLetterSpacing(0.12f);
         t.setPadding(Ui.dp(this, 6), Ui.dp(this, 14), 0, Ui.dp(this, 6));

@@ -8,12 +8,8 @@ import android.content.Intent;
 public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent i) {
-        if (Sync.ACTION_NOTIFY.equals(i.getAction())) {
-            Sync.fireDue(c);
-            Sync.apply(c);
-            return;
-        }
-        Sync.apply(c);  // redraw from the cache at once
+        Sync.fireDue(c);
+        Sync.apply(c);
         Sync.fetchNow(c, goAsync());
     }
 }

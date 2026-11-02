@@ -37,6 +37,7 @@ public class MainActivity extends Base {
     private View addWidget;
     private LinearLayout body;
     private boolean loading;
+    private final List<Runnable> clockUpdates = new ArrayList<>();
     private float pullFrom = -1;
 
     @Override
@@ -101,8 +102,8 @@ public class MainActivity extends Base {
         LinearLayout t = Ui.column(this);
         t.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 8), 0);
         TextView name = Ui.text(this, 18, Ui.display(this), pal.text);
-        name.setText("Світлячок" + (BuildConfig.IS_RC ? " RC" : ""));
-        name.setContentDescription(getString(R.string.app_name) + (BuildConfig.IS_RC ? " RC" : ""));
+        name.setText("Світлячок");
+        name.setContentDescription(getString(R.string.app_name));
         t.addView(name);
         sub = Ui.text(this, 13, Ui.body(this), pal.muted);
         sub.setPadding(0, Ui.dp(this, 3), 0, 0);
@@ -173,24 +174,41 @@ public class MainActivity extends Base {
         return places.get(0);
     }
 
+    private Logic.Now currentNow() {
+        List<Logic.Place> places=Prefs.places(this);
+        if (places.isEmpty()) return new Logic.Now();
+        Logic.Place p=current(places); Logic.Data d=Store.data(this,p.region); long now=Sync.now();
+        return Logic.nowWithHistory(Logic.timeline(d,p.group,Logic.today(now)),Logic.today(now),now,
+                d!=null && d.none,Prefs.knownHistory(this,p,d));
+    }
+
     /**
      * The screen depends on the minute, the cached files, the places and their settings: when
      * none of these changed since the last drawing, nothing is rebuilt.
      */
     private String state() {
-        StringBuilder b = new StringBuilder().append(Sync.now() / 60).append(loading).append(Prefs.current(this));
+        StringBuilder b = new StringBuilder().append(Logic.today(Sync.now())).append(Logic.index(Logic.today(Sync.now()),Sync.now())).append(loading).append(Prefs.current(this));
         for (Logic.Place p : Prefs.places(this)) {
             b.append('|').append(p.id).append(p.name).append(p.group).append(Store.checkedAt(this, p.region))
                     .append(System.identityHashCode(Store.data(this, p.region)))
                     .append(Logic.alertsJson(Prefs.alerts(this, p.id)));
         }
+        Logic.Now n = currentNow();
+        b.append(n.state).append(n.soon).append(n.change);
+        Logic.Place selected = current(Prefs.places(this));
+        b.append(Logic.highlight(n,Prefs.alerts(this,selected.id),Sync.now()));
+        android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+        b.append(nm.areNotificationsEnabled());
         Logic.Release r = Updates.offered(this);
         return b.append(r == null ? "" : r.version).toString();
     }
 
     @Override
     void onTick() {
-        if (!state().equals(shown)) render();
+        if (Prefs.places(this).isEmpty()) return;
+        if (!state().equals(shown)) {
+            int y=scroll.getScrollY(); render(); scroll.post(() -> scroll.scrollTo(0,y));
+        } else for (Runnable update : clockUpdates) update.run();
     }
 
     @Override
@@ -208,6 +226,7 @@ public class MainActivity extends Base {
         int cur = Logic.index(base, now);
         float nowRel = cur + (Logic.z(now).getMinute() % 30) / 30f;
 
+        clockUpdates.clear();
         body.removeAllViews();
         Logic.Release update = Updates.offered(this);
         if (update != null) body.addView(updateCard(update), gap(8));
@@ -218,6 +237,7 @@ public class MainActivity extends Base {
         if (stale != null) body.addView(stale, gap(8));
         body.addView(schedule(p, d, base, cur, nowRel), gap(8));
         body.addView(actions(p), gap(6));
+        View blocked = blockedReminders(p); if (blocked != null) body.addView(blocked, gap(6));
         body.addView(footer(p, d, now), fill());
 
         // always offered, also beside an existing widget: this is where the other size is added
@@ -263,7 +283,7 @@ public class MainActivity extends Base {
 
         FlowRow buttons = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 8));
         TextView get = Ui.text(this, 15, Ui.heavy(this), pal.accentInk);
-        get.setText(r.version.equals(downloading) ? downloadText() : "Завантажити");
+        get.setText(r.version.equals(downloading) ? downloadText() : "Оновити");
         get.setGravity(Gravity.CENTER);
         get.setMinHeight(Ui.dp(this, 46));
         get.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
@@ -356,7 +376,7 @@ public class MainActivity extends Base {
         label.setText(p.name);
         name.addView(label);
         if (chosen) {
-            TextView queue = Ui.text(this, 12, Ui.heavy(this), pal.accentText);
+            TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
             queue.setText(Logic.queue(p.group));
             queue.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
             queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
@@ -382,7 +402,7 @@ public class MainActivity extends Base {
         }
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.round(pal.soft(n.state), Ui.px(this, 18)));
-        if (Prefs.places(this).size() == 1) {
+        {
             TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
             queue.setText(p.name + " · черга " + Logic.queue(p.group));
             queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
@@ -423,6 +443,10 @@ public class MainActivity extends Base {
         present.addView(titleBlock, vertical ? fill() : weight());
         String gap = vertical ? " · " : "\n";
         since.setText(n.since + (both ? gap : "") + n.already);
+        clockUpdates.add(() -> {
+            Logic.Now live=currentNow();
+            since.setText(live.since + (!live.since.isEmpty() && !live.already.isEmpty() ? gap : "") + live.already);
+        });
         if (!n.since.isEmpty() || !n.already.isEmpty()) {
             since.setGravity(vertical ? Gravity.START : Gravity.END);
             present.addView(since, vertical ? fill() : wrap());
@@ -437,7 +461,7 @@ public class MainActivity extends Base {
         android.graphics.drawable.GradientDrawable nextBg = Ui.round(soon ? pal.fill(n.next) : pal.soft(n.next), Ui.px(this, 15));
         if (soon) nextBg.setStroke(Ui.dp(this, 2), pal.status(n.next));
         int eventInk = pal.status(n.next);
-        if (soon) eventInk = n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+        if (soon) eventInk = n.next == Logic.ON || n.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         next.setBackground(nextBg);
         TextView event = Ui.text(this, 26, Ui.heavy(this), eventInk);
         event.setText(n.hint);
@@ -445,6 +469,7 @@ public class MainActivity extends Base {
         if (!detail.isEmpty()) {
             TextView small = Ui.text(this, 14, Ui.bold(this), soon ? eventInk : pal.text);
             small.setText(detail);
+            clockUpdates.add(() -> small.setText(Logic.nextDetail(currentNow())));
             small.setPadding(0, Ui.dp(this, 3), 0, 0);
             next.addView(small, fill());
         }
@@ -463,6 +488,21 @@ public class MainActivity extends Base {
         return row;
     }
 
+    private View blockedReminders(Logic.Place p) {
+        Logic.Alerts wanted = Prefs.alerts(this,p.id);
+        android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+        android.app.NotificationChannel ch = nm.getNotificationChannel(Sync.CH_REMIND);
+        android.app.NotificationChannel quiet = nm.getNotificationChannel(Sync.CH_QUIET);
+        boolean channelBlocked = (wanted.off || wanted.on) && ch != null && ch.getImportance() == 0;
+        boolean quietBlocked = Prefs.quietNights(this) && quiet != null && quiet.getImportance() == 0;
+        if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked)) return null;
+        TextView warning = Ui.text(this,14,Ui.heavy(this),pal.offText);
+        warning.setText("Нагадування не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));
+        warning.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
+        return warning;
+    }
+
     private TextView action(String text, int icon, View.OnClickListener listener) {
         TextView b = Ui.text(this, 14, Ui.heavy(this), pal.text);
         b.setText(text); b.setMinHeight(Ui.dp(this, 48)); b.setGravity(Gravity.CENTER);
@@ -479,7 +519,7 @@ public class MainActivity extends Base {
     /** A line when the source has not answered for a while. */
     private View stale(Logic.Place p, Logic.Data d, long now) {
         long checked = Store.checkedAt(this, p.region);
-        if (d == null || checked == 0 || now - checked <= Logic.STALE_S) return null;
+        if (d == null || (d.sourceOk && checked > 0 && now - checked <= Logic.STALE_S)) return null;
         TextView t = Ui.text(this, 14, Ui.bold(this), pal.text);
         t.setText("Немає зв'язку з джерелом графіка. Показано дані, перевірені "
                 + Logic.updated(checked, now).replace("графік оновлено ", "") + ".");
@@ -521,10 +561,16 @@ public class MainActivity extends Base {
             card.addView(none, fill()); return;
         }
         BarView bar = new BarView(this, pal); bar.set(slots, cur >= 0 ? nowRel : -1);
+        if (cur >= 0) clockUpdates.add(() -> {
+            long time=Sync.now();bar.set(slots,Logic.index(date,time)+(Logic.z(time).getMinute()%30)/30f);
+        });
         bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         card.addView(bar, fill());
         List<Logic.Outage> outages = Logic.outages(slots, cur);
         if (!outages.isEmpty()) {
+            TextView label = Ui.text(this,14,Ui.bold(this),pal.muted);
+            boolean certain = false; for (Logic.Outage o : outages) certain |= !o.maybe;
+            label.setText(certain ? "Без світла:" : "Можливі вимкнення:"); card.addView(label,fill());
             FlowRow intervals = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 5));
             for (Logic.Outage o : outages) intervals.addView(chip(o));
             LinearLayout.LayoutParams lp = fill(); lp.topMargin = Ui.dp(this, 4); lp.bottomMargin = Ui.dp(this, 5);
@@ -533,7 +579,7 @@ public class MainActivity extends Base {
     }
 
     private String notPublished(Logic.Place p, boolean tomorrow) {
-        if (!tomorrow) return "Обленерго ще не опублікувало графік на сьогодні.";
+        if (!tomorrow) return Logic.missingSchedule(Store.data(this, p.region)) + ".";
         boolean told = Prefs.alerts(this, p.id).tomorrow;
         return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
@@ -558,7 +604,7 @@ public class MainActivity extends Base {
     }
 
     private View footer(Logic.Place p, Logic.Data d, long now) {
-        TextView t = Ui.text(this, 12, Ui.body(this), pal.muted);
+        TextView t = Ui.text(this, 13, Ui.body(this), pal.muted);
         t.setLineSpacing(0, 1.1f);
         List<String> when = new ArrayList<>();
         if (d != null && d.updated > 0) when.add(cap(Logic.updated(d.updated, now)));
@@ -579,7 +625,10 @@ public class MainActivity extends Base {
     private void askNotifications() {
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 1);
+            new android.app.AlertDialog.Builder(this).setTitle("Нагадування про світло")
+                    .setMessage("Дозвольте сповіщення, щоб отримувати нагадування перед вимкненням і увімкненням світла.")
+                    .setPositiveButton("Продовжити",(dialog,which) -> requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS},1))
+                    .setNegativeButton("Пізніше",(dialog,which) -> askBattery()).show();
         } else {
             askBattery();
         }
@@ -595,8 +644,13 @@ public class MainActivity extends Base {
         if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         if (!Prefs.once(this, "asked_battery")) return;
         try {
-            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:" + getPackageName())));
+            new android.app.AlertDialog.Builder(this).setTitle("Вчасні нагадування")
+                    .setMessage("Дозвольте фонову роботу без обмежень батареї, щоб нагадування могли приходити із вимкненим екраном.")
+                    .setPositiveButton("Відкрити налаштування",(dialog,which) -> {
+                        try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                Uri.parse("package:"+getPackageName()))); }
+                        catch (RuntimeException ignored) { /* Some devices hide this screen. */ }
+                    }).setNegativeButton("Пізніше",null).show();
         } catch (Exception ignored) {
             // some builds hide the dialog; reminders then may come a little late
         }

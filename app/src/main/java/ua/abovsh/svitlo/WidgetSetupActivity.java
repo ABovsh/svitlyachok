@@ -67,7 +67,7 @@ public class WidgetSetupActivity extends Base {
         t.addView(w);
         r.addView(t, weight());
         if (chosen) {
-            TextView now = Ui.text(this, 12, Ui.heavy(this), pal.accentInk);
+            TextView now = Ui.text(this, 13, Ui.heavy(this), pal.accentInk);
             now.setText("на віджеті");
             now.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
             now.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));

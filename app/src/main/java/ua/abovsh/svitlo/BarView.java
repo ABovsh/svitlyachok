@@ -34,11 +34,11 @@ final class BarView extends View {
         p = b.p;
         barH = Ui.dp(c, 30);
         knob = Ui.dp(c, 7);
-        labelH = Math.round(Ui.sp(c, 12) * 1.25f + Ui.px(c, 6));
+        labelH = Math.round(Ui.sp(c, 13) * 1.25f + Ui.px(c, 6));
         hours.setTypeface(Ui.heavy(c));
         hours.setTextSize(Ui.sp(c, 14));
         hours.setTextAlign(Paint.Align.CENTER);
-        clock.setTextSize(Ui.sp(c, 12));
+        clock.setTextSize(Ui.sp(c, 13));
         clock.setTextAlign(Paint.Align.CENTER);
     }
 
@@ -152,7 +152,7 @@ final class BarView extends View {
             else if (nx - x0 >= tw) x1 = nx;
         }
         if (x1 - x0 < tw) return;
-        int ink = at(slots, i) == '3' ? pal.accentInk : 0xFFFFFFFF;
+        int ink = at(slots, i) == '3' || at(slots,i) == '1' ? pal.accentInk : 0xFFFFFFFF;
         boolean past = x1 <= nx + 0.5f;
         hours.setColor(past ? pal.muted : ink);
         float base = top + barH / 2f - (hours.descent() + hours.ascent()) / 2f;

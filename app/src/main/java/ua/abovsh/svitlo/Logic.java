@@ -27,7 +27,11 @@ import org.json.JSONObject;
  * outage, '2' unknown. A timeline is today + tomorrow, 96 slots from today's midnight.
  */
 public final class Logic {
-    public static final ZoneId KYIV = ZoneId.of("Europe/Kyiv");
+    public static final ZoneId KYIV = kyivZone(ZoneId::of);
+    static ZoneId kyivZone(java.util.function.Function<String, ZoneId> find) {
+        try { return find.apply("Europe/Kyiv"); }
+        catch (java.time.DateTimeException e) { return find.apply("Europe/Kiev"); }
+    }
     public static final int OFF = 0;
     public static final int ON = 1;
     public static final int UNKNOWN = 2;
@@ -72,23 +76,25 @@ public final class Logic {
     /** Open community archives of the oblenergo schedules on GitHub, one JSON format for all. */
     private static final Region[] REGIONS = {
         new Region("kyiv_region", "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
-        new Region("vinnytsia", "Вінницька область", "",
-                "https://raw.githubusercontent.com/olnet93/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
-                "https://raw.githubusercontent.com/vn-progr/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json"),
+        new Region("vinnytsia", "Вінницька область", "https://www.voe.com.ua/",
+                "https://raw.githubusercontent.com/vn-progr/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
+                "https://raw.githubusercontent.com/olnet93/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json"),
         new Region("dnipro", "Дніпропетровська область", "https://www.dtek-dnem.com.ua/ua/shutdowns", B42 + "dnipro.json"),
-        new Region("zhytomyr", "Житомирська область", "", Y29 + "Zhytomyroblenergo.json"),
-        new Region("uzhhorod", "Закарпатська область", "", Y29 + "Zakarpattiaoblenerho.json"),
-        new Region("zaporizhzhia", "Запорізька область", "",
+        new Region("zhytomyr", "Житомирська область", "https://www.ztoe.com.ua/", Y29 + "Zhytomyroblenergo.json"),
+        new Region("uzhhorod", "Закарпатська область", "https://zakarpat.energy/", Y29 + "Zakarpattiaoblenerho.json"),
+        new Region("zaporizhzhia", "Запорізька область", "https://www.zoe.com.ua/",
                 "https://raw.githubusercontent.com/milkmann/gpv-zoe-zaporizhzhia/main/data/Zaporizhzhiaoblenergo.json",
                 Y29 + "Zaporizhzhiaoblenergo.json"),
-        new Region("ivano_frankivsk", "Івано-Франківська область", "", Y29 + "Prykarpattiaoblenerho.json"),
-        new Region("lviv", "Львівська область", "", Y29 + "Lvivoblenerho.json"),
+        new Region("ivano_frankivsk", "Івано-Франківська область", "https://www.oe.if.ua/", Y29 + "Prykarpattiaoblenerho.json"),
+        new Region("lviv", "Львівська область", "https://loe.lviv.ua/", Y29 + "Lvivoblenerho.json"),
         new Region("odesa", "Одеська область", "https://www.dtek-oem.com.ua/ua/shutdowns", B42 + "odesa.json"),
-        new Region("poltava", "Полтавська область", "", Y29 + "Poltavaoblenergo.json"),
-        new Region("rivne", "Рівненська область", "", Y29 + "Rivneoblenergo.json"),
-        new Region("ternopil", "Тернопільська область", "", Y29 + "Ternopiloblenerho.json"),
-        new Region("khmelnytskyi", "Хмельницька область", "", Y29 + "Khmelnytskoblenerho.json"),
-        new Region("chernihiv", "Чернігівська область", "", Y29 + "Chernihivoblenergo.json"),
+        new Region("poltava", "Полтавська область", "https://www.poe.pl.ua/", Y29 + "Poltavaoblenergo.json"),
+        new Region("rivne", "Рівненська область", "https://www.roe.vsei.ua/", Y29 + "Rivneoblenergo.json"),
+        new Region("ternopil", "Тернопільська область", "https://www.toe.com.ua/", Y29 + "Ternopiloblenerho.json"),
+        new Region("khmelnytskyi", "Хмельницька область", "https://hoe.com.ua/", Y29 + "Khmelnytskoblenerho.json"),
+        new Region("cherkasy", "Черкаська область", "https://www.cherkasyoblenergo.com/", Y29 + "Cherkasyoblenergo.json"),
+        new Region("kharkiv", "Харківська область", "https://oblenergo.kharkiv.ua/uk", Y29 + "Kharkivoblenerho.json"),
+        new Region("chernihiv", "Чернігівська область", "https://chernihivoblenergo.com.ua/", Y29 + "Chernihivoblenergo.json"),
     };
 
     public static List<Region> regions() {
@@ -106,6 +112,8 @@ public final class Logic {
     public static final class Data {
         public Map<LocalDate, Map<String, String>> days = new HashMap<>();
         public boolean none;          // "data": [] — no outages published at all
+        public long sourceTime;
+        public boolean sourceOk = true;
         public long updated;          // when the oblenergo last changed it, 0 unknown
         public List<String> groups = new ArrayList<>();
     }
@@ -163,10 +171,63 @@ public final class Logic {
             if (groups.isEmpty()) presetGroups(file, groups);
             d.groups = new ArrayList<>(groups);
             d.updated = updatedAt(fact.optString("update", ""));
+            d.sourceTime = sourceTime(file.optString("lastUpdated", ""));
+            JSONObject status = file.optJSONObject("lastUpdateStatus");
+            d.sourceOk = status == null || status.optBoolean("ok", true);
             return d;
         } catch (JSONException e) {
             throw new BadFile("not a schedule: " + e.getMessage());
         }
+    }
+
+    static long sourceTime(String value) {
+        try { return Instant.parse(value).getEpochSecond(); }
+        catch (java.time.format.DateTimeParseException e) {
+            try { long t = Long.parseLong(value); return t > 10_000_000_000L ? t / 1000 : t; }
+            catch (NumberFormatException ignored) { return 0; }
+        }
+    }
+
+    static boolean noneFresh(Data d, long now) {
+        return d != null && d.none && d.sourceTime > 0 && now >= d.sourceTime - 300
+                && now - d.sourceTime <= 48 * 3600L;
+    }
+
+    static Data validAt(Data d, long now) {
+        if (d == null || !d.none || noneFresh(d, now)) return d;
+        Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
+        out.sourceOk = d.sourceOk; out.groups = d.groups;
+        return out;
+    }
+
+    static LocalDate latestDay(Data d) {
+        if (d == null || d.days.isEmpty()) return null;
+        return java.util.Collections.max(d.days.keySet());
+    }
+
+    static boolean currentData(Data d, long now) {
+        if (d == null) return false;
+        if (d.none) return noneFresh(d, now);
+        LocalDate today = today(now);
+        for (LocalDate day : new LocalDate[] {today, today.plusDays(1)}) {
+            Map<String, String> groups = d.days.get(day);
+            if (groups != null) for (String slots : groups.values()) if (count(slots, '2') < 48) return true;
+        }
+        return false;
+    }
+
+    static boolean preferData(Data candidate, Data cached, long now) {
+        if (cached == null) return true;
+        if (currentData(candidate, now)) return true;
+        if (currentData(cached, now)) return false;
+        LocalDate a = latestDay(candidate), b = latestDay(cached);
+        return a != null && (b == null || !a.isBefore(b));
+    }
+
+    static String missingSchedule(Data d) {
+        LocalDate last = latestDay(d);
+        return last == null ? "Нового графіка немає" : "Нового графіка немає · останній був "
+                + String.format(Locale.ROOT, "%d.%02d", last.getDayOfMonth(), last.getMonthValue());
     }
 
     private static void readDays(JSONObject days, Data d, Set<String> groups) throws BadFile, JSONException {
@@ -215,7 +276,7 @@ public final class Logic {
         boolean zero = h.has("0");
         StringBuilder b = new StringBuilder(48);
         for (int hour = 0; hour < 24; hour++) {
-            String v = h.optString(String.valueOf(zero ? hour : hour + 1), "yes");
+            String v = h.optString(String.valueOf(zero ? hour : hour + 1), "unknown");
             switch (v) {
                 case "yes": b.append("11"); break;
                 case "no": b.append("00"); break;
@@ -253,7 +314,10 @@ public final class Logic {
     /** The 48 slots of a day, or null while it is not published. */
     public static String day(Data d, String group, LocalDate date) {
         if (d == null) return null;
-        if (d.none) return repeat('1', 48);
+        if (d.none) {
+            LocalDate published = d.sourceTime > 0 ? today(d.sourceTime) : null;
+            return published != null && !date.isBefore(published) && date.atStartOfDay(KYIV).toEpochSecond() <= d.sourceTime + 48 * 3600L ? repeat('1', 48) : null;
+        }
         Map<String, String> m = d.days.get(date);
         String slots = m == null ? null : m.get(group);
         // a day of nothing but unknown statuses says nothing: it is not published, not "0 % of power"
@@ -290,7 +354,10 @@ public final class Logic {
 
     /** Wall-clock start of a slot (DST days keep their slots on the clock). */
     public static long slotStart(LocalDate base, int idx) {
-        return base.plusDays(idx / 48).atTime((idx % 48) / 2, (idx % 2) * 30).atZone(KYIV).toEpochSecond();
+        LocalDateTime local = base.plusDays(idx / 48).atTime((idx % 48) / 2, (idx % 2) * 30);
+        java.util.List<java.time.ZoneOffset> offsets = KYIV.getRules().getValidOffsets(local);
+        // There is no event at a wall-clock time skipped by the spring transition.
+        return offsets.isEmpty() ? -1 : local.atOffset(offsets.get(0)).toEpochSecond();
     }
 
     /** Changes after slot `from`: {slot, new state char}, until the data ends. */
@@ -390,6 +457,9 @@ public final class Logic {
         public boolean soon;
         public long change;
         public int next = UNKNOWN;
+        public boolean tomorrow;
+        public String changeClock = "";
+        public String endDetail = "";
     }
 
     static int state(char slot) {
@@ -441,7 +511,7 @@ public final class Logic {
             n.hint = "Відключень за графіком не заплановано";
         } else {
             List<int[]> ch = changesFrom(tl, cur);
-            if (ch.isEmpty()) steady(n, tl, cur, c);
+            if (ch.isEmpty()) steady(n, tl, cur, c, base, now);
             else changing(n, ch, c, base, now);
         }
         if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
@@ -486,10 +556,13 @@ public final class Logic {
     }
 
     /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
-    private static void steady(Now n, String tl, int cur, char c) {
+    private static void steady(Now n, String tl, int cur, char c, LocalDate base, long now) {
         int j = cur;
         while (j < tl.length() && tl.charAt(j) == c) j++;
-        if (j < tl.length()) {
+        if (j < 48 && j < tl.length()) {
+            n.big = "до " + clock(j);
+            n.hint = "Далі графіка немає";
+        } else if (j < tl.length()) {
             n.big = "до кінця дня";
             n.hint = "Графік на завтра ще не опубліковано";
         } else if (c == '1') {
@@ -505,12 +578,15 @@ public final class Logic {
         long change = slotStart(base, ch.get(0)[0]);
         char next = (char) ch.get(0)[1];
         n.change = change;
+        n.tomorrow = dayDiff(now, change) > 0 && !hm(change).equals("00:00");
+        n.changeClock = until(change, now).equals(MIDNIGHT) ? MIDNIGHT : hm(change);
         n.next = state(next);
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
             n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
+        if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
         // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
         String when = at.startsWith("завтра") ? " завтра о " + hm(change) : " о " + at;
@@ -744,6 +820,7 @@ public final class Logic {
         public int leadOff = 15;
         public int leadOn = 15;
         public boolean tomorrow;
+        public String changeClock = "";
         public boolean changes;
 
         /** Anything at all: otherwise the bell of the place is crossed out. */
@@ -892,10 +969,14 @@ public final class Logic {
     /** Upcoming reminders of one place, earliest first; a reminder up to LATE_S late is kept. */
     public static List<Event> events(Place p, String tl, LocalDate base, long now, Alerts a) {
         List<Event> out = new ArrayList<>();
-        int from = Math.max(0, index(base, now - LATE_S));
-        for (int[] c : changesFrom(tl, from)) {
-            Event e = event(p, tl.charAt(c[0] - 1), (char) c[1], slotStart(base, c[0]), a);
-            if (e != null && e.at >= now - LATE_S && (e.at == e.change || e.change > now)) out.add(e);
+        // Scan the known edges, including yesterday supplied by the caller at midnight.
+        for (int slot = 1; slot < tl.length(); slot++) {
+            char prev = tl.charAt(slot - 1), next = tl.charAt(slot);
+            if (prev == next || prev == '2' || next == '2') continue;
+            long change = slotStart(base, slot);
+            if (change < 0) continue;
+            Event e = event(p, prev, next, change, a);
+            if (e != null && (e.at < e.change ? e.change > now : e.at >= now - LATE_S)) out.add(e);
         }
         out.sort((x, y) -> Long.compare(x.at, y.at));
         return out;
@@ -929,6 +1010,10 @@ public final class Logic {
         public String title = "";
         public String text = "";
         public boolean on;
+        public int state = UNKNOWN;
+        public long change;
+        public long planned;
+        public int kind;
         public long until;
     }
 
@@ -955,9 +1040,11 @@ public final class Logic {
         int state = OFF;
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
+        n.state = state; n.change = e.change; n.planned = e.at; n.kind = e.kind;
         n.title = headed(mark(state), eventWhat(e.kind, maybe));
         n.text = named(e.name, eventWhen(e, end, now));
-        if (n.on) n.until = e.change + 3600;
+        if (e.at < e.change) n.until = e.change;
+        else if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
     }
@@ -974,7 +1061,7 @@ public final class Logic {
     /** "о 18:30, через 15 хв" ahead; at the moment, until when it lasts or since when. */
     private static String eventWhen(Event e, long end, long now) {
         if (e.kind == Event.SOON_OFF || e.kind == Event.SOON_ON) {
-            return "о " + hm(e.change) + ", " + comingIn(Math.max(0, e.change - now));
+            return "о " + hm(e.change);
         }
         if (e.kind == Event.AT_ON) return "за графіком з " + hm(e.change);
         return end > 0 ? "до " + until(end, e.change) : "за графіком";
@@ -1029,15 +1116,21 @@ public final class Logic {
             n.kind = Note.PUBLISHED;
             n.title = headed(SCHEDULE_MARK, "графік на " + (today ? "сьогодні" : "завтра"));
             int k = offCount(a);
-            n.text = named(p.name, k == 0 ? "Відключень не заплановано" : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
+            n.text = named(p.name, k == 0 ? uncertainDay(a, "Вимкнень не заплановано") : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
             return n;
         }
         if (a.substring(from).equals(b.substring(from))) return null;
         n.kind = Note.CHANGED;
         n.title = headed(SCHEDULE_MARK, "графік змінився");
         String w = today ? "Сьогодні" : "Завтра";
-        n.text = named(p.name, offCount(a) == 0 ? w + " " + NO_OUTAGES : w + " " + dayTotal(a) + ": " + list(a));
+        n.text = named(p.name, offCount(a) == 0 ? w + ": " + uncertainDay(a, NO_OUTAGES) : w + " " + dayTotal(a) + ": " + list(a));
         return n;
+    }
+
+    private static String uncertainDay(String day, String clear) {
+        if (count(day, '3') > 0) return "Можливі вимкнення: " + list(day, true);
+        if (count(day, '2') > 0) return "Графік опубліковано частково";
+        return clear;
     }
 
     /**
@@ -1384,16 +1477,16 @@ public final class Logic {
         String text = n.hintIn;
         if (text.startsWith("(") && text.endsWith(")")) text = text.substring(1, text.length() - 1);
         int end = n.then.lastIndexOf(" до ");
-        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + n.then.substring(end + 1);
+        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? "можливе вимкнення " : "світла не буде ") + n.then.substring(end + 1);
         return text;
     }
 
     /** Label, exact clock (including tomorrow), and known end; no countdown on a widget. */
     public static String[] widgetNext(Now n) {
-        int at = n.hint.lastIndexOf(' ');
-        if (n.next == UNKNOWN || n.change == 0 || at < 0) return new String[] {"", "", ""};
-        int end = n.then.lastIndexOf(" до ");
-        return new String[] {n.hint.substring(0, at), n.hint.substring(at + 1), end < 0 ? "" : n.then.substring(end + 1)};
+        if (n.next == UNKNOWN || n.change <= 0) return new String[] {"", "", ""};
+        String event = n.next == OFF ? "Вимкнуть" : n.next == MAYBE ? "Можливо вимкнуть"
+                : n.state == OFF ? "Увімкнуть" : "Буде світло";
+        return new String[] {event + (n.tomorrow ? " завтра" : ""), n.changeClock.isEmpty() ? hm(n.change) : n.changeClock, n.endDetail};
     }
 
     /** Start clock plus its day, without squeezing the clock on a widget. */

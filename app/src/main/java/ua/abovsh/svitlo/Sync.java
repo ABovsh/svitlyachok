@@ -40,23 +40,26 @@ final class Sync {
 
     /** Blocking (network): call off the main thread. True when every region answered. */
     static boolean fetchAndApply(Context c) {
-        return fetchAndApply(c, true, Long.MAX_VALUE);
+        return fetchAndApply(c, true, Long.MAX_VALUE, new Store.Request());
     }
 
     /** A background check: no network when the source answered moments ago (see Logic.dueForFetch). */
     static boolean refreshInBackground(Context c) {
-        return fetchAndApply(c, false, Long.MAX_VALUE);
+        return refreshInBackground(c, new Store.Request());
     }
 
     /**
-     * Inside an alarm's broadcast, which Android allows about a minute: regions not reached in
-     * 20 seconds are left to a job (false comes back).
+     * Inside a short broadcast budget: unfinished regions are left to a network-constrained job.
      */
     static boolean refreshWithin(Context c, long deadlineMs) {
-        return fetchAndApply(c, false, deadlineMs);
+        return fetchAndApply(c, false, deadlineMs, new Store.Request());
     }
 
-    private static boolean fetchAndApply(Context c, boolean always, long deadlineMs) {
+    static boolean refreshInBackground(Context c, Store.Request request) {
+        return fetchAndApply(c, false, Long.MAX_VALUE, request);
+    }
+
+    private static boolean fetchAndApply(Context c, boolean always, long deadlineMs, Store.Request request) {
         long now = now();
         if (!always && !Logic.dueForFetch(checkedAt(c), now)) {
             apply(c);
@@ -64,16 +67,21 @@ final class Sync {
         }
         boolean ok = true;
         for (String region : Prefs.regions(c)) {
-            if (System.currentTimeMillis() > deadlineMs) {
+            if (request.stopped || System.currentTimeMillis() > deadlineMs) {
                 ok = false;
                 break;
             }
             Logic.Data before = Store.data(c, region);
-            int r = Store.fetch(c, region, deadlineMs);
+            int r = Store.fetch(c, region, deadlineMs, always, request);
             if (r == Store.FAILED) ok = false;
-            if (r == Store.NEW) notifyNotes(c, region, before, Store.data(c, region), now);
+            if (r == Store.NEW) {
+                reconcile(c, region);
+                notifyNotes(c, region, before, Store.data(c, region), now);
+            }
         }
+        if (request.stopped) return false;
         rememberDays(c, now);
+        fireDue(c);
         apply(c);
         return ok;
     }
@@ -96,6 +104,7 @@ final class Sync {
         renderWidgets(c, now);
         armRefresh(c, now);
         armNotify(c, now);
+        schedulePeriodic(c);
     }
 
     static String timeline(Context c, Logic.Place p, LocalDate base) {
@@ -151,11 +160,15 @@ final class Sync {
      * circle with it. `n.until`: when the notice stops being true it goes by itself.
      */
     private static void show(Context c, int id, String place, String channel, Logic.Notice n, boolean reminder) {
+        show(c, id, place, channel, n, reminder, false);
+    }
+
+    private static void show(Context c, int id, String place, String channel, Logic.Notice n, boolean reminder, boolean silent) {
         int icon = R.drawable.ic_notify;
         int colour = GOLD;
         if (reminder) {
             icon = n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off;
-            colour = n.on ? GREEN : RED;
+            colour = n.state == Logic.MAYBE ? GOLD : n.on ? GREEN : RED;
         }
         ensureChannels(c);
         long now = now();
@@ -172,12 +185,50 @@ final class Sync {
                 .setAutoCancel(true)
                 .setContentIntent(PendingIntent.getActivity(c, id, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        if (silent) b.setOnlyAlertOnce(true);
+        if (reminder && n.change > 0) {
+            Bundle extras = new Bundle();
+            extras.putString("reminder_place", place); extras.putLong("reminder_change", n.change);
+            extras.putLong("reminder_planned", n.planned); extras.putInt("reminder_kind", n.kind);
+            b.addExtras(extras);
+            if (n.planned < n.change) b.setWhen(n.change * 1000).setUsesChronometer(true).setChronometerCountDown(true);
+        }
         if (n.text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(n.text));
         if (n.until > now) b.setTimeoutAfter((n.until - now) * 1000);
         try {
             c.getSystemService(NotificationManager.class).notify(id, b.build());
         } catch (SecurityException ignored) {
             // notifications not allowed: the app still works
+        }
+    }
+
+    /** Only active reminders are eligible: a dismissed reminder is never reconstructed. */
+    private static void reconcile(Context c, String region) {
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        long now = now(); LocalDate base = Logic.today(now).minusDays(1);
+        for (android.service.notification.StatusBarNotification posted : nm.getActiveNotifications()) {
+            Bundle extras = posted.getNotification().extras;
+            String id = extras.getString("reminder_place", "");
+            Logic.Place p = Prefs.place(c, id);
+            if (p == null || !p.region.equals(region)) continue;
+            Logic.Data data = Store.data(c, region);
+            String yesterday = Prefs.knownHistory(c, p, data).get(base);
+            String tl = (yesterday == null ? Logic.repeat('2',48) : yesterday) + timeline(c,p,base.plusDays(1));
+            long change = extras.getLong("reminder_change");
+            Logic.Event match = null;
+            for (Logic.Event e : Logic.events(Logic.inNotices(p, Prefs.places(c).size()),tl,base,now,Prefs.alerts(c,id))) {
+                if (e.change == change && e.kind == extras.getInt("reminder_kind")) { match = e; break; }
+            }
+            if (match == null) nm.cancel(posted.getId());
+            else {
+                Logic.Notice note = Logic.eventText(match,tl,base,now);
+                if (!note.title.contentEquals(posted.getNotification().extras.getCharSequence(Notification.EXTRA_TITLE, ""))) {
+                    // Recheck active state immediately before an update, narrowing the dismiss race.
+                    boolean active = false;
+                    for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) if (n.getId()==posted.getId()) active=true;
+                    if (active) show(c, posted.getId(), id, posted.getNotification().getChannelId(),note,true,true);
+                }
+            }
         }
     }
 
@@ -211,8 +262,11 @@ final class Sync {
         for (Logic.Place p : places) {
             Logic.Alerts a = Prefs.alerts(c, p.id);
             if (!a.off && !a.on) continue;
-            String tl = timeline(c, p, base);
-            for (Logic.Event e : Logic.events(Logic.inNotices(p, places.size()), tl, base, now, a)) {
+            LocalDate eventBase = base.minusDays(1);
+            Logic.Data data = Store.data(c, p.region);
+            String yesterday = Prefs.knownHistory(c, p, data).get(eventBase);
+            String tl = (yesterday == null ? Logic.repeat('2', 48) : yesterday) + timeline(c, p, base);
+            for (Logic.Event e : Logic.events(Logic.inNotices(p, places.size()), tl, eventBase, now, a)) {
                 if (!fired.contains(e.key())) out.add(new Object[] {e, tl});
             }
         }
@@ -221,15 +275,16 @@ final class Sync {
     }
 
     /** Show the reminders that are due now (the NOTIFY alarm). */
-    static void fireDue(Context c) {
+    static synchronized void fireDue(Context c) {
         long now = now();
         LocalDate base = Logic.today(now);
         for (Object[] x : upcoming(c, now)) {
             Logic.Event e = (Logic.Event) x[0];
-            if (e.at > now + 30) break;
-            Logic.Notice n = Logic.eventText(e, (String) x[1], base, now);
+            if (e.at > now) break;
+            Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1), now);
             post(c, e.place, CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
+            Prefs.setInt(c, "reminder_delay", (int) Math.max(0, now - e.at));
         }
     }
 
@@ -250,7 +305,7 @@ final class Sync {
         n.title = title;
         n.text = name + "о 18:00, через 15 хв (пробне)";
         n.on = on;
-        n.until = until;
+        n.until = until; n.state = on ? Logic.ON : Logic.OFF;
         return n;
     }
 
@@ -274,7 +329,7 @@ final class Sync {
                     && LargeLightWidget.class.getName().equals(info.provider.getClassName()));
             int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, cell[0]));
             int hDp = Math.min(180, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
-            String key = WidgetArt.key(c, model, now, wDp, hDp);
+            String key = BuildConfig.VERSION_CODE + "|" + c.getResources().getConfiguration().fontScale + "|" + WidgetArt.key(c, model, now, wDp, hDp);
             if (key.equals(drawn.get(id))) continue;
             RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.widget);
             v.setImageViewBitmap(R.id.w_img, WidgetArt.draw(c, model, now, wDp, hDp));
@@ -319,6 +374,15 @@ final class Sync {
         List<String> tls = new ArrayList<>();
         for (Logic.Place p : Prefs.places(c)) tls.add(timeline(c, p, base));
         long at = Logic.nextRefresh(tls, base, now, checkedAt(c));
+        boolean consumers = Widgets.ids(c).length > 0;
+        for (Logic.Place p : Prefs.places(c)) consumers |= Prefs.alerts(c,p.id).any();
+        if (!consumers) at = now + 6 * 3600;
+        // A nearby reminder wakes us for both jobs; a visual poll must not consume its idle quota.
+        List<Object[]> reminders = upcoming(c, now);
+        if (!reminders.isEmpty()) {
+            long notify = ((Logic.Event) reminders.get(0)[0]).at;
+            if (notify >= at && notify - at <= 15 * 60) at = Math.max(now + 1, notify);
+        }
         // a plain poll lets the system batch it with other wake-ups; a change of the text is exact
         setAlarm(c, at, pi, Logic.exactRefresh(tls, base, now, at));
     }
@@ -335,9 +399,14 @@ final class Sync {
 
     static void schedulePeriodic(Context c) {
         JobScheduler js = c.getSystemService(JobScheduler.class);
-        if (js.getPendingJob(JOB_PERIODIC) != null) return;
+        long interval = 6 * 3600_000L;
+        boolean consumers = Widgets.ids(c).length > 0;
+        for (Logic.Place p : Prefs.places(c)) consumers |= Prefs.alerts(c,p.id).any();
+        if (consumers) interval = 15 * 60_000L;
+        JobInfo existing=js.getPendingJob(JOB_PERIODIC);
+        if (existing != null && existing.getIntervalMillis()==interval) return;
         js.schedule(new JobInfo.Builder(JOB_PERIODIC, new ComponentName(c, FetchJob.class))
-                .setPeriodic(15 * 60 * 1000L)
+                .setPeriodic(interval)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setPersisted(true)
                 .build());
@@ -352,7 +421,7 @@ final class Sync {
         Context app = c.getApplicationContext();
         new Thread(() -> {
             try {
-                if (!refreshWithin(app, System.currentTimeMillis() + 20_000)) fetchSoon(app);
+                if (!refreshWithin(app, System.currentTimeMillis() + 7_000)) fetchSoon(app);
             } finally {
                 result.finish();
             }

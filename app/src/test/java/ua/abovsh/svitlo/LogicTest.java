@@ -34,7 +34,7 @@ public class LogicTest {
             + "\"22\":\"no\",\"23\":\"yes\",\"24\":\"yes\"}";
 
     static String feed(String days) {
-        return "{\"regionId\":\"kyiv-region\",\"fact\":{\"update\":\"29.10.2026 20:25\",\"today\":" + D30
+        return "{\"lastUpdated\":1793311200,\"regionId\":\"kyiv-region\",\"fact\":{\"update\":\"29.10.2026 20:25\",\"today\":" + D30
                 + ",\"data\":" + days + "},\"preset\":{\"sch_names\":{\"GPV1.1\":\"Черга 1.1\"}}}";
     }
 
@@ -244,15 +244,15 @@ public class LogicTest {
         Logic.Notice s = Logic.eventText(e, t, OCT30, at(14, 2));
         // the place opens the second line: the title stays short enough for one line
         assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", s.title);
-        assertEquals("Дім · о 14:30, через 28 хв", s.text);
+        assertEquals("Дім · о 14:30", s.text);
         assertFalse(s.on);
-        assertEquals(at(18, 30), s.until);  // gone by itself once the power is back
+        assertEquals(at(14, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
         Logic.Notice n = Logic.eventText(on, t, OCT30, at(18, 15));
         assertEquals("\uD83D\uDFE2 Скоро увімкнуть світло", n.title);
-        assertEquals("Дім · о 18:30, через 15 хв", n.text);
+        assertEquals("Дім · о 18:30", n.text);
         assertTrue(n.on);
-        assertEquals(at(19, 30), n.until);
+        assertEquals(at(18, 30), n.until);
         String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
         Logic.Event m = Logic.events(home(), maybe, OCT30, at(9, 0), new Logic.Alerts()).get(0);
         assertEquals("\uD83D\uDFE0 Можливе вимкнення", Logic.eventText(m, maybe, OCT30, at(9, 45)).title);
@@ -636,8 +636,10 @@ public class LogicTest {
         // published at 14:24: the 14:15 reminder is 9 min late, still worth it
         assertEquals(at(14, 15), Logic.events(home(), t, OCT30, at(14, 24), new Logic.Alerts()).get(0).at);
         // at 14:26 it is 11 min late: dropped, the next one is the reminder before the power returns
-        assertEquals(Logic.Event.SOON_ON,
+        assertEquals(Logic.Event.SOON_OFF,
                 Logic.events(home(), t, OCT30, at(14, 26), new Logic.Alerts()).get(0).kind);
+        assertEquals(Logic.Event.SOON_ON,
+                Logic.events(home(), t, OCT30, at(14, 30), new Logic.Alerts()).get(0).kind);
     }
 
     @Test
@@ -676,7 +678,7 @@ public class LogicTest {
         String clean = HOURS_11_TOMORROW.replace("\"no\"", "\"yes\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31
                 + "\":{\"GPV1.1\":" + clean + "}}"));
-        assertEquals("Дім · Відключень не заплановано", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
+        assertEquals("Дім · Вимкнень не заплановано", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
     }
 
     @Test
@@ -808,7 +810,7 @@ public class LogicTest {
         assertEquals("p1", e.place);
         Logic.Notice n = Logic.eventText(e, t, OCT30, at(14, 2));
         assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", n.title);
-        assertEquals("о 14:30, через 28 хв", n.text);
+        assertEquals("о 14:30", n.text);
         List<Logic.Note> tomorrow = Logic.notes(only, data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
         assertEquals("\uD83D\uDCC5 Графік на завтра", tomorrow.get(0).title);
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
@@ -923,8 +925,8 @@ public class LogicTest {
     public void compactLinesPreserveStateAndKnownEnd() throws Exception {
         Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false);
         assertEquals("Є до 14:30", Logic.tileLine(n));
-        assertEquals("через 4 год 30 хв · до 18:30", Logic.nextDetail(n));
-        assertEquals(Arrays.asList("Вимкнуть о", "14:30", "до 18:30"), Arrays.asList(Logic.widgetNext(n)));
+        assertEquals("через 4 год 30 хв · світла не буде до 18:30", Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Вимкнуть", "14:30", "до 18:30"), Arrays.asList(Logic.widgetNext(n)));
         n = Logic.now(tl(TODAY_ONLY), OCT30, at(15, 0), false);
         assertEquals("Немає до 18:30", Logic.tileLine(n));
         assertEquals("через 3 год 30 хв", Logic.nextDetail(n));
@@ -970,21 +972,14 @@ public class LogicTest {
         assertTrue(Logic.describeStats(Logic.window(new java.util.HashMap<>(), OCT30, 7)).contains("графіка немає"));
     }
 
-    @Test
-    public void compactEventsKeepTomorrowMidnightAndPossibleOutagesExplicit() {
-        Logic.Now n = new Logic.Now();
-        n.state = Logic.MAYBE; n.title = "Можливе вимкнення"; n.big = "до 15:00";
-        assertEquals(n.title, Logic.tileLine(n));
-        n.next = Logic.MAYBE; n.change = 1; n.hint = "Можливе вимкнення завтра о 06:00";
-        n.then = "потім можливе вимкнення до завтра 09:00"; n.hintIn = "";
-        assertEquals("до завтра 09:00", Logic.nextDetail(n));
-        assertEquals(Arrays.asList("Можливе вимкнення завтра о", "06:00", "до завтра 09:00"), Arrays.asList(Logic.widgetNext(n)));
-        n.next = Logic.ON; n.hint = "Увімкнуть о 24:00"; n.hintIn = "через 30 хв";
-        assertEquals("через 30 хв", Logic.nextDetail(n));
-        n.then = "";
-        assertEquals(Arrays.asList("Увімкнуть о", "24:00", ""), Arrays.asList(Logic.widgetNext(n)));
-        n.change = 0;
-        assertEquals(Arrays.asList("", "", ""), Arrays.asList(Logic.widgetNext(n)));
+    @Test public void compactEventsKeepTomorrowMidnightAndPossibleOutagesExplicit() {
+        String tl=repeat('1',60)+repeat('3',6)+repeat('1',30);
+        Logic.Now n=Logic.now(tl,OCT30,at(22,0),false);
+        assertEquals("через 8 год 00 хв · можливе вимкнення до завтра 09:00",Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Можливо вимкнуть завтра","06:00","до завтра 09:00"),Arrays.asList(Logic.widgetNext(n)));
+        n=Logic.now(repeat('0',48)+repeat('1',48),OCT30,at(23,30),false);
+        assertEquals(Arrays.asList("Увімкнуть","24:00",""),Arrays.asList(Logic.widgetNext(n)));
+        n.change=0;assertEquals(Arrays.asList("","",""),Arrays.asList(Logic.widgetNext(n)));
     }
 
     @Test
@@ -1227,5 +1222,79 @@ public class LogicTest {
     private static int kind(List<Logic.Label> l, int slot) {
         for (Logic.Label x : l) if (x.slot == slot) return x.kind;
         return -99;
+    }
+
+    @Test public void missingHoursStayUnknown() throws Exception {
+        String raw = feed("{\"" + D30 + "\":{\"GPV1.1\":{\"1\":\"no\"}}}");
+        assertEquals("00" + repeat('2', 46), Logic.day(data(raw), "GPV1.1", OCT30));
+    }
+    @Test public void emptyHoursNeverMeanPower() throws Exception {
+        assertNull(Logic.day(data(feed("{\"" + D30 + "\":{\"GPV1.1\":{}}}")), "GPV1.1", OCT30));
+    }
+    @Test public void emptyFeedCannotCreateFutureHistory() throws Exception {
+        assertNull(Logic.day(data(feed("[]")), "GPV1.1", OCT30.plusDays(30)));
+    }
+    @Test public void internalGapHasAnExactBoundary() {
+        Logic.Now n = Logic.now(repeat('1',20)+repeat('2',2)+repeat('1',26)+repeat('2',48), OCT30,at(9,0),false);
+        assertEquals("до 10:00", n.big);
+        assertEquals(Logic.UNKNOWN,n.next);
+    }
+    @Test public void overdueAdvanceReminderSurvivesUntilChange() throws Exception {
+        Logic.Alerts a = new Logic.Alerts();a.leadOff=60;
+        assertEquals(at(14,30),Logic.events(home(),tl(TODAY_ONLY),OCT30,at(14,20),a).get(0).change);
+    }
+    @Test public void midnightEventSurvivesTheBoundary() {
+        Logic.Alerts a=new Logic.Alerts();a.leadOff=0;a.on=false;
+        List<Logic.Event> events=Logic.events(home(),repeat('1',48)+repeat('0',48),OCT30,D31+1,a);
+        assertEquals(1,events.size());assertEquals(D31,events.get(0).change);
+    }
+    @Test public void possibleOnlyPublicationKeepsUncertainty() throws Exception {
+        String raw=feed("{\""+D31+"\":{\"GPV1.1\":{\"1\":\"maybe\"}}}");
+        assertTrue(Logic.notes(home(),data(TODAY_ONLY),data(raw),at(19,0)).get(0).text.contains("Можлив"));
+    }
+    @Test public void advanceReminderExpiresAtItsChange() throws Exception {
+        Logic.Event e=Logic.events(home(),tl(TODAY_ONLY),OCT30,at(12,0),new Logic.Alerts()).get(0);
+        assertEquals(e.change,Logic.eventText(e,tl(TODAY_ONLY),OCT30,at(14,15)).until);
+    }
+    @Test public void supportedRegionsIncludeCherkasyAndKharkiv() {
+        assertEquals(16,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);
+    }
+
+    @Test public void liveNewRegionFixturesParse() throws Exception {
+        for (String region : new String[] {"cherkasy","kharkiv"}) {
+            try (java.io.InputStream input=getClass().getResourceAsStream("/"+region+".json")) {
+                assertTrue(input!=null);
+                Logic.Data d=Logic.parse(new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8));
+                assertTrue(!d.days.isEmpty());assertTrue(!d.groups.isEmpty());
+                assertEquals(48,Logic.day(d,d.groups.get(0),Logic.latestDay(d)).length());
+            }
+        }
+    }
+    @Test public void emptyFeedExpiresAtFortyEightHours() throws Exception {
+        Logic.Data d=data(feed("[]"));
+        assertTrue(Logic.noneFresh(d,D30+48*3600));assertFalse(Logic.noneFresh(d,D30+48*3600+1));
+        assertTrue(Logic.validAt(d,D30+100).none);assertFalse(Logic.validAt(d,D30+49*3600).none);
+        assertNull(Logic.day(Logic.validAt(d,D30+49*3600),"GPV1.1",OCT30.plusDays(2)));
+    }
+    @Test public void primaryStaleDataNeverHidesCurrentFallback() throws Exception {
+        Logic.Data current=data(TODAY_ONLY),old=data(TODAY_ONLY.replace(String.valueOf(D30),String.valueOf(D30-86400*300L)));
+        assertTrue(Logic.currentData(current,at(12,0)));assertFalse(Logic.currentData(old,at(12,0)));
+        assertTrue(Logic.preferData(current,old,at(12,0)));assertFalse(Logic.preferData(old,current,at(12,0)));
+    }
+    @Test public void sourceTimesAcceptIsoSecondsAndMilliseconds() {
+        assertEquals(D30,Logic.sourceTime("2026-10-29T22:00:00Z"));
+        assertEquals(D30,Logic.sourceTime(String.valueOf(D30)));assertEquals(D30,Logic.sourceTime(String.valueOf(D30*1000)));
+        assertEquals(0,Logic.sourceTime("bad"));
+    }
+    @Test public void oldTimezoneDatabaseUsesKyivAlias() {
+        assertEquals(java.time.ZoneId.of("Europe/Kiev"),Logic.kyivZone(id -> {
+            if (id.equals("Europe/Kyiv")) throw new java.time.DateTimeException("old database");
+            return java.time.ZoneId.of(id);
+        }));
+    }
+    @Test public void springMissingWallTimeDoesNotCreateAnAlarm() {
+        LocalDate spring=LocalDate.of(2027,3,28);
+        assertEquals(-1,Logic.slotStart(spring,6));assertEquals(-1,Logic.slotStart(spring,7));
+        assertTrue(Logic.slotStart(spring,8)>Logic.slotStart(spring,5));
     }
 }

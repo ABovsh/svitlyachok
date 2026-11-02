@@ -35,6 +35,7 @@ final class Updates {
     private static final String DISMISSED = "upd_dismissed";
     private static final String WAITING = "upd_waiting";
     static final String APK = "update.apk";
+    private static boolean getting;
     private static final long MAX_APK = 30L * 1024 * 1024;
 
     private Updates() {}
@@ -81,6 +82,7 @@ final class Updates {
 
     /** Blocking: ask GitHub now. UNKNOWN never comes back from here. */
     static int check(Context c) {
+        p(c).edit().putLong(CHECKED, Sync.now()).apply();
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(Logic.LATEST_RELEASE).openConnection();
@@ -118,8 +120,9 @@ final class Updates {
      * Blocking: downloads the APK of `r` with the percent so far, following only redirects to
      * GitHub's file hosts. Kept only if it is this app in exactly that version; else null.
      */
-    static File download(Context c, Logic.Release r, IntConsumer percent) {
-        File f = updateFile(c);
+    static synchronized File download(Context c, Logic.Release r, IntConsumer percent) {
+        File target = updateFile(c);
+        File f = new File(target.getParentFile(), "update.part");
         String url = r.apk;
         try {
             for (int hop = 0; hop < 5; hop++) {
@@ -139,15 +142,17 @@ final class Updates {
                     }
                     if (code != 200) return null;
                     if (!save(conn, f, percent)) return null;
-                    return check(c, f, r.version) ? f : null;
+                    if (!check(c, f, r.version)) return null;
+                    java.nio.file.Files.move(f.toPath(),target.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                    return target;
                 } finally {
                     conn.disconnect();
                 }
             }
         } catch (IOException | RuntimeException e) {
-            // no network, or GitHub answered something else: the browser is the way then
-        }
-        deleteQuietly(f);
+            // The installer only sees a complete, validated archive.
+        } finally { deleteQuietly(f); }
         return null;
     }
 
@@ -193,13 +198,20 @@ final class Updates {
      * if the download failed, the release file in the browser as before. `done` runs at the end.
      */
     static void get(Activity a, Logic.Release r, IntConsumer progress, Runnable done) {
+        synchronized (Updates.class) {
+            if (getting) { Toast.makeText(a,"Оновлення вже завантажується",Toast.LENGTH_SHORT).show(); done.run(); return; }
+            getting = true;
+        }
         Context app = a.getApplicationContext();
         new Thread(() -> {
-            File f = download(app, r, p -> a.runOnUiThread(() -> progress.accept(p)));
+            File f;
+            try { f = download(app,r,p -> a.runOnUiThread(() -> {if (!a.isDestroyed()) progress.accept(p);})); }
+            finally { synchronized (Updates.class) { getting = false; } }
+            File downloaded = f;
             a.runOnUiThread(() -> {
                 done.run();
-                if (a.isFinishing()) return;
-                if (f != null) {
+                if (a.isFinishing() || a.isDestroyed()) return;
+                if (downloaded != null) {
                     install(a);
                 } else {
                     Toast.makeText(a, "Не вдалося завантажити — відкриваю сторінку випуску", Toast.LENGTH_LONG).show();

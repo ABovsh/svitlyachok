@@ -63,13 +63,13 @@ done
 case "$mode" in
   tree)
     ref="${2:-HEAD}"
-    git ls-tree -r --name-only "$ref" | check_paths
+    check_paths < <(git ls-tree -r --name-only "$ref")
     check_screenshots "$ref"
     text="$(git grep -I -n -e '' "$ref" -- . ":(exclude)$SELF" 2>/dev/null | sed "s|^$ref:||")"
     ;;
   range)
     [ $# -ge 3 ] || { echo "usage: privacy-guard.sh range <base> <head>" >&2; exit 2; }
-    git log --pretty=format: --name-only "$2..$3" -- | sort -u | sed '/^$/d' | check_paths
+    check_paths < <(git log --pretty=format: --name-only "$2..$3" -- | sort -u | sed '/^$/d')
     # the tip, and each commit not published yet: one that adds a spare file and a later one that removes it still count
     check_screenshots "$3"
     while IFS= read -r c; do check_screenshots "$c"; done < <(git rev-list "$2..$3" --not --remotes)
@@ -88,7 +88,7 @@ case "$mode" in
 esac
 # commit messages are published too
 [ "$mode" = range ] && text="$text"$'\n'"$(git log --format='%B' "$2..$3")"
-printf '%s\n' "$text" | check_text
+check_text <<< "$text"
 
 if [ $fail -ne 0 ]; then
   echo "PRIVACY GUARD FAILED (see above)." >&2

@@ -29,11 +29,11 @@ public class StatsActivity extends Base {
         page.removeAllViews();
         page.addView(topBar("Статистика"), fill());
         if (places.size() > 1) page.addView(choose(places, p), gap(8));
-        TextView queue = Ui.text(this, 12, Ui.bold(this), pal.muted);
+        TextView queue = Ui.text(this, 13, Ui.bold(this), pal.muted);
         queue.setText("Черга " + Logic.queue(p.group)); page.addView(queue, gap(4));
         page.addView(period(), gap(8));
         page.addView(card(history), fill());
-        TextView note = Ui.text(this, 12, Ui.body(this), pal.muted);
+        TextView note = Ui.text(this, 13, Ui.body(this), pal.muted);
         note.setText("Це графіки обленерго, а не виміряна наявність світла. Дні без графіка не вважаємо нульовими. Історія — на цьому телефоні.");
         note.setLineSpacing(0, 1.1f); note.setPadding(Ui.dp(this, 4), Ui.dp(this, 10), Ui.dp(this, 4), 0);
         page.addView(note, fill());
@@ -72,7 +72,7 @@ public class StatsActivity extends Base {
         metrics.addView(metric(days == 7 ? daily : weeks.get(3).days, Logic.ON, days == 7 ? "Зі світлом" : "Останній тиждень"), ml);
         metrics.addView(metric(shown, days == 7 ? Logic.OFF : Logic.ON, days == 7 ? "Без світла" : "За 4 тижні"), mr);
         card.addView(metrics, fill());
-        TextView coverage = Ui.text(this, 12, Ui.body(this), pal.muted);
+        TextView coverage = Ui.text(this, 13, Ui.body(this), pal.muted);
         coverage.setText(coverage(daily, weeks, shown));
         coverage.setPadding(0, Ui.dp(this, 7), 0, 0); card.addView(coverage, fill());
         return card;
@@ -124,7 +124,7 @@ public class StatsActivity extends Base {
         FlowRow labels = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 2));
         TextView title = Ui.text(this, 13, Ui.heavy(this), pal.status(state)); title.setText(name); labels.addView(title);
         int share = Logic.statShare(days, state);
-        TextView pct = Ui.text(this, 12, Ui.body(this), pal.muted); pct.setText(share < 0 ? "" : share + " %"); labels.addView(pct);
+        TextView pct = Ui.text(this, 13, Ui.body(this), pal.muted); pct.setText(share < 0 ? "" : share + " %"); labels.addView(pct);
         box.addView(labels, fill());
         int minutes = Logic.statAverageMinutes(days, state);
         TextView value = Ui.text(this, 22, Ui.display(this), pal.status(state));
@@ -168,7 +168,7 @@ public class StatsActivity extends Base {
         FlowRow row = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 5));
         legendItem(row, '1', "Зі світлом · год");
         if (this.days == 7) legendItem(row, '0', "Без світла · год");
-        TextView average = Ui.text(this, 12, Ui.bold(this), pal.accentText);
+        TextView average = Ui.text(this, 13, Ui.bold(this), pal.accentText);
         average.setText("┄ Середнє зі світлом"); row.addView(average);
         boolean possible = false;
         boolean unknown = missing;

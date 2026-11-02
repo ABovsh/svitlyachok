@@ -27,7 +27,9 @@ final class Report {
         r.checked = Sync.checkedAt(c);
         r.now = Sync.now();
         r.widgets = Widgets.ids(c).length;
-        return Logic.reportText(r);
+        android.app.AlarmManager am=c.getSystemService(android.app.AlarmManager.class);
+        return Logic.reportText(r) + "\nТочні нагадування: " + (Build.VERSION.SDK_INT<31 || am.canScheduleExactAlarms() ? "доступні" : "недоступні")
+                + "\nОстання затримка нагадування: " + c.getSharedPreferences("prefs",Context.MODE_PRIVATE).getInt("reminder_delay",0) + " с";
     }
 
     static void onGitHub(Activity a) {

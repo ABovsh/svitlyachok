@@ -32,11 +32,14 @@ final class Share {
     static void send(Activity a, Logic.Place p, LocalDate day) {
         try {
             File f = picture(a);
+            File partial = new File(f.getParentFile(),"schedule.part");
             Bitmap bm = draw(a, p, day, Sync.now());
-            try (OutputStream out = new FileOutputStream(f)) {
+            try (OutputStream out = new FileOutputStream(partial)) {
                 bm.compress(Bitmap.CompressFormat.PNG, 100, out);
             }
             bm.recycle();
+            java.nio.file.Files.move(partial.toPath(),f.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE);
             Uri uri = ShareProvider.uri();
             Intent send = new Intent(Intent.ACTION_SEND)
                     .setType("image/png")

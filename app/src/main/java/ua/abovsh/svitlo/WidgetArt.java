@@ -150,7 +150,7 @@ final class WidgetArt {
             at[i] = i / (stops - 1f);
             colours[i] = Logic.widgetGlow(left, right, middle, centre, at[i]);
         }
-        return new LinearGradient(0, 0, width, 0, colours, at, Shader.TileMode.CLAMP);
+        return new LinearGradient(0, 0, (float) width, 0, colours, at, Shader.TileMode.CLAMP);
     }
 
     /** Two segments, as the large widget has: on the left what is now, on the right the place and what comes next. */

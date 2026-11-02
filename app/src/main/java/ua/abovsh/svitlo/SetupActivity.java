@@ -327,10 +327,17 @@ public class SetupActivity extends Base {
         }
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
+        leave(first, p);
+    }
+
+    private void leave(boolean first, Logic.Place p) {
         if (first) startActivity(new Intent(this, MainActivity.class));
+        if (first || editId != null) {
+            finish();
+            return;
+        }
         // a new place gets its own widget: the launcher asks whether to put it on the home screen
-        if (!first && editId == null && Widgets.canOffer(this, p)) Widgets.offer(this, p, "Пропустити", this::showNewPlace);
-        else if (!first && editId == null) showNewPlace();
-        else finish();
+        if (Widgets.canOffer(this, p)) Widgets.offer(this, p, "Пропустити", this::showNewPlace);
+        else showNewPlace();
     }
 }

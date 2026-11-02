@@ -79,7 +79,7 @@ public final class Logic {
 
     /** Open community archives of the oblenergo schedules on GitHub, one JSON format for all. */
     private static final Region[] REGIONS = {
-        new Region("kyiv", "Місто Київ", "https://www.dtek-kem.com.ua/ua/shutdowns", B42 + "kyiv.json"),
+        new Region("kyiv", "Місто Київ", "https://bezsvitla.com.ua/kyiv#street-search-widget", B42 + "kyiv.json"),
         new Region("kyiv_region", "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
         new Region("vinnytsia", "Вінницька область", "https://www.voe.com.ua/",
                 "https://raw.githubusercontent.com/vn-progr/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
@@ -1526,6 +1526,12 @@ public final class Logic {
     /** The same in fewer letters, for a line that does not fit: "Світло є вже 1 день 15 год". */
     public static String nowLineShort(Now n) {
         return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
+    }
+
+    /** Where to find the queue: the site of Kyiv's operator does not show it, another site does. */
+    public static String queueHelp(Region r) {
+        return r.id.equals("kyiv") ? "Не знаєте свою чергу? Знайдіть її за адресою на сайті «Без світла» ›"
+                : "Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›";
     }
 
     /** Whether now stands in this run: its number reads as the window that is going on. */

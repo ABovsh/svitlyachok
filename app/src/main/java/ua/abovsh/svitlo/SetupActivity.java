@@ -245,7 +245,7 @@ public class SetupActivity extends Base {
         TextView help = Ui.text(this, 14, Ui.bold(this), r != null && !r.dso.isEmpty() ? pal.accentText : pal.muted);
         help.setLineSpacing(0, 1.1f);
         if (r != null && !r.dso.isEmpty()) {
-            help.setText("Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›");
+            help.setText(Logic.queueHelp(r));
             help.setOnClickListener(v -> {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(r.dso)));

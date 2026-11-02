@@ -1542,4 +1542,17 @@ public class LogicTest {
         // caps .74: name 20, event 10, value 20 in a block of 67: 30 free, half of it above the event
         assertEquals(29.8f, Logic.widgetEventTop(67f, 20f, 10f, 20f), .01f);
     }
+
+    @Test
+    public void kyivQueueIsFoundOnASiteThatShowsIt() {
+        Logic.Region kyiv = null;
+        Logic.Region other = null;
+        for (Logic.Region r : Logic.regions()) {
+            if (r.id.equals("kyiv")) kyiv = r;
+            if (r.id.equals("kyiv_region")) other = r;
+        }
+        assertEquals("https://bezsvitla.com.ua/kyiv#street-search-widget", kyiv.dso);
+        assertEquals("Не знаєте свою чергу? Знайдіть її за адресою на сайті «Без світла» ›", Logic.queueHelp(kyiv));
+        assertEquals("Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›", Logic.queueHelp(other));
+    }
 }

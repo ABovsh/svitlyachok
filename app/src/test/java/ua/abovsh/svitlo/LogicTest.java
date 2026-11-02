@@ -866,10 +866,10 @@ public class LogicTest {
 
     @Test
     public void hoursInsideTheBarToTenths() {
-        assertEquals("3,5 год", Logic.barHours(7));
-        assertEquals("4 год", Logic.barHours(8));
-        assertEquals("0,5 год", Logic.barHours(1));
-        assertEquals("24 год", Logic.barHours(48));
+        assertEquals("3,5", Logic.barHours(7));
+        assertEquals("4", Logic.barHours(8));
+        assertEquals("0,5", Logic.barHours(1));
+        assertEquals("24", Logic.barHours(48));
     }
 
     @Test

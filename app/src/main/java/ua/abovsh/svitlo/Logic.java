@@ -1467,9 +1467,9 @@ public final class Logic {
         return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
     }
 
-    /** Hours inside a run of the bar, to tenths: "3,5г", "4г". */
+    /** Hours inside a run of the bar, digits only: "3,5", "4". */
     public static String barHours(int halves) {
-        return (halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5") + " год";
+        return halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5";
     }
 
     /** How much light a day brings, from the longest form to the shortest that fits. */

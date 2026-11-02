@@ -7,6 +7,7 @@
 [![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=ABovsh_svitlyachok&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=ABovsh_svitlyachok)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ABovsh_svitlyachok&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ABovsh_svitlyachok)
 [![Версія](https://img.shields.io/github/v/release/ABovsh/svitlyachok?label=%D0%B2%D0%B5%D1%80%D1%81%D1%96%D1%8F)](https://github.com/ABovsh/svitlyachok/releases/latest)
+[![Завантаження](https://img.shields.io/github/downloads/ABovsh/svitlyachok/total?label=%D0%B7%D0%B0%D0%B2%D0%B0%D0%BD%D1%82%D0%B0%D0%B6%D0%B5%D0%BD%D1%8C)](https://github.com/ABovsh/svitlyachok/releases)
 [![Ліцензія](https://img.shields.io/badge/%D0%BB%D1%96%D1%86%D0%B5%D0%BD%D0%B7%D1%96%D1%8F-MIT-blue)](LICENSE)
 
 Android-застосунок із графіком погодинних відключень світла: чи є світло зараз, до котрої години

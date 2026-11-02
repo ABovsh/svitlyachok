@@ -327,7 +327,7 @@ final class WidgetArt {
         float marker = bounds.left + bounds.width() * at / 48f;
         b.path.reset(); b.path.addRoundRect(bounds, bounds.height()/2, bounds.height()/2, android.graphics.Path.Direction.CW);
         b.cv.save(); b.cv.clipPath(b.path);
-        b.p.setColor(Ui.fade(b.pal.card, b.pal.dark ? .68f : .65f));
+        b.p.setColor(Ui.fade(b.pal.card, Ui.PAST_VEIL));
         b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
         b.p.setColor(Ui.fade(b.pal.text, .14f)); b.p.setStrokeWidth(Math.max(1, s * .7f));
         for (int hour = 1; hour < 24; hour++) {

@@ -93,6 +93,8 @@ final class Ui {
         }
     }
 
+    static final float PAST_VEIL = .10f;
+
     private static final String UNBOUNDED = "Unbounded.ttf";
     private static final String MANROPE = "Manrope.ttf";
     private static Typeface display;

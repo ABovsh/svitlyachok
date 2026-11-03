@@ -91,7 +91,8 @@ public class MainActivity extends Base {
             getIntent().removeExtra(EXTRA_PLACE);
         }
         // the source answered moments ago (the alarm, the job): the cache is fresh, no network
-        if (Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
+        // a refresh already running draws when it ends; this screen may have to show another place now
+        if (!loading && Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
         else onTick();
         offerWidgetOfNewPlace();
         Updates.checkIfDue(this, () -> runOnUiThread(() -> {

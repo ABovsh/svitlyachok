@@ -40,6 +40,7 @@ public class MainActivity extends Base {
     private boolean loading;
     private final List<Runnable> clockUpdates = new ArrayList<>();
     private float pullFrom = -1;
+    private boolean entering;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -72,9 +73,13 @@ public class MainActivity extends Base {
 
     @Override
     protected void onResume() {
+        entering = true;  // what the screen shows is decided below, once
         super.onResume();
+        entering = false;
         if (body == null) return;
-        Sync.onChanged(() -> runOnUiThread(this::onTick));
+        Sync.onChanged(() -> runOnUiThread(() -> {
+            if (!loading) onTick();  // a running refresh draws once, when it ends
+        }));
         if (Prefs.places(this).isEmpty()) {
             startActivity(new Intent(this, SetupActivity.class));
             finish();
@@ -87,7 +92,7 @@ public class MainActivity extends Base {
         }
         // the source answered moments ago (the alarm, the job): the cache is fresh, no network
         if (Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
-        else render();
+        else onTick();
         offerWidgetOfNewPlace();
         Updates.checkIfDue(this, () -> runOnUiThread(() -> {
             if (!isFinishing()) render();
@@ -159,8 +164,8 @@ public class MainActivity extends Base {
             runOnUiThread(() -> {
                 loading = false;
                 if (isFinishing()) return;
-                if (!ok) Toast.makeText(this, "Не вдалося оновити графік: немає зв'язку", Toast.LENGTH_SHORT).show();
-                render();
+                if (!ok) Toast.makeText(this, "Не вдалося оновити графік", Toast.LENGTH_SHORT).show();
+                onTick();
             });
         }).start();
     }
@@ -228,7 +233,7 @@ public class MainActivity extends Base {
 
     @Override
     void onTick() {
-        if (Prefs.places(this).isEmpty()) return;
+        if (entering || Prefs.places(this).isEmpty()) return;
         if (!state().equals(shown)) {
             int y=scroll.getScrollY(); render(); scroll.post(() -> scroll.scrollTo(0,y));
         } else for (Runnable update : clockUpdates) update.run();
@@ -403,7 +408,8 @@ public class MainActivity extends Base {
         TextView label = Ui.text(this, 14, Ui.heavy(this), pal.text);
         label.setText(p.name);
         name.addView(label);
-        if (chosen) {
+        boolean named = !Logic.autoNamed(p);
+        if (chosen && named) {
             TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
             queue.setText(Logic.queue(p.group));
             queue.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
@@ -423,7 +429,7 @@ public class MainActivity extends Base {
         }
         words.addView(status, sl);
         t.addView(words, weight());
-        t.setContentDescription(p.name + ", черга " + Logic.queue(p.group) + ": " + n.title
+        t.setContentDescription((named ? p.name + ", черга " + Logic.queue(p.group) : p.name) + ": " + n.title
                 + (n.big.isEmpty() ? "" : ", " + n.big) + (soon ? ", скоро зміна" : "") + (chosen ? ", вибрано" : ", показати графік"));
         t.setOnClickListener(v -> { Prefs.setCurrent(this, p.id); render(); scroll.smoothScrollTo(0, 0); });
         return t;
@@ -438,7 +444,7 @@ public class MainActivity extends Base {
         LinearLayout card = Ui.column(this);
         card.setBackground(Ui.round(pal.soft(n.state), Ui.px(this, 18)));
         TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
-        queue.setText(p.name + " · " + where(p));
+        queue.setText(Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p));
         queue.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), 0);
         card.addView(queue, fill());
         card.addView(present(n), fill());
@@ -624,7 +630,7 @@ public class MainActivity extends Base {
     }
 
     private String notPublished(Logic.Place p, boolean tomorrow) {
-        if (!tomorrow) return Logic.missingSchedule(Store.data(this, p.region)) + ".";
+        if (!tomorrow) return Logic.missingSchedule(Store.data(this, p.region), p.group);
         boolean told = Prefs.alerts(this, p.id).tomorrow;
         return "Графік ще не опубліковано." + (told ? " Сповіщення прийде, щойно він з'явиться." : "");
     }
@@ -702,9 +708,11 @@ public class MainActivity extends Base {
     // First start: notifications (Android 13+), then exemption from battery saving so the
     // widget and notifications keep working on Samsung and Xiaomi.
     private void askNotifications() {
+        // asked once: after a refusal the main screen keeps its own line with the way to allow them
         if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            new android.app.AlertDialog.Builder(this).setTitle("Сповіщення про світло")
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && Prefs.once(this, "asked_notifications")) {
+            Ui.dialog(this).setTitle("Сповіщення про світло")
                     .setMessage("Дозвольте сповіщення, щоб знати заздалегідь про вимкнення й увімкнення світла.")
                     .setPositiveButton("Продовжити",(dialog,which) -> requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS},1))
                     .setNegativeButton("Пізніше",(dialog,which) -> askBattery()).show();
@@ -723,7 +731,7 @@ public class MainActivity extends Base {
         if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         if (!Prefs.once(this, "asked_battery")) return;
         try {
-            new android.app.AlertDialog.Builder(this).setTitle("Вчасні сповіщення")
+            Ui.dialog(this).setTitle("Вчасні сповіщення")
                     .setMessage("Дозвольте фонову роботу без обмежень батареї, щоб сповіщення могли приходити із вимкненим екраном.")
                     .setPositiveButton("Відкрити налаштування",(dialog,which) -> {
                         try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,

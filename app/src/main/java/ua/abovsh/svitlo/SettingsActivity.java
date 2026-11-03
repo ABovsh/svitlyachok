@@ -80,7 +80,7 @@ public class SettingsActivity extends Base {
             places.addView(add, fill());
         }
         page.addView(places, fill());
-        page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць з будь-якими чергами."));
+        page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць, для кожного своя черга."));
     }
 
     /** A row per place, opening its own notifications; then what is common to all places. */

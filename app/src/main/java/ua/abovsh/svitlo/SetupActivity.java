@@ -32,6 +32,8 @@ public class SetupActivity extends Base {
     private LinearLayout queues;
     private LinearLayout preview;
     private boolean loading;
+    private boolean loadFailed;
+    private Logic.Place editing;
     private boolean confirmedQueueChange;
     private Store.Request loadRequest;
     private TextView queueError;
@@ -44,6 +46,7 @@ public class SetupActivity extends Base {
         first = Prefs.places(this).isEmpty();
         editId = getIntent().getStringExtra("id");
         Logic.Place edit = editId == null ? null : Prefs.place(this, editId);
+        editing = edit;
         if (edit != null) {
             region = edit.region;
             group = edit.group;
@@ -120,7 +123,7 @@ public class SetupActivity extends Base {
             del.setGravity(Gravity.CENTER);
             del.setMinHeight(Ui.dp(this, 52));
             del.setOnClickListener(v -> {
-                new android.app.AlertDialog.Builder(this).setTitle("Видалити «" + edit.name + "»?")
+                Ui.dialog(this).setTitle("Видалити «" + edit.name + "»?")
                         .setMessage("Разом із місцем буде видалено його збережену статистику.")
                         .setPositiveButton("Видалити",(dialog,which) -> {
                             Prefs.removePlace(this,edit.id); Sync.forget(getApplicationContext(),edit.id);
@@ -240,6 +243,8 @@ public class SetupActivity extends Base {
             t.setText("Завантажую список черг…");
             t.setPadding(Ui.dp(this, 4), Ui.dp(this, 16), 0, 0);
             preview.addView(t, fill());
+        } else if (loadFailed) {
+            preview.addView(loadError(), fill());
         }
         TextView help = Ui.text(this, 14, Ui.bold(this), r != null && !r.dso.isEmpty() ? pal.accentText : pal.muted);
         help.setLineSpacing(0, 1.1f);
@@ -259,25 +264,51 @@ public class SetupActivity extends Base {
         preview.addView(help, fill());
     }
 
+    /** The list above is only the usual one: the region's own did not arrive. */
+    private View loadError() {
+        TextView t = Ui.text(this, 14, Ui.bold(this), pal.offText);
+        t.setText("Не вдалося завантажити список черг, показано типові. Спробувати ще раз ›");
+        t.setLineSpacing(0, 1.1f);
+        t.setPadding(Ui.dp(this, 4), Ui.dp(this, 14), Ui.dp(this, 4), Ui.dp(this, 2));
+        t.setMinHeight(Ui.dp(this, 48));
+        t.setOnClickListener(v -> load());
+        return t;
+    }
+
     /** The region's file: its queues and the preview. */
     private void load() {
         String r = region;
+        loadFailed = false;
         if (loadRequest != null) loadRequest.cancel();
         Store.Request request = new Store.Request(); loadRequest = request;
         loading = true;
         if (Store.data(this, r) == null) fillPreview(null);
         new Thread(() -> {
-            Store.fetch(getApplicationContext(), r, Long.MAX_VALUE, true, request);
+            // a file checked minutes ago needs no network: the queues of a region hardly ever change
+            int result = Store.fetch(getApplicationContext(), r, Long.MAX_VALUE, false, request);
             runOnUiThread(() -> {
                 if (loadRequest != request || isFinishing()) return;
                 loading = false;
-                if (r.equals(region)) fillQueues();
+                if (!r.equals(region)) return;
+                Logic.Data d = Store.data(this, r);
+                loadFailed = result == Store.FAILED && d == null;
+                dropQueueNotOffered(d);
+                fillQueues();
             });
         }).start();
     }
 
+    /** Picked from the usual list while the region's own was coming, and the region does not have it. */
+    private void dropQueueNotOffered(Logic.Data d) {
+        if (d == null || d.groups.isEmpty()) return;
+        String saved = editing != null && editing.region.equals(region) ? editing.group : "";
+        if (!Logic.queueOffered(group, d.groups, saved)) group = "";
+    }
+
     @Override protected void onDestroy() {
         if (loadRequest != null) loadRequest.cancel();
+        // regions looked at here, or left by a place just changed or removed, are not kept
+        Store.keepOnly(getApplicationContext(), Prefs.regions(this));
         super.onDestroy();
     }
 
@@ -291,8 +322,7 @@ public class SetupActivity extends Base {
 
     private void save() {
         if (group.isEmpty()) { showQueueError(); return; }
-        String n = name.getText().toString().trim();
-        if (n.isEmpty()) n = "Черга " + Logic.queue(group);
+        String n = Logic.placeName(name.getText().toString(), editId == null ? null : Prefs.place(this, editId), group);
         if (n.length() > MAX_NAME) n = n.substring(0, MAX_NAME);
         List<Logic.Place> places = Prefs.places(this);
         Logic.Place candidate = new Logic.Place();
@@ -300,7 +330,7 @@ public class SetupActivity extends Base {
         candidate.group = group;
         Logic.Place twin = Logic.duplicateOf(places, candidate, editId == null ? null : Prefs.place(this, editId));
         if (twin != null) {
-            new android.app.AlertDialog.Builder(this).setTitle("Таке місце вже додано")
+            Ui.dialog(this).setTitle("Таке місце вже додано")
                     .setMessage(Logic.duplicateMessage(twin)).setPositiveButton("Зрозуміло", null).show();
             return;
         }
@@ -315,7 +345,7 @@ public class SetupActivity extends Base {
         p.group = group;
         Logic.Place before = editId == null ? null : Prefs.place(this, editId);
         if (before != null && !Logic.sameQueue(before,p) && !confirmedQueueChange) {
-            new android.app.AlertDialog.Builder(this).setTitle("Змінити чергу?")
+            Ui.dialog(this).setTitle("Змінити чергу?")
                     .setMessage("Збережену статистику цього місця буде видалено: вона стосується попередньої черги.")
                     .setPositiveButton("Змінити",(dialog,which) -> {confirmedQueueChange=true;save();})
                     .setNegativeButton("Скасувати",null).show();
@@ -323,8 +353,10 @@ public class SetupActivity extends Base {
         }
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
-        if (before != null && !Logic.sameQueue(before, p)) {  // statistics and "з 14:30" belong to the old queue
+        if (before != null && !Logic.sameQueue(before, p)) {  // all of this belongs to the old queue
             Prefs.forgetHistory(this, p.id);
+            Prefs.forgetNotices(this, p.id);
+            Sync.forget(getApplicationContext(), p.id);
             Sync.rememberDays(getApplicationContext(), Sync.now());
         }
         Sync.schedulePeriodic(this);

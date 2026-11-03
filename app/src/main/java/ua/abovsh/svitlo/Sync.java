@@ -458,10 +458,4 @@ final class Sync {
                         .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                         .build());
     }
-
-    static Map<String, Logic.Data> dataByRegion(Context c) {
-        Map<String, Logic.Data> m = new HashMap<>();
-        for (String r : Prefs.regions(c)) m.put(r, Store.data(c, r));
-        return m;
-    }
 }

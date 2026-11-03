@@ -123,6 +123,7 @@ public final class Logic {
         public boolean sourceOk = true;
         private Data expiredView;
         public long updated;          // when the oblenergo last changed it, 0 unknown
+        public String hash = "";      // the source's own hash of its schedule, empty when it has none
         public List<String> groups = new ArrayList<>();
     }
 
@@ -194,10 +195,89 @@ public final class Logic {
             d.sourceTime = sourceTime(file.optString("lastUpdated", ""));
             JSONObject status = file.optJSONObject("lastUpdateStatus");
             d.sourceOk = status == null || status.optBoolean("ok", true);
+            JSONObject meta = file.optJSONObject("meta");
+            String hash = meta == null ? "" : meta.optString(CONTENT_HASH, "");
+            d.hash = hash.matches(HASH) ? hash : "";
             return d;
         } catch (JSONException e) {
             throw new BadFile("not a schedule: " + e.getMessage());
         }
+    }
+
+    private static final String CONTENT_HASH = "contentHash";
+    private static final String HASH = "[0-9a-f]{16,128}";
+    private static final String LAST_UPDATED = "lastUpdated";
+    private static final String STATUS = "lastUpdateStatus";
+    private static final String SCH_NAMES = "sch_names";
+
+    /** Most of a source file is a template the app never reads: only what parse() uses is stored. */
+    public static String compactFile(String raw) throws BadFile {
+        try {
+            JSONObject file = new JSONObject(raw);
+            JSONObject out = new JSONObject().put("fact", file.getJSONObject("fact"));
+            if (file.has(LAST_UPDATED)) out.put(LAST_UPDATED, file.get(LAST_UPDATED));
+            if (file.has(STATUS)) out.put(STATUS, file.get(STATUS));
+            JSONObject preset = file.optJSONObject("preset");
+            if (preset != null && preset.has(SCH_NAMES)) out.put("preset", new JSONObject().put(SCH_NAMES, preset.get(SCH_NAMES)));
+            JSONObject meta = file.optJSONObject("meta");
+            if (meta != null && meta.has(CONTENT_HASH)) out.put("meta", new JSONObject().put(CONTENT_HASH, meta.get(CONTENT_HASH)));
+            return out.toString();
+        } catch (JSONException e) {
+            throw new BadFile("not a schedule: " + e.getMessage());
+        }
+    }
+
+    /** What the last bytes of a source file prove: its schedule's hash, and that the source answered when. */
+    public static final class Tail {
+        public String hash = "";
+        public long at;
+    }
+
+    private static final java.util.regex.Pattern TAIL_HASH = java.util.regex.Pattern.compile("\"" + CONTENT_HASH + "\"\\s*:\\s*\"(" + HASH + ")\"");
+    private static final java.util.regex.Pattern TAIL_OK = java.util.regex.Pattern.compile("\"ok\"\\s*:\\s*(true|false)");
+    private static final java.util.regex.Pattern TAIL_AT = java.util.regex.Pattern.compile("\"at\"\\s*:\\s*\"?([0-9TZ:.\\-]+)\"?");
+
+    private static String lastMatch(java.util.regex.Pattern p, String text) {
+        java.util.regex.Matcher m = p.matcher(text);
+        String found = null;
+        while (m.find()) found = m.group(1);
+        return found;
+    }
+
+    /** Null unless the end of the file shows a working source and the hash: then the whole file decides. */
+    public static Tail tail(String end) {
+        String hash = lastMatch(TAIL_HASH, end);
+        String at = lastMatch(TAIL_AT, end);
+        if (hash == null || at == null || !"true".equals(lastMatch(TAIL_OK, end))) return null;
+        Tail t = new Tail();
+        t.hash = hash;
+        t.at = sourceTime(at);
+        return t.at > 0 ? t : null;
+    }
+
+    /** The source answered at this time, with the schedule already stored. */
+    static synchronized void touch(Data d, long at) {
+        if (d == null || at <= d.sourceTime) return;
+        d.sourceTime = at;
+        d.sourceOk = true;
+    }
+
+    /** The end of the file is enough while a hash exists; now and then the whole file, should the hash ever mislead. */
+    static boolean needsWholeFile(String hash, long wholeAt, long now) {
+        return hash.isEmpty() || now < wholeAt || now - wholeAt >= WHOLE_FILE_S;
+    }
+
+    private static final long WHOLE_FILE_S = 6 * 3600L;
+    private static final java.util.Set<String> CACHE_KEYS = new java.util.HashSet<>(java.util.Arrays.asList("json", "checked", "etag", "url", "full", "source"));
+
+    /** The stored keys of regions no place uses ("json_kyiv"); a region id may itself contain "_". */
+    static List<String> cacheKeysOutside(java.util.Set<String> keys, java.util.Set<String> regions) {
+        List<String> out = new ArrayList<>();
+        for (String key : keys) {
+            int at = key.indexOf('_');
+            if (at > 0 && CACHE_KEYS.contains(key.substring(0, at)) && !regions.contains(key.substring(at + 1))) out.add(key);
+        }
+        return out;
     }
 
     static long sourceTime(String value) {
@@ -217,7 +297,7 @@ public final class Logic {
         if (d == null || !d.none || noneFresh(d, now)) return d;
         if (d.expiredView == null) {
             Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
-            out.sourceOk = d.sourceOk; out.groups = d.groups; d.expiredView = out;
+            out.sourceOk = d.sourceOk; out.groups = d.groups; out.hash = d.hash; d.expiredView = out;
         }
         return d.expiredView;
     }
@@ -256,6 +336,18 @@ public final class Logic {
     static String missingSchedule(Data d) {
         LocalDate last = latestDay(d);
         return last == null ? "Нового графіка немає" : "Нового графіка немає · останній був " + lastScheduleDay(d);
+    }
+
+    /** What to say about a day without a schedule: a queue the region does not have is not "no schedule yet". */
+    static String missingSchedule(Data d, String group) {
+        boolean absent = d != null && !d.none && !d.groups.isEmpty() && !d.groups.contains(group);
+        return absent ? "Черги " + queue(group) + " немає в останньому графіку області. Перевірте чергу в налаштуваннях."
+                : missingSchedule(d) + ".";
+    }
+
+    /** Whether a chosen queue stays chosen once the region's list is known; `saved`: the place's own. */
+    static boolean queueOffered(String group, List<String> groups, String saved) {
+        return group.isEmpty() || groups.contains(group) || group.equals(saved);
     }
 
     private static void readDays(JSONObject days, Data d, Set<String> groups) throws BadFile, JSONException {
@@ -355,6 +447,34 @@ public final class Logic {
         return "Черга " + queue(existing.group) + (r == null ? "" : ", " + r.name) + ", уже додана як «" + existing.name + "».";
     }
 
+    /** A place the person left without a name is called by its queue. */
+    public static boolean autoNamed(Place p) {
+        return p.name.equals(queueName(p.group));
+    }
+
+    private static String queueName(String group) {
+        return "Черга " + queue(group);
+    }
+
+    /** The name to save: what was typed; a name taken from the old queue follows the new one. */
+    public static String placeName(String typed, Place before, String group) {
+        String name = typed.trim();
+        if (name.isEmpty()) return queueName(group);
+        return before != null && autoNamed(before) && name.equals(before.name) ? queueName(group) : name;
+    }
+
+    /** "Дім · черга 3.2"; a place called by its queue says it once. */
+    public static String withQueue(Place p, String shownName) {
+        return autoNamed(p) ? shownName : shownName + " · черга " + queue(p.group);
+    }
+
+    /** The reminders already shown, without those of one place. */
+    static java.util.Set<String> firedWithout(java.util.Set<String> fired, String place) {
+        java.util.Set<String> out = new java.util.HashSet<>(fired);
+        out.removeIf(key -> key.startsWith(place + "|"));
+        return out;
+    }
+
     /** The 48 slots of a day, or null while it is not published. */
     public static String day(Data d, String group, LocalDate date) {
         if (d == null) return null;
@@ -402,22 +522,6 @@ public final class Logic {
         java.util.List<java.time.ZoneOffset> offsets = KYIV.getRules().getValidOffsets(local);
         // There is no event at a wall-clock time skipped by the spring transition.
         return offsets.isEmpty() ? -1 : local.atOffset(offsets.get(0)).toEpochSecond();
-    }
-
-    /** Changes after slot `from`: {slot, new state char}, until the data ends. */
-    static List<int[]> changesFrom(String tl, int from) {
-        List<int[]> out = new ArrayList<>();
-        if (from < 0 || from >= tl.length() || tl.charAt(from) == '2') return out;
-        char cur = tl.charAt(from);
-        for (int j = from + 1; j < tl.length(); j++) {
-            char c = tl.charAt(j);
-            if (c == '2') break;
-            if (c != cur) {
-                out.add(new int[] {j, c});
-                cur = c;
-            }
-        }
-        return out;
     }
 
     /** Changes on actual instants; missing spring slots cannot hide the first state at 04:00. */
@@ -883,7 +987,6 @@ public final class Logic {
         public int leadOff = 15;
         public int leadOn = 15;
         public boolean tomorrow;
-        public String changeClock = "";
         public boolean changes;
 
         /** Anything at all: otherwise the bell of the place is crossed out. */
@@ -1531,21 +1634,6 @@ public final class Logic {
 
     // ---- the place card and the bar of a day ---------------------------------------
 
-    /** The line of the present: "Світло є з 14:30". */
-    public static String nowLine(Now n) {
-        return n.since.isEmpty() ? n.title : n.title + " " + n.since;
-    }
-
-    /** What follows it, smaller: "(уже 3 год 08 хв)". */
-    public static String nowLineIn(Now n) {
-        return n.already.isEmpty() ? "" : "(" + n.already + ")";
-    }
-
-    /** The same in fewer letters, for a line that does not fit: "Світло є вже 1 день 15 год". */
-    public static String nowLineShort(Now n) {
-        return n.already.isEmpty() ? n.title : n.title + " " + n.already.replace("уже ", "вже ");
-    }
-
     /** Where to find the queue: the site of Kyiv's operator does not show it, another site does. */
     public static String queueHelp(Region r) {
         return r.id.equals("kyiv") ? "Не знаєте свою чергу? Знайдіть її за адресою на сайті «Без світла» ›"
@@ -1632,26 +1720,6 @@ public final class Logic {
     /** Hours inside a run of the bar, digits only: "3,5", "4". */
     public static String barHours(int halves) {
         return halves % 2 == 0 ? String.valueOf(halves / 2) : halves / 2 + ",5";
-    }
-
-    /** How much light a day brings, from the longest form to the shortest that fits. */
-    public static List<String> dayLights(String day) {
-        List<String> out = new ArrayList<>();
-        if (day == null) {
-            out.add(NOT_PUBLISHED);
-            return out;
-        }
-        int on = count(day, '1');
-        if (on == day.length()) {
-            out.add(NO_OUTAGES);
-            return out;
-        }
-        String hours = length(on) + " світла";
-        String share = Math.round(on * 100f / day.length()) + " %";
-        out.add(hours + " · " + share);
-        out.add(hours);
-        out.add(share);
-        return out;
     }
 
     /**

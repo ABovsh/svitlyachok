@@ -120,6 +120,12 @@ final class Ui {
         return new Pal(dark);
     }
 
+    /** A system dialog in the theme chosen in the app, which may differ from the phone's. */
+    static android.app.AlertDialog.Builder dialog(Context c) {
+        return new android.app.AlertDialog.Builder(c, pal(c).dark ? android.R.style.Theme_DeviceDefault_Dialog_Alert
+                : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert);
+    }
+
     private static Typeface variable(Context c, String file, int weight) {
         return new Typeface.Builder(c.getAssets(), "fonts/" + file)
                 .setFontVariationSettings("'wght' " + weight).build();

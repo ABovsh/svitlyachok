@@ -22,7 +22,7 @@ import java.util.function.IntConsumer;
  * Whether a newer version is published on GitHub. When the app is opened, at most twice a day,
  * it asks github.com where "latest release" points (a redirect, no body, nothing about the user
  * is sent). The answer is shown on the main screen; the user decides whether to download it.
- * "Завантажити" downloads the APK of that release into the app and hands it to the system
+ * "Оновити" downloads the APK of that release into the app and hands it to the system
  * installer, which installs it only over the same signature.
  */
 final class Updates {
@@ -107,6 +107,11 @@ final class Updates {
         } finally {
             if (conn != null) conn.disconnect();
         }
+    }
+
+    /** Installed: its file has done its job. */
+    static void forgetDownload(Context c) {
+        deleteQuietly(updateFile(c));
     }
 
     /** The one downloaded APK, in the app's own cache. */
@@ -194,7 +199,7 @@ final class Updates {
     }
 
     /**
-     * "Завантажити": in the background, with the percent on the UI thread; then the installer, or,
+     * "Оновити": in the background, with the percent on the UI thread; then the installer, or,
      * if the download failed, the release file in the browser as before. `done` runs at the end.
      */
     static void get(Activity a, Logic.Release r, IntConsumer progress, Runnable done) {

@@ -850,18 +850,16 @@ public class LogicTest {
     }
 
     @Test
-    public void theCurrentLineHasAFullAndAShortForm() throws Exception {
+    public void thePresentSaysSinceWhenAndHowLong() throws Exception {
         Logic.Now on = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false, null);
-        assertEquals("Світло є з 08:00", Logic.nowLine(on));
-        assertEquals("(уже 2 год 00 хв)", Logic.nowLineIn(on));
-        assertEquals("Світло є вже 2 год 00 хв", Logic.nowLineShort(on));
+        assertEquals("з 08:00", on.since);
+        assertEquals("уже 2 год 00 хв", on.already);
         Logic.Now allDay = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, repeat('1', 48));
-        assertEquals("Світло є з 00:00 учора", Logic.nowLine(allDay));
-        assertEquals("(уже 1 день 3 год)", Logic.nowLineIn(allDay));
+        assertEquals("з 00:00 учора", allDay.since);
+        assertEquals("уже 1 день 3 год", allDay.already);
         Logic.Now unknown = Logic.now(tl(TODAY_ONLY), OCT30, at(3, 0), false, null);
-        assertEquals("Світло є з 00:00", Logic.nowLine(unknown));
-        assertEquals("(уже 3 год 00 хв)", Logic.nowLineIn(unknown));
-        assertEquals("Світло є вже 3 год 00 хв", Logic.nowLineShort(unknown));
+        assertEquals("з 00:00", unknown.since);
+        assertEquals("уже 3 год 00 хв", unknown.already);
     }
 
     @Test
@@ -870,12 +868,6 @@ public class LogicTest {
         assertEquals("4", Logic.barHours(8));
         assertEquals("0,5", Logic.barHours(1));
         assertEquals("24", Logic.barHours(48));
-    }
-
-    @Test
-    public void theLightOfADayInShorterForms() {
-        assertEquals(Arrays.asList("18 год світла · 75 %", "18 год світла", "75 %"), Logic.dayLights(DAY_11));
-        assertEquals(Arrays.asList("без вимкнень"), Logic.dayLights(repeat('1', 48)));
     }
 
     @Test
@@ -1648,5 +1640,151 @@ public class LogicTest {
         assertEquals(59_999L, Logic.toNextMinute(1_793_311_200_001L));
         assertEquals(1L, Logic.toNextMinute(1_793_311_259_999L));
         assertEquals(30_000L, Logic.toNextMinute(1_793_311_230_000L));
+    }
+
+    // ---- what a check costs -------------------------------------------------------
+
+    static final String FULL_FILE = "{\n  \"regionId\": \"kyiv-region\",\n  \"lastUpdated\": \"2026-11-03T08:51:26.602Z\",\n"
+            + "  \"fact\": {\"data\": {\"" + D30 + "\": {\"GPV1.1\": " + HOURS_11 + "}}, \"update\": \"29.10.2026 20:25\", \"today\": " + D30 + "},\n"
+            + "  \"preset\": {\"days\": {\"1\": \"Понеділок\"}, \"sch_names\": {\"GPV1.1\": \"Черга 1.1\", \"GPV9.9\": \"Черга 9.9\"}, \"data\": {\"GPV1.1\": {\"1\": " + HOURS_11 + "}}},\n"
+            + "  \"lastUpdateStatus\": {\"status\": \"parsed\", \"ok\": true, \"code\": 200, \"message\": null, \"at\": \"2026-11-03T08:51:26.602Z\", \"attempt\": 50934},\n"
+            + "  \"meta\": {\"schemaVersion\": \"1.0.0\", \"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\"},\n"
+            + "  \"regionAffiliation\": \"Київська обл.\"\n}";
+
+    @Test
+    public void onlyWhatTheAppReadsIsKept() throws Exception {
+        String kept = Logic.compactFile(FULL_FILE);
+        assertFalse(kept.contains("Понеділок"));
+        assertFalse(kept.contains("regionAffiliation"));
+        assertTrue(kept.length() < FULL_FILE.length() * 0.8);
+        Logic.Data a = Logic.parse(FULL_FILE);
+        Logic.Data b = Logic.parse(kept);
+        assertEquals(a.days, b.days);
+        assertEquals(a.groups, b.groups);
+        assertEquals(a.updated, b.updated);
+        assertEquals(a.sourceTime, b.sourceTime);
+        assertEquals(a.sourceOk, b.sourceOk);
+        assertEquals("1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5", b.hash);
+    }
+
+    @Test
+    public void aFileWithNoOutagesKeepsItsQueues() throws Exception {
+        String raw = "{\"lastUpdated\": \"2026-11-03T08:51:26Z\", \"fact\": {\"data\": []}, \"preset\": {\"data\": {}, \"sch_names\": {\"GPV1.1\": \"Черга 1.1\"}}, \"lastUpdateStatus\": {\"ok\": false}}";
+        Logic.Data d = Logic.parse(Logic.compactFile(raw));
+        assertTrue(d.none);
+        assertEquals(Arrays.asList("GPV1.1"), d.groups);
+        assertFalse(d.sourceOk);
+        assertEquals("", d.hash);
+    }
+
+    @Test
+    public void aFileWithoutTheOptionalPartsIsStillKept() throws Exception {
+        Logic.Data d = Logic.parse(Logic.compactFile("{\"fact\": {\"data\": {\"" + D30 + "\": {\"GPV1.1\": " + HOURS_11 + "}}}}"));
+        assertEquals(DAY_11, Logic.day(d, "GPV1.1", OCT30));
+    }
+
+    @Test(expected = Logic.BadFile.class)
+    public void garbageIsNotKept() throws Exception {
+        Logic.compactFile("{\"no\": 1}");
+    }
+
+    static final String TAIL_B42 = "24\": \"maybe\"\n        }\n      }\n    },\n    \"updateFact\": \"03.11.2026 02:39\"\n  },\n  \"lastUpdateStatus\": {\n    \"status\": \"parsed\",\n"
+            + "    \"ok\": true,\n    \"code\": 200,\n    \"message\": null,\n    \"at\": \"2026-11-03T08:51:26.602Z\",\n    \"attempt\": 50934\n  },\n  \"meta\": {\n    \"schemaVersion\": \"1.0.0\",\n"
+            + "    \"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\"\n  },\n  \"regionAffiliation\": \"Київська обл.\"\n}";
+    static final String TAIL_VINNYTSIA = ", \"message\": null, \"at\": 1793696303, \"attempt\": 1 }, \"regionAffiliation\": \"Вінницька область\", \"meta\": { \"schemaVersion\": \"1.0.0\", "
+            + "\"contentHash\": \"711bec96f6fcc1bd1127a6ed08a5fe5d8c9eacccbd3432a1118448da92b8541e\" } }";
+
+    @Test
+    public void theEndOfAFileSaysWhetherTheScheduleChanged() {
+        Logic.Tail t = Logic.tail(TAIL_B42);
+        assertEquals("1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5", t.hash);
+        assertEquals(1793695886L, t.at);
+    }
+
+    @Test
+    public void aTailThatDoesNotProveItAsksForTheWholeFile() {
+        assertNull(Logic.tail(TAIL_B42.replace("\"ok\": true", "\"ok\": false")));  // the source failed: read what it says
+        assertNull(Logic.tail(TAIL_B42.replace("contentHash", "other")));
+        assertNull(Logic.tail(TAIL_B42.replace("\"at\": \"2026-11-03T08:51:26.602Z\"", "\"at\": null")));
+        assertNull(Logic.tail(TAIL_VINNYTSIA));  // cut before its status: "ok" did not fit
+        assertNull(Logic.tail("garbage"));
+    }
+
+    @Test
+    public void aNewerAnswerFromTheSourceKeepsANoneFileFresh() throws Exception {
+        Logic.Data d = Logic.parse(Logic.compactFile("{\"lastUpdated\": \"2026-10-30T00:00:00Z\", \"fact\": {\"data\": []}, \"meta\": {\"contentHash\": \"abcdef0123456789\"}}"));
+        long later = d.sourceTime + 72 * 3600L;
+        assertFalse(Logic.noneFresh(d, later));
+        Logic.touch(d, later - 60);
+        assertTrue(Logic.noneFresh(d, later));
+        assertEquals("abcdef0123456789", Logic.validAt(d, later + 72 * 3600L).hash);
+        Logic.touch(d, 5);  // an older answer changes nothing
+        assertEquals(later - 60, d.sourceTime);
+    }
+
+    @Test
+    public void theEndOfAFileIsEnoughOnlyWithAHashAndNotForLong() {
+        long now = 1_793_700_000L;
+        assertFalse(Logic.needsWholeFile("abc", now - 3600, now));
+        assertTrue(Logic.needsWholeFile("", now - 3600, now));  // this source has no hash
+        assertTrue(Logic.needsWholeFile("abc", now - 6 * 3600, now));
+        assertTrue(Logic.needsWholeFile("abc", now + 60, now));  // the clock was moved back
+    }
+
+    @Test
+    public void onlyTheRegionsInUseStayCached() {
+        java.util.Set<String> keys = new java.util.HashSet<>(Arrays.asList("json_kyiv", "checked_kyiv", "etag_kyiv", "url_kyiv", "full_kyiv", "source_kyiv",
+                "json_kyiv_region", "checked_kyiv_region", "other"));
+        java.util.Set<String> gone = new java.util.HashSet<>(Logic.cacheKeysOutside(keys, java.util.Collections.singleton("kyiv_region")));
+        assertEquals(new java.util.HashSet<>(Arrays.asList("json_kyiv", "checked_kyiv", "etag_kyiv", "url_kyiv", "full_kyiv", "source_kyiv")), gone);
+    }
+
+    // ---- places ---------------------------------------------------------------------
+
+    @Test
+    public void whatWasShownForAPlaceIsForgottenWithItsOldQueue() {
+        java.util.Set<String> fired = new java.util.HashSet<>(Arrays.asList("p1|0|100", "p11|0|100"));
+        assertEquals(java.util.Collections.singleton("p11|0|100"), Logic.firedWithout(fired, "p1"));
+    }
+
+    @Test
+    public void aQueueStaysChosenOnlyIfTheRegionHasIt() {
+        List<String> groups = Arrays.asList("GPV1.1", "GPV1.2");
+        assertTrue(Logic.queueOffered("GPV1.1", groups, ""));
+        assertFalse(Logic.queueOffered("GPV5.2", groups, ""));
+        assertTrue(Logic.queueOffered("GPV5.2", groups, "GPV5.2"));  // the place's own, while it is edited
+        assertTrue(Logic.queueOffered("", groups, ""));
+    }
+
+    @Test
+    public void aQueueTheScheduleDoesNotHaveIsNamed() throws Exception {
+        Logic.Data d = Logic.parse(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "}}"));
+        assertEquals("Черги 5.2 немає в останньому графіку області. Перевірте чергу в налаштуваннях.", Logic.missingSchedule(d, "GPV5.2"));
+        assertEquals("Нового графіка немає · останній був 30.10.", Logic.missingSchedule(d, "GPV1.1"));
+    }
+
+    private static Logic.Place place(String name, String group) {
+        Logic.Place p = new Logic.Place();
+        p.name = name;
+        p.group = group;
+        return p;
+    }
+
+    @Test
+    public void aPlaceWithoutItsOwnNameIsCalledByItsQueue() {
+        assertTrue(Logic.autoNamed(place("Черга 3.2", "GPV3.2")));
+        assertFalse(Logic.autoNamed(place("Дім", "GPV3.2")));
+        assertFalse(Logic.autoNamed(place("Черга 3.2", "GPV4.1")));
+        assertEquals("Черга 3.2", Logic.placeName("", null, "GPV3.2"));
+        assertEquals("Дім", Logic.placeName("  Дім ", null, "GPV3.2"));
+        assertEquals("Черга 4.1", Logic.placeName("Черга 3.2", place("Черга 3.2", "GPV3.2"), "GPV4.1"));  // follows the queue
+        assertEquals("Дім", Logic.placeName("Дім", place("Дім", "GPV3.2"), "GPV4.1"));
+        assertEquals("Дача", Logic.placeName("Дача", place("Черга 3.2", "GPV3.2"), "GPV4.1"));
+    }
+
+    @Test
+    public void aWidgetSaysTheQueueOnce() {
+        assertEquals("Дім · черга 3.2", Logic.withQueue(place("Дім", "GPV3.2"), "Дім"));
+        assertEquals("⚠ Черга 3.2", Logic.withQueue(place("Черга 3.2", "GPV3.2"), "⚠ Черга 3.2"));
     }
 }

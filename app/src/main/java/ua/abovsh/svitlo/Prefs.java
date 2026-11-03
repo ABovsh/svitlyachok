@@ -156,7 +156,7 @@ final class Prefs {
 
     // ---- widgets -------------------------------------------------------------------
 
-    /** The places one widget shows, as ids "p1,p3"; empty = all. */
+    /** The place one widget shows, by id; empty = none chosen yet. */
     static String widgetChoice(Context c, int widget) {
         return p(c).getString("w_" + widget, "");
     }
@@ -211,6 +211,11 @@ final class Prefs {
 
     static void setNotes(Context c, String place, String memory) {
         p(c).edit().putString(NOTES + place, memory).apply();
+    }
+
+    /** What was said about a place: a new queue starts clean. */
+    static void forgetNotices(Context c, String place) {
+        p(c).edit().remove(NOTES + place).putStringSet("fired", Logic.firedWithout(fired(c), place)).apply();
     }
 
     static void reminderTiming(Context c, long planned, long actual) {

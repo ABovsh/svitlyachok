@@ -1,7 +1,6 @@
 package ua.abovsh.svitlo;
 
 import android.app.PendingIntent;
-import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -61,7 +60,7 @@ final class Widgets {
 
     /** Nothing may open a screen after this: it would cover the launcher's window, and no widget would be placed. */
     static void offer(Context c, Logic.Place p, String decline) {
-        new AlertDialog.Builder(c).setTitle("Віджет для «" + p.name + "»")
+        Ui.dialog(c).setTitle("Віджет для «" + p.name + "»")
                 .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
                         (dialog, which) -> pin(c, p, which == 1))
                 .setNegativeButton(decline, null).show();

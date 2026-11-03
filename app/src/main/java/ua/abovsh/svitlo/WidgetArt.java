@@ -242,7 +242,7 @@ final class WidgetArt {
         float s = f.s;
         float pad = w.pad * s;
         float full = f.w - 2 * pad;
-        String title = widgetName(m) + " · черга " + Logic.queue(m.place.group);
+        String title = Logic.withQueue(m.place, widgetName(m));
         Paint name = fit(text(Ui.heavy(c), w.headerSize * s, b.pal.text, Paint.Align.LEFT), title, full);
         line(b, title, pad, pad, name);
         String total = Logic.widgetToday(dayOf(m.tl, 0));

@@ -192,8 +192,8 @@ public final class Logic {
             if (groups.isEmpty()) presetGroups(file, groups);
             d.groups = new ArrayList<>(groups);
             d.updated = updatedAt(fact.optString("update", ""));
-            d.sourceTime = sourceTime(file.optString("lastUpdated", ""));
-            JSONObject status = file.optJSONObject("lastUpdateStatus");
+            d.sourceTime = sourceTime(file.optString(LAST_UPDATED, ""));
+            JSONObject status = file.optJSONObject(STATUS);
             d.sourceOk = status == null || status.optBoolean("ok", true);
             JSONObject meta = file.optJSONObject("meta");
             String hash = meta == null ? "" : meta.optString(CONTENT_HASH, "");
@@ -209,6 +209,8 @@ public final class Logic {
     private static final String LAST_UPDATED = "lastUpdated";
     private static final String STATUS = "lastUpdateStatus";
     private static final String SCH_NAMES = "sch_names";
+    private static final String PRESET = "preset";
+    private static final String QUEUE_WORD = "Черга ";
 
     /** Most of a source file is a template the app never reads: only what parse() uses is stored. */
     public static String compactFile(String raw) throws BadFile {
@@ -217,8 +219,8 @@ public final class Logic {
             JSONObject out = new JSONObject().put("fact", file.getJSONObject("fact"));
             if (file.has(LAST_UPDATED)) out.put(LAST_UPDATED, file.get(LAST_UPDATED));
             if (file.has(STATUS)) out.put(STATUS, file.get(STATUS));
-            JSONObject preset = file.optJSONObject("preset");
-            if (preset != null && preset.has(SCH_NAMES)) out.put("preset", new JSONObject().put(SCH_NAMES, preset.get(SCH_NAMES)));
+            JSONObject preset = file.optJSONObject(PRESET);
+            if (preset != null && preset.has(SCH_NAMES)) out.put(PRESET, new JSONObject().put(SCH_NAMES, preset.get(SCH_NAMES)));
             JSONObject meta = file.optJSONObject("meta");
             if (meta != null && meta.has(CONTENT_HASH)) out.put("meta", new JSONObject().put(CONTENT_HASH, meta.get(CONTENT_HASH)));
             return out.toString();
@@ -370,8 +372,8 @@ public final class Logic {
 
     /** No outages published: the queues still come from the preset, for the setup screen. */
     private static void presetGroups(JSONObject file, Set<String> groups) {
-        JSONObject preset = file.optJSONObject("preset");
-        JSONObject names = preset == null ? null : preset.optJSONObject("sch_names");
+        JSONObject preset = file.optJSONObject(PRESET);
+        JSONObject names = preset == null ? null : preset.optJSONObject(SCH_NAMES);
         if (names == null) return;
         for (Iterator<String> g = names.keys(); g.hasNext(); ) {
             String group = g.next();
@@ -444,7 +446,7 @@ public final class Logic {
     /** "Черга 3.1, Київська область, уже додана як «Дім»." */
     public static String duplicateMessage(Place existing) {
         Region r = region(existing.region);
-        return "Черга " + queue(existing.group) + (r == null ? "" : ", " + r.name) + ", уже додана як «" + existing.name + "».";
+        return QUEUE_WORD + queue(existing.group) + (r == null ? "" : ", " + r.name) + ", уже додана як «" + existing.name + "».";
     }
 
     /** A place the person left without a name is called by its queue. */
@@ -453,7 +455,7 @@ public final class Logic {
     }
 
     private static String queueName(String group) {
-        return "Черга " + queue(group);
+        return QUEUE_WORD + queue(group);
     }
 
     /** The name to save: what was typed; a name taken from the old queue follows the new one. */
@@ -1474,7 +1476,7 @@ public final class Logic {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < r.places.size() && i < r.alerts.size(); i++) {
             String s = alertsSummary(r.alerts.get(i));
-            b.append("Черга ").append(queue(r.places.get(i).group)).append(": ")
+            b.append(QUEUE_WORD).append(queue(r.places.get(i).group)).append(": ")
                     .append(s.substring(0, 1).toLowerCase(Locale.ROOT)).append(s.substring(1)).append('\n');
         }
         return b.toString();

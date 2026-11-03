@@ -1688,9 +1688,27 @@ public class LogicTest {
         Logic.compactFile("{\"no\": 1}");
     }
 
-    static final String TAIL_B42 = "24\": \"maybe\"\n        }\n      }\n    },\n    \"updateFact\": \"03.11.2026 02:39\"\n  },\n  \"lastUpdateStatus\": {\n    \"status\": \"parsed\",\n"
-            + "    \"ok\": true,\n    \"code\": 200,\n    \"message\": null,\n    \"at\": \"2026-11-03T08:51:26.602Z\",\n    \"attempt\": 50934\n  },\n  \"meta\": {\n    \"schemaVersion\": \"1.0.0\",\n"
-            + "    \"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\"\n  },\n  \"regionAffiliation\": \"Київська обл.\"\n}";
+    static final String TAIL_B42 = """
+            24": "maybe"
+                    }
+                  }
+                },
+                "updateFact": "03.11.2026 02:39"
+              },
+              "lastUpdateStatus": {
+                "status": "parsed",
+                "ok": true,
+                "code": 200,
+                "message": null,
+                "at": "2026-11-03T08:51:26.602Z",
+                "attempt": 50934
+              },
+              "meta": {
+                "schemaVersion": "1.0.0",
+                "contentHash": "1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5"
+              },
+              "regionAffiliation": "Київська обл."
+            }""";
     static final String TAIL_VINNYTSIA = ", \"message\": null, \"at\": 1793696303, \"attempt\": 1 }, \"regionAffiliation\": \"Вінницька область\", \"meta\": { \"schemaVersion\": \"1.0.0\", "
             + "\"contentHash\": \"711bec96f6fcc1bd1127a6ed08a5fe5d8c9eacccbd3432a1118448da92b8541e\" } }";
 

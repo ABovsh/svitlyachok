@@ -18,6 +18,7 @@ final class Prefs {
     static final int[] LEADS_OFF = {0, 10, 15, 30, 60};
     static final int[] LEADS_ON = {0, 5, 10, 15, 30};
     private static final String ALERTS = "alerts_";
+    private static final String FIRED = "fired";
 
     private Prefs() {}
 
@@ -215,7 +216,7 @@ final class Prefs {
 
     /** What was said about a place: a new queue starts clean. */
     static void forgetNotices(Context c, String place) {
-        p(c).edit().remove(NOTES + place).putStringSet("fired", Logic.firedWithout(fired(c), place)).apply();
+        p(c).edit().remove(NOTES + place).putStringSet(FIRED, Logic.firedWithout(fired(c), place)).apply();
     }
 
     static void reminderTiming(Context c, long planned, long actual) {
@@ -241,7 +242,7 @@ final class Prefs {
 
     /** Reminders already shown, so a refetch never repeats one. */
     static Set<String> fired(Context c) {
-        return new HashSet<>(p(c).getStringSet("fired", new HashSet<>()));
+        return new HashSet<>(p(c).getStringSet(FIRED, new HashSet<>()));
     }
 
     static void addFired(Context c, String key, long now) {
@@ -254,7 +255,7 @@ final class Prefs {
             }
         });
         s.add(key);
-        p(c).edit().putStringSet("fired", s).apply();
+        p(c).edit().putStringSet(FIRED, s).apply();
     }
 
     // ---- look --------------------------------------------------------------------

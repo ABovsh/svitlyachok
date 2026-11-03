@@ -206,7 +206,7 @@ final class Store {
         }
 
         String body(long end) throws IOException {
-            String text = read(conn, end, request);
+            String text = read(end);
             reusable = true;
             return text;
         }
@@ -217,6 +217,19 @@ final class Store {
             catch (IOException | RuntimeException ignored) { reusable = false; }
         }
 
+        private String read(long end) throws IOException {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (InputStream in = conn.getInputStream()) {
+                byte[] buf = new byte[8192];
+                for (int n; (n = in.read(buf)) != -1;) {
+                    if (request.stopped || SystemClock.elapsedRealtime() >= end) throw new IOException("deadline");
+                    if (out.size() + n > MAX_BYTES) throw new IOException("too large");
+                    out.write(buf, 0, n);
+                }
+            }
+            return out.toString(StandardCharsets.UTF_8.name());
+        }
+
         @Override public void close() {
             watchdog.cancel(false);
             request.connection.compareAndSet(conn, null);
@@ -224,16 +237,4 @@ final class Store {
         }
     }
 
-    private static String read(HttpURLConnection conn, long end, Request request) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (InputStream in = conn.getInputStream()) {
-            byte[] buf = new byte[8192];
-            for (int n; (n = in.read(buf)) != -1;) {
-                if (request.stopped || SystemClock.elapsedRealtime() >= end) throw new IOException("deadline");
-                if (out.size() + n > MAX_BYTES) throw new IOException("too large");
-                out.write(buf, 0, n);
-            }
-        }
-        return out.toString(StandardCharsets.UTF_8.name());
-    }
 }

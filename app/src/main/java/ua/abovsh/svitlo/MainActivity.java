@@ -26,6 +26,7 @@ import java.util.List;
 public class MainActivity extends Base {
     /** A widget or a notification names the place to open. */
     static final String EXTRA_PLACE = "place";
+    static final String EXTRA_OFFER_WIDGET = "offer_widget";
     /** The version being downloaded now, and how far; the card shows it after a re-render too. */
     private String downloading;
     private int percent;
@@ -87,9 +88,19 @@ public class MainActivity extends Base {
         // the source answered moments ago (the alarm, the job): the cache is fresh, no network
         if (Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
         else render();
+        offerWidgetOfNewPlace();
         Updates.checkIfDue(this, () -> runOnUiThread(() -> {
             if (!isFinishing()) render();
         }));
+    }
+
+    /** Asked once: the extra stays in the intent when the screen comes back. */
+    private void offerWidgetOfNewPlace() {
+        String id = getIntent().getStringExtra(EXTRA_OFFER_WIDGET);
+        if (id == null) return;
+        getIntent().removeExtra(EXTRA_OFFER_WIDGET);
+        Logic.Place p = Prefs.place(this, id);
+        if (p != null) Widgets.offer(this, p, "Пропустити");
     }
 
     private View header() {

@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,16 +56,15 @@ final class Widgets {
      * confirms or cancels there; when placed, PinReceiver records the place for the new widget.
      */
     static void offer(Context c, Logic.Place p) {
-        offer(c, p, "Скасувати", () -> {});
+        offer(c, p, "Скасувати");
     }
 
-    /** Setup stays alive until the size chooser is dismissed; main needs no completion hook. */
-    static void offer(Context c, Logic.Place p, String decline, Runnable closed) {
+    /** Nothing may open a screen after this: it would cover the launcher's window, and no widget would be placed. */
+    static void offer(Context c, Logic.Place p, String decline) {
         new AlertDialog.Builder(c).setTitle("Віджет для «" + p.name + "»")
                 .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
                         (dialog, which) -> pin(c, p, which == 1))
-                .setNegativeButton(decline, null)
-                .setOnDismissListener(dialog -> closed.run()).show();
+                .setNegativeButton(decline, null).show();
     }
 
     private static void pin(Context c, Logic.Place p, boolean large) {
@@ -73,7 +73,9 @@ final class Widgets {
         int mutable = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
         PendingIntent done = PendingIntent.getBroadcast(c, p.id.hashCode() * 2 + (large ? 1 : 0), placed,
                 mutable | PendingIntent.FLAG_UPDATE_CURRENT);
-        AppWidgetManager.getInstance(c).requestPinAppWidget(new ComponentName(c,
+        boolean asked = AppWidgetManager.getInstance(c).requestPinAppWidget(new ComponentName(c,
                 large ? LargeLightWidget.class : LightWidget.class), null, done);
+        if (!asked) Toast.makeText(c, "Не вдалося додати віджет. Додайте його зі списку віджетів на головному екрані.",
+                Toast.LENGTH_LONG).show();
     }
 }

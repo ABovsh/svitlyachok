@@ -61,7 +61,10 @@ public class StatsActivity extends Base {
     private View columns() {
         LinearLayout r = Ui.row(this);
         r.setPadding(Ui.dp(this, 9), 0, Ui.dp(this, 9), Ui.dp(this, 3));
-        r.addView(head("Світла за графіком", android.view.Gravity.START), weight());
+        r.setGravity(android.view.Gravity.BOTTOM);
+        TextView title = head("Світла за графіком", android.view.Gravity.START);
+        title.setSingleLine(false);  // beside three fixed columns on a narrow screen it takes two lines
+        r.addView(title, weight());
         r.addView(head("тиждень", android.view.Gravity.START), cell(WEEK_DP));
         r.addView(head("4 тижні", android.view.Gravity.START), cell(MONTH_DP));
         r.addView(head("зміна", android.view.Gravity.END), cell(CHANGE_DP));

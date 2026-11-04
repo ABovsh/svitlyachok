@@ -503,7 +503,8 @@ public class MainActivity extends Base {
 
     /** Both clocks of the card stand at one size: the one at which the fuller half still fits. */
     private float clockSize(String[] start, String[] next) {
-        float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 2 * 16 - 2 * 11) / 2f - 11);
+        // 14 dp: the padding of the lit half, the widest one, so the clock keeps its size when the half lights up
+        float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 2 * 16 - 2 * 11) / 2f - 14);
         android.graphics.Paint clock = new android.graphics.Paint();
         clock.setTypeface(Ui.display(this));
         clock.setTextSize(Ui.sp(this, HERO_CLOCK));

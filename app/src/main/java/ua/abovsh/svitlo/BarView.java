@@ -115,7 +115,7 @@ final class BarView extends View {
     @Override
     protected void onMeasure(int w, int h) {
         int width = MeasureSpec.getSize(w);
-        int lines = slots == null ? 1 : Logic.barLabelLines(labels(width));
+        int lines = slots == null ? 1 : Logic.barLabelLines(labels((float) width));
         setMeasuredDimension(width, knob + barH + (lines == 0 ? Ui.dp(getContext(), 3) : lines * labelH));
     }
 

@@ -80,7 +80,7 @@ final class BarView extends View {
         if (!hasOnClickListeners() || slots == null) return false;
         switch (e.getActionMasked()) {
             case android.view.MotionEvent.ACTION_DOWN:
-                pressed = e.getY() <= knob + barH + Ui.px(getContext(), 4);
+                pressed = e.getY() <= (float) (knob + barH) + Ui.px(getContext(), 4);
                 return pressed;
             case android.view.MotionEvent.ACTION_UP:
                 if (pressed) {

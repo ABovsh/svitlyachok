@@ -1292,7 +1292,7 @@ public final class Logic {
         Note n = new Note();
         if (b == null) {
             n.kind = Note.PUBLISHED;
-            n.title = headed(SCHEDULE_MARK, "графік на " + (today ? "сьогодні" : "завтра"));
+            n.title = headed(SCHEDULE_MARK, "графік на " + (today ? TODAY_WORD : TOMORROW_WORD));
             int k = offCount(a);
             n.text = named(p.name, k == 0 ? uncertainDay(a, "Вимкнень не заплановано") : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
             return n;

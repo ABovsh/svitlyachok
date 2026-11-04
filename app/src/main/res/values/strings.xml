@@ -4,6 +4,8 @@
     <string name="app_name">Svitlyachok</string>
     <string name="widget_desc" translatable="false">Графік вимкнень одного місця: що зараз і до котрої. Для кожного місця — свій віджет.</string>
     <string name="widget_small" translatable="false">Малий · 2×1</string>
+    <string name="widget_wide" translatable="false">Широкий · 4×1</string>
+    <string name="widget_wide_desc" translatable="false">Стан зараз, наступна зміна і смуга дня в один ряд.</string>
     <string name="widget_large" translatable="false">Великий · 4×2</string>
     <string name="widget_large_desc" translatable="false">Стан зараз, наступна зміна, графік на сьогодні й завтра.</string>
 </resources>

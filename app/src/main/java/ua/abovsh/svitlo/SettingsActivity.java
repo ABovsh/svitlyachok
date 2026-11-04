@@ -53,8 +53,9 @@ public class SettingsActivity extends Base {
         scroll.post(() -> scroll.scrollTo(0, y));
     }
 
+    /** One row per place: its name opens the place, its bell opens the notifications of the place. */
     private void placesSection() {
-        page.addView(heading("Місця"));
+        page.addView(heading("Місця й сповіщення"));
         LinearLayout places = box();
         List<Logic.Place> list = Prefs.places(this);
         for (int i = 0; i < list.size(); i++) {
@@ -64,7 +65,7 @@ public class SettingsActivity extends Base {
         if (list.size() < Prefs.MAX_PLACES) {
             if (!list.isEmpty()) places.addView(divider());
             LinearLayout add = Ui.row(this);
-            add.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+            add.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
             ImageView plus = new ImageView(this);
             plus.setImageResource(R.drawable.ic_plus);
             plus.setColorFilter(pal.accentInk, PorterDuff.Mode.SRC_IN);
@@ -80,21 +81,18 @@ public class SettingsActivity extends Base {
             places.addView(add, fill());
         }
         page.addView(places, fill());
-        page.addView(note("Дача, батьки, робота: до " + Prefs.MAX_PLACES + " місць, для кожного своя черга."));
     }
 
-    /** A row per place, opening its own notifications; then what is common to all places. */
+    /** What is common to all places. */
     private void notificationsSection() {
-        page.addView(heading("Сповіщення"));
         LinearLayout n = box();
         if (!notificationsAllowed()) {
             n.addView(warning(), fill());
             n.addView(divider());
         }
-        for (Logic.Place p : Prefs.places(this)) {
-            n.addView(alertsRow(p), fill());
-            n.addView(divider());
-        }
+        n.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку",
+                Prefs.quietNights(this), on -> Prefs.setFlag(this, "quiet", on)), fill());
+        n.addView(divider());
         TextView test = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         test.setText("Надіслати пробне сповіщення");
         test.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
@@ -106,40 +104,10 @@ public class SettingsActivity extends Base {
             Sync.testNotification(this);
         });
         n.addView(test, fill());
-        page.addView(n, fill());
-
-        LinearLayout x = box();
-        x.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку",
-                Prefs.quietNights(this), on -> Prefs.setFlag(this, "quiet", on)), fill());
-        LinearLayout.LayoutParams xl = fill();
-        xl.topMargin = Ui.dp(this, 10);
-        page.addView(x, xl);
-        page.addView(note("Для кожного місця — свої сповіщення; їх відкриває кнопка «Сповіщення» під графіком. "
-                + "Одне сповіщення на місце: нове замінює попереднє. Зміни графіка застосунок перевіряє "
-                + "приблизно раз на 15 хвилин."));
-    }
-
-    /** "Дім" and what it notifies about, with its bell; opens the place's own settings. */
-    private View alertsRow(Logic.Place p) {
-        Logic.Alerts a = Prefs.alerts(this, p.id);
-        LinearLayout r = Ui.row(this);
-        r.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
-        ImageView bell = new ImageView(this);
-        bell.setImageResource(a.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off);
-        bell.setColorFilter(a.any() ? pal.text : pal.dim, PorterDuff.Mode.SRC_IN);
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 22), Ui.dp(this, 22));
-        bl.rightMargin = Ui.dp(this, 14);
-        r.addView(bell, bl);
-        r.addView(label(p.name, Logic.alertsSummary(a)), weight());
-        ImageView go = new ImageView(this);
-        go.setImageResource(R.drawable.ic_chevron);
-        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
-        go.setScaleType(ImageView.ScaleType.CENTER);
-        r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 44)));
-        r.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(a));
-        r.setOnClickListener(v -> AlertsSheet.show(this, p, this::rebuild));
-        return r;
+        LinearLayout.LayoutParams nl = fill();
+        nl.topMargin = Ui.dp(this, 10);
+        page.addView(n, nl);
+        page.addView(note("Одне сповіщення на місце: нове замінює попереднє. Графік перевіряється приблизно раз на 15 хвилин."));
     }
 
     private void lookSection() {
@@ -278,24 +246,45 @@ public class SettingsActivity extends Base {
     }
 
     private View placeRow(Logic.Place p) {
-        LinearLayout r = Ui.row(this);
-        r.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        boolean large = getResources().getConfiguration().fontScale > 1.25f;
+        LinearLayout r = large ? Ui.column(this) : Ui.row(this);
+        r.setGravity(large ? android.view.Gravity.START : android.view.Gravity.CENTER_VERTICAL);
+        r.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
         LinearLayout t = Ui.column(this);
+        t.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
         TextView name = Ui.text(this, 16, Ui.heavy(this), pal.text);
         name.setText(p.name);
         t.addView(name);
         TextView w = Ui.text(this, 13, Ui.body(this), pal.muted);
         w.setText(where(p));
-        w.setPadding(0, Ui.dp(this, 3), 0, 0);
+        w.setPadding(0, Ui.dp(this, 2), 0, 0);
         t.addView(w);
-        r.addView(t, weight());
-        ImageView go = new ImageView(this);
-        go.setImageResource(R.drawable.ic_chevron);
-        go.setColorFilter(pal.dim, PorterDuff.Mode.SRC_IN);
-        go.setScaleType(ImageView.ScaleType.CENTER);
-        r.addView(go, new LinearLayout.LayoutParams(Ui.dp(this, 36), Ui.dp(this, 44)));
-        r.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
+        t.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
+        r.addView(t, large ? fill() : weight());
+        r.addView(bell(p), wrap());
         return r;
+    }
+
+    /** 48 dp to touch, 36 to see; grey when nothing is sent for this place. */
+    private View bell(Logic.Place p) {
+        Logic.Alerts a = Prefs.alerts(this, p.id);
+        int ink = a.any() ? pal.text : pal.quiet;
+        TextView b = Ui.text(this, 13, Ui.heavy(this), ink);
+        b.setText(Logic.alertsShort(a));
+        b.setMinHeight(Ui.dp(this, 48));
+        b.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        b.setPadding(Ui.dp(this, 9), 0, Ui.dp(this, 11), 0);
+        int inset = Ui.dp(this, 6);
+        b.setBackground(new android.graphics.drawable.InsetDrawable(Ui.round(pal.raised, Ui.px(this, 18)), 0, inset, 0, inset));
+        android.graphics.drawable.Drawable icon = getDrawable(a.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off);
+        if (icon != null) {
+            icon = icon.mutate(); icon.setTint(ink); icon.setBounds(0, 0, Ui.dp(this, 16), Ui.dp(this, 16));
+            b.setCompoundDrawablesRelative(icon, null, null, null);
+            b.setCompoundDrawablePadding(Ui.dp(this, 5));
+        }
+        b.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(a));
+        b.setOnClickListener(v -> AlertsSheet.show(this, p, this::rebuild));
+        return b;
     }
 
     private View warning() {

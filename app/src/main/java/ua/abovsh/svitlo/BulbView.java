@@ -21,6 +21,7 @@ final class BulbView extends View {
     private ValueAnimator pulse;
     private float glow = 1f;
     private boolean breathes = true;
+    private boolean bare;
 
     BulbView(Context c, Ui.Pal pal) {
         super(c);
@@ -32,6 +33,11 @@ final class BulbView extends View {
     void still() {
         breathes = false;
         animate(false);
+    }
+
+    /** Without the disc: the card behind it already carries the colour of the state, as on the widget. */
+    void bare() {
+        bare = true;
     }
 
     void set(int state) {
@@ -74,7 +80,8 @@ final class BulbView extends View {
     @Override
     protected void onDraw(Canvas cv) {
         float size = (float) Math.min(getWidth(), getHeight());
-        draw(b.on(cv), state, getWidth() / 2f, getHeight() / 2f, size, glow);
+        if (bare) plain(b.on(cv), state, getWidth() / 2f, getHeight() / 2f, size);
+        else draw(b.on(cv), state, getWidth() / 2f, getHeight() / 2f, size, glow);
     }
 
     /** The disc and the bulb, also drawn into the widget; the brush knows the colour behind the disc. */

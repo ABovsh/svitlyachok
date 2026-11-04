@@ -130,9 +130,22 @@ abstract class Base extends Activity {
 
     /** A switch row: a title, a line under it, the switch. */
     View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
+        return toggle(title, desc, on, 0, l);
+    }
+
+    /** dot: the colour of the mark before the title, 0 for none. */
+    View toggle(String title, String desc, boolean on, int dot, ToggleView.Listener l) {
         LinearLayout r = Ui.row(this);
-        r.setPadding(0, Ui.dp(this, 11), 0, Ui.dp(this, 11));
-        r.addView(label(title, desc), weight());
+        r.setPadding(0, Ui.dp(this, desc.isEmpty() ? 7 : 11), 0, Ui.dp(this, desc.isEmpty() ? 7 : 11));
+        View words = label(title, desc);
+        if (dot != 0) {
+            TextView name = (TextView) ((LinearLayout) words).getChildAt(0);
+            android.graphics.drawable.GradientDrawable mark = Ui.round(dot, Ui.px(this, 6));
+            mark.setBounds(0, 0, Ui.dp(this, 10), Ui.dp(this, 10));
+            name.setCompoundDrawablesRelative(mark, null, null, null);
+            name.setCompoundDrawablePadding(Ui.dp(this, 8));
+        }
+        r.addView(words, weight());
         ToggleView tv = new ToggleView(this, pal, on, l::changed);
         tv.setContentDescription(title);
         LinearLayout.LayoutParams tl = wrap();
@@ -151,29 +164,29 @@ abstract class Base extends Activity {
         d.setText(desc);
         d.setLineSpacing(0, 1.1f);
         d.setPadding(0, Ui.dp(this, 4), 0, 0);
-        t.addView(d);
+        if (!desc.isEmpty()) t.addView(d);
         return t;
     }
 
-    /** How early: "Одразу" and minutes as a row of pills; `chosen` gets the minutes picked. */
+    /** How early: "Одразу" and minutes as a row of equal pills, wrapped when a large font needs it. */
     View leads(int[] leads, int lead, java.util.function.IntConsumer chosen) {
-        LinearLayout box = Ui.column(this);
-        TextView when = Ui.text(this, 13, Ui.bold(this), pal.muted);
-        when.setText("Коли сповістити");
-        when.setPadding(0, 0, 0, Ui.dp(this, 8));
-        box.addView(when, fill());
-        FlowRow row = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 6));
+        boolean large = getResources().getConfiguration().fontScale > 1.25f;
+        android.view.ViewGroup row = large ? new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 6)) : Ui.row(this);
         for (int i = 0; i < leads.length; i++) {
             int v = leads[i];
             TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
             t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
             t.setOnClickListener(c -> chosen.accept(v));
-            row.addView(t);
-
+            if (large) { row.addView(t); continue; }
+            t.setPadding(0, Ui.dp(this, 9), 0, Ui.dp(this, 9));
+            t.setSingleLine(true);
+            LinearLayout.LayoutParams lp = weight();
+            if (i > 0) lp.leftMargin = Ui.dp(this, 5);
+            row.addView(t, lp);
         }
-        LinearLayout.LayoutParams rl = fill();
-        rl.bottomMargin = Ui.dp(this, 14);
-        box.addView(row, rl);
+        LinearLayout box = Ui.column(this);
+        box.setPadding(0, 0, 0, Ui.dp(this, 10));
+        box.addView(row, fill());
         return box;
     }
 
@@ -239,6 +252,12 @@ abstract class Base extends Activity {
 
     static LinearLayout.LayoutParams weight() {
         return new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+    }
+
+    LinearLayout.LayoutParams gapTop(int topDp) {
+        LinearLayout.LayoutParams lp = fill();
+        lp.topMargin = Ui.dp(this, topDp);
+        return lp;
     }
 
     LinearLayout.LayoutParams gap(int bottomDp) {

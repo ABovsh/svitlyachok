@@ -6,6 +6,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.View;
+import java.util.List;
 
 /**
  * One day as a bar of runs, 00–24: the hours of each run written inside it, a thin line every
@@ -25,34 +26,96 @@ final class BarView extends View {
 
     private final RectF mark = new RectF();
     private final Path clip = new Path();
+    private final Paint picked = new Paint(Paint.ANTI_ALIAS_FLAG);
     private String slots;
     private float nowRel = -1;
+    private int chosenFrom = -1;
+    private int chosenTo = -1;
+    private int touched = -1;
+    private boolean pressed;
 
     BarView(Context c, Ui.Pal pal) {
+        this(c, pal, 7);
+    }
+
+    /** knobDp: the room over the bar for the dot of now; a day that is not today needs none. */
+    BarView(Context c, Ui.Pal pal, int knobDp) {
         super(c);
         this.pal = pal;
         b = new Brush(pal, pal.card);
         p = b.p;
-        barH = Ui.dp(c, 30);
-        knob = Ui.dp(c, 7);
+        barH = Ui.dp(c, 28);
+        knob = Ui.dp(c, knobDp);
         labelH = Math.round(Ui.sp(c, 13) * 1.25f + Ui.px(c, 6));
         hours.setTypeface(Ui.heavy(c));
         hours.setTextSize(Ui.sp(c, 14));
         hours.setTextAlign(Paint.Align.CENTER);
         clock.setTextSize(Ui.sp(c, 13));
         clock.setTextAlign(Paint.Align.CENTER);
+        clock.setTypeface(Ui.heavy(c));
+        picked.setStyle(Paint.Style.STROKE);
+        picked.setStrokeWidth(Ui.px(c, 2));
+        picked.setColor(pal.text);
+    }
+
+    /** Where the bar itself begins, for what is drawn over it. */
+    int barTop() {
+        return knob;
+    }
+
+    /** The run shown as chosen; -1 for none. */
+    void choose(int from, int to) {
+        chosenFrom = from;
+        chosenTo = to;
+        invalidate();
+    }
+
+    /** The half hour of the last touch. */
+    int touchedSlot() {
+        return touched;
+    }
+
+    @Override
+    public boolean onTouchEvent(android.view.MotionEvent e) {
+        if (!hasOnClickListeners() || slots == null) return false;
+        switch (e.getActionMasked()) {
+            case android.view.MotionEvent.ACTION_DOWN:
+                pressed = e.getY() <= knob + barH + Ui.px(getContext(), 4);
+                return pressed;
+            case android.view.MotionEvent.ACTION_UP:
+                if (pressed) {
+                    touched = (int) (e.getX() / getWidth() * 48);
+                    performClick();
+                }
+                pressed = false;
+                return true;
+            case android.view.MotionEvent.ACTION_CANCEL:
+                pressed = false;
+                return true;
+            default:
+                return pressed;
+        }
+    }
+
+    @Override
+    public boolean performClick() {
+        return super.performClick();
     }
 
     /** nowRel: position of now in slots, -1 for a day that is not today. */
     void set(String slots, float nowRel) {
+        boolean remeasure = this.slots == null || !this.slots.equals(slots);
         this.slots = slots;
         this.nowRel = nowRel;
+        if (remeasure) requestLayout();
         invalidate();
     }
 
     @Override
     protected void onMeasure(int w, int h) {
-        setMeasuredDimension(MeasureSpec.getSize(w), knob + barH + labelH);
+        int width = MeasureSpec.getSize(w);
+        int lines = slots == null ? 1 : Logic.barLabelLines(labels(width));
+        setMeasuredDimension(width, knob + barH + (lines == 0 ? Ui.dp(getContext(), 3) : lines * labelH));
     }
 
     @Override
@@ -74,7 +137,7 @@ final class BarView extends View {
             cv.drawRect(0, top, Math.min(w, nowRel * sw), top + barH, p);
         }
         cv.restore();
-        clocks(cv, w, sw, top);
+        clocks(cv, sw, top);
         if (nowRel >= 0 && nowRel <= 48) marker(cv, nowRel * sw, top);
         int i = 0;
         while (i < 48) {  // above the marker: a number is never hidden by it
@@ -82,6 +145,17 @@ final class BarView extends View {
             if (at(slots, i) != '2') runHours(cv, i, j, sw, top);
             i = j;
         }
+        if (chosenFrom >= 0) {
+            float inset = picked.getStrokeWidth() / 2;
+            box.set(chosenFrom * sw + inset, top + inset, chosenTo * sw - inset, top + barH - inset);
+            float rr = Ui.px(getContext(), 6);
+            cv.drawRoundRect(box, rr, rr, picked);
+        }
+    }
+
+    private List<Logic.Label> labels(float width) {
+        Context c = getContext();
+        return Logic.barLabelRows(slots, nowRel >= 0 ? (int) nowRel : -1, width, clock.measureText("00:00"), Ui.px(c, 5));
     }
 
     /** Where the run starting at slot i ends. */
@@ -145,9 +219,9 @@ final class BarView extends View {
     /** The hours of the whole run, in its middle; the marker may pass right under them. */
     private void runHours(Canvas cv, int i, int j, float sw, float top) {
         float room = Ui.px(getContext(), 8);
-        String t = Logic.barHours(j - i);
-        float tw = hours.measureText(t) + room;
-        if ((j - i) * sw < tw) return;
+        String t = Logic.barHoursWord(j - i);
+        if ((j - i) * sw < hours.measureText(t) + room) t = Logic.barHours(j - i);
+        if ((j - i) * sw < hours.measureText(t) + room) return;
         float centre = Logic.barHoursCentre(i, j);
         float x = centre * sw;
         hours.setColor(hoursInk(Logic.barHoursInk(at(slots, i), nowRel >= 0 && centre < nowRel, Logic.barHoursActive(i, j, nowRel), pal.dark)));
@@ -161,21 +235,18 @@ final class BarView extends View {
     }
 
     /** The clock times of the changes under the bar, each with a short tick at its exact place. */
-    private void clocks(Canvas cv, float w, float sw, float top) {
+    private void clocks(Canvas cv, float sw, float top) {
         Context c = getContext();
-        clock.setTypeface(Ui.heavy(c));
-        float labelW = clock.measureText("00:00");
-        int cur = nowRel >= 0 ? (int) nowRel : -1;
         float y = top + barH + Ui.px(c, 5) - clock.ascent();
-        for (Logic.Label l : Logic.barLabels(slots, cur, w, labelW, Ui.px(c, 5))) {
-            int colour = l.kind == Logic.UNKNOWN ? pal.muted : pal.status(l.kind);
-            clock.setTypeface(l.kind == Logic.UNKNOWN ? Ui.bold(c) : Ui.heavy(c));
+        for (Logic.Label l : labels(getWidth())) {
+            int colour = pal.status(l.kind);
             clock.setColor(colour);
-            cv.drawText(Logic.clock(l.slot), l.x, y, clock);
-            if (l.kind != Logic.UNKNOWN && l.slot > 0 && l.slot < 48) {
+            float line = l.row * labelH;
+            cv.drawText(Logic.clock(l.slot), l.x, y + line, clock);
+            if (l.slot > 0 && l.slot < 48) {
                 p.setColor(colour);
                 float x = l.slot * sw;
-                cv.drawRect(x - Ui.px(c, 0.75f), top + barH + Ui.px(c, 1), x + Ui.px(c, 0.75f), top + barH + Ui.px(c, 4), p);
+                cv.drawRect(x - Ui.px(c, 0.75f), top + barH + Ui.px(c, 1), x + Ui.px(c, 0.75f), top + barH + Ui.px(c, 4) + line, p);
             }
         }
     }

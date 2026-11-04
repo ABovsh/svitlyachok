@@ -29,13 +29,59 @@ final class AlertsSheet {
 
     /** `closed` runs when the sheet goes, so the page under it shows the new state of the bell. */
     static void show(Base a, Logic.Place place, Runnable closed) {
+        LinearLayout col = Ui.column(a);
+        AlertsSheet sheet = new AlertsSheet(a, place, col);
+        sheet.build();
+        sheet(a, col, closed);
+    }
+
+    /** Why there may be no power although the schedule says there is, and where to look. */
+    static void help(Base a, Logic.Place place) {
+        LinearLayout col = Ui.column(a);
+        grip(a, col);
+        TextView title = Ui.text(a, 17, Ui.display(a), a.pal.text);
+        title.setText("Світла немає, хоча за графіком є");
+        title.setPadding(Ui.dp(a, 6), 0, Ui.dp(a, 6), 0);
+        col.addView(title, Base.fill());
+        TextView why = Ui.text(a, 14, Ui.body(a), a.pal.muted);
+        why.setLineSpacing(0, 1.1f);
+        why.setText("На екрані графік обленерго, а не вимірювання у вашому домі. Причиною можуть бути екстрені відключення, аварія або ремонт на лінії.");
+        why.setPadding(Ui.dp(a, 6), Ui.dp(a, 8), Ui.dp(a, 6), Ui.dp(a, 12));
+        col.addView(why, Base.fill());
+        Logic.Region r = Logic.region(place.region);
+        if (r != null && !r.dso.isEmpty()) {
+            col.addView(a.primary(Logic.helpSite(r), v -> {
+                try {
+                    a.startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(r.dso)));
+                } catch (Exception ignored) {
+                    // no browser
+                }
+            }), Base.fill());
+        }
+        TextView note = Ui.text(a, 13, Ui.body(a), a.pal.muted);
+        note.setLineSpacing(0, 1.1f);
+        note.setText("Графік оновлюється автоматично. Екстрених відключень у ньому може не бути.");
+        note.setPadding(Ui.dp(a, 6), Ui.dp(a, 10), Ui.dp(a, 6), 0);
+        col.addView(note, Base.fill());
+        sheet(a, col, () -> { });
+    }
+
+    private static void grip(Base a, LinearLayout col) {
+        View grip = new View(a);
+        grip.setBackground(Ui.round(a.pal.line, Ui.px(a, 4)));
+        LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(Ui.dp(a, 40), Ui.dp(a, 4));
+        gl.gravity = Gravity.CENTER_HORIZONTAL;
+        gl.bottomMargin = Ui.dp(a, 12);
+        col.addView(grip, gl);
+    }
+
+    private static void sheet(Base a, LinearLayout col, Runnable closed) {
         Dialog d = new Dialog(a);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
         ScrollView sv = new ScrollView(a);
         sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        LinearLayout col = Ui.column(a);
         int side = Ui.dp(a, 16);
-        col.setPadding(side, Ui.dp(a, 10), side, Ui.dp(a, 24));
+        col.setPadding(side, Ui.dp(a, 10), side, Ui.dp(a, 18));
         sv.addView(col);
         if (Build.VERSION.SDK_INT >= 30) {  // above the navigation bar, not under it
             sv.setOnApplyWindowInsetsListener((v, in) -> {
@@ -43,7 +89,6 @@ final class AlertsSheet {
                 return in;
             });
         }
-        new AlertsSheet(a, place, col).build();
         d.setContentView(sv);
         Window w = d.getWindow();
         if (w != null) {
@@ -61,44 +106,66 @@ final class AlertsSheet {
 
     private void build() {
         col.removeAllViews();
-        View grip = new View(a);
-        grip.setBackground(Ui.round(a.pal.line, Ui.px(a, 4)));
-        LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(Ui.dp(a, 40), Ui.dp(a, 4));
-        gl.gravity = Gravity.CENTER_HORIZONTAL;
-        gl.bottomMargin = Ui.dp(a, 14);
-        col.addView(grip, gl);
-
+        grip(a, col);
         TextView title = Ui.text(a, 19, Ui.display(a), a.pal.text);
         title.setText("Сповіщення · " + place.name);
         title.setPadding(Ui.dp(a, 6), 0, Ui.dp(a, 6), 0);
         col.addView(title, Base.fill());
         TextView where = Ui.text(a, 13, Ui.body(a), a.pal.muted);
         where.setText(Base.where(place));
-        where.setPadding(Ui.dp(a, 6), Ui.dp(a, 4), Ui.dp(a, 6), Ui.dp(a, 12));
+        where.setPadding(Ui.dp(a, 6), Ui.dp(a, 3), Ui.dp(a, 6), Ui.dp(a, 10));
         col.addView(where, Base.fill());
 
         Logic.Alerts al = Prefs.alerts(a, place.id);
         LinearLayout box = a.box();
-        box.addView(a.toggle("Вимкнення світла", "Попередити, що світло скоро вимкнуть", al.off,
-                v -> save(x -> x.off = v)), Base.fill());
+        box.addView(a.toggle("Перед вимкненням", "", al.off, a.pal.off, v -> save(x -> x.off = v)), Base.fill());
         if (al.off) box.addView(a.leads(Prefs.LEADS_OFF, al.leadOff, m -> save(x -> x.leadOff = m)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Увімкнення світла", "Повідомити, що світло скоро з'явиться", al.on,
-                v -> save(x -> x.on = v)), Base.fill());
+        box.addView(a.toggle("Перед увімкненням", "", al.on, a.pal.on, v -> save(x -> x.on = v)), Base.fill());
         if (al.on) box.addView(a.leads(Prefs.LEADS_ON, al.leadOn, m -> save(x -> x.leadOn = m)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Графік на завтра", "Щойно обленерго його опублікує", al.tomorrow,
-                v -> save(x -> x.tomorrow = v)), Base.fill());
+        box.addView(a.toggle("Графік на завтра", "", al.tomorrow, v -> save(x -> x.tomorrow = v)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Зміни графіка", "Якщо змінилися години на сьогодні або завтра", al.changes,
-                v -> save(x -> x.changes = v)), Base.fill());
+        box.addView(a.toggle("Зміни графіка", "", al.changes, v -> save(x -> x.changes = v)), Base.fill());
         col.addView(box, Base.fill());
 
-        TextView note = Ui.text(a, 13, Ui.body(a), a.pal.dim);
-        note.setLineSpacing(0, 1.1f);
-        note.setText("Лише для місця «" + place.name + "». Тиша вночі й пробне сповіщення — у налаштуваннях.");
-        note.setPadding(Ui.dp(a, 6), Ui.dp(a, 12), Ui.dp(a, 6), 0);
-        col.addView(note, Base.fill());
+        long now = Sync.now();
+        Logic.Event next = Sync.nextAlert(a, place.id, now);
+        if (next != null) col.addView(nextBox(next, now), a.gapTop(8));
+        if (Prefs.places(a).size() > 1) {
+            TextView all = Ui.text(a, 15, Ui.heavy(a), a.pal.accentText);
+            all.setText("Застосувати до всіх місць");
+            all.setGravity(Gravity.CENTER);
+            all.setMinHeight(Ui.dp(a, 48));
+            all.setOnClickListener(v -> confirmAll());
+            col.addView(all, Base.fill());
+        }
+    }
+
+    private View nextBox(Logic.Event next, long now) {
+        boolean on = next.kind == Logic.Event.SOON_ON || next.kind == Logic.Event.AT_ON;
+        LinearLayout box = Ui.column(a);
+        box.setPadding(Ui.dp(a, 12), Ui.dp(a, 9), Ui.dp(a, 12), Ui.dp(a, 9));
+        box.setBackground(Ui.round(a.pal.soft(on ? Logic.ON : Logic.OFF), Ui.px(a, 14)));
+        TextView when = Ui.text(a, 14, Ui.heavy(a), a.pal.text);
+        when.setText(Logic.alertSheetTitle(next, now));
+        box.addView(when, Base.fill());
+        TextView what = Ui.text(a, 13, Ui.body(a), a.pal.muted);
+        what.setText(Logic.alertSheetDetail(next));
+        what.setPadding(0, Ui.dp(a, 2), 0, 0);
+        box.addView(what, Base.fill());
+        return box;
+    }
+
+    private void confirmAll() {
+        Ui.dialog(a).setTitle("Застосувати до всіх місць?")
+                .setMessage("Сповіщення інших місць стануть такими самими, як у місця «" + place.name + "».")
+                .setPositiveButton("Застосувати", (dialog, which) -> {
+                    Logic.Alerts al = Prefs.alerts(a, place.id);
+                    for (Logic.Place p : Prefs.places(a)) Prefs.setAlerts(a, p.id, al);
+                    Sync.apply(a.getApplicationContext());
+                    build();
+                }).setNegativeButton("Скасувати", null).show();
     }
 
     private void save(java.util.function.Consumer<Logic.Alerts> change) {

@@ -1354,7 +1354,7 @@ public final class Logic {
         for (String tl : tls) {
             for (int[] c : clockChanges(tl, base, index(base, now))) {
                 long t = slotStart(base, c[0]);
-                for (long x : new long[] {t - SOON_S, t}) if (x > now && x < best) best = x;
+                for (long x : new long[] {t - SOON_S, t - HIGHLIGHT_S, t}) if (x > now && x < best) best = x;
             }
         }
         return best;
@@ -1371,7 +1371,7 @@ public final class Logic {
         for (String tl : tls) {
             for (int[] c : clockChanges(tl, base, index(base, now))) {
                 long t = slotStart(base, c[0]);
-                for (long x : new long[] {t - SOON_S, t}) if (x >= at && x - at < POLL_S) return true;
+                for (long x : new long[] {t - SOON_S, t - HIGHLIGHT_S, t}) if (x >= at && x - at < POLL_S) return true;
             }
         }
         return false;
@@ -1497,6 +1497,7 @@ public final class Logic {
     /** One row (2 x 1 and wider), or with today's schedule when there is room. */
     public static final int W_ROW = 0;
     public static final int W_FULL = 1;
+    public static final int W_WIDE = 2;
 
     /**
      * The place a widget shows: the one chosen for it, the first place when none was chosen, or
@@ -1514,12 +1515,18 @@ public final class Logic {
     }
 
     public static int widgetForm(int wDp, int hDp) {
-        return wDp >= 200 && hDp >= 110 ? W_FULL : W_ROW;
+        if (wDp >= 200 && hDp >= 110) return W_FULL;
+        return wDp >= 250 ? W_WIDE : W_ROW;
     }
 
     /** The cell until the launcher reports the real one; a large widget must not start as a row. */
     public static int[] widgetDefaultSize(boolean large) {
         return large ? new int[] {250, 150} : new int[] {180, 70};
+    }
+
+    /** A wide widget before the launcher reports its cell. */
+    public static int[] widgetDefaultWide() {
+        return new int[] {300, 70};
     }
 
     /** Layout in dp: every full widget keeps both current and future information visible. */
@@ -1538,6 +1545,34 @@ public final class Logic {
         public float tomorrowTop;
         public float tomorrowBarTop;
         public float tomorrowBarHeight;
+        /** Tall enough for both days as on the card: a title, a bar and the times of its changes each. */
+        public boolean sections;
+        public float tomorrowTitleTop;
+    }
+
+    /** Layout in dp of a widget one row high: the name, both halves, the day as a thin bar. */
+    public static final class WideLayout {
+        public float side;
+        public float pad;
+        public float headerSize;
+        public float columnWidth;
+        public float rowTop;
+        public float rowHeight;
+        public float barTop;
+        public float barHeight;
+    }
+
+    public static WideLayout wideLayout(int width, int height) {
+        WideLayout w = new WideLayout();
+        w.side = 12;
+        w.pad = Math.max(5, Math.min(8, height * .08f));
+        w.headerSize = Math.max(10.5f, Math.min(13, height * .17f));
+        w.columnWidth = (width - 2 * w.side - 8) / 2;
+        w.rowTop = w.pad + w.headerSize * 1.3f;
+        w.barHeight = Math.max(5, Math.min(8, height * .09f));
+        w.barTop = height - w.pad - w.barHeight;
+        w.rowHeight = w.barTop - 2 - w.rowTop;
+        return w;
     }
 
     private static final float CAP = .74f;  // the height of a capital against the font size
@@ -1599,7 +1634,7 @@ public final class Logic {
 
     /** "без світла 10 год" for a day with an outage, otherwise nothing: the bar says the rest. */
     public static String widgetToday(String day) {
-        return day == null || count(day, '0') == 0 ? "" : dayTotal(day);
+        return day == null ? "" : daySummaries(day).get(1);
     }
 
     /** The event of a reminder already on screen, for as long as the schedule keeps it. */
@@ -1631,7 +1666,23 @@ public final class Logic {
         w.tomorrowBarHeight = w.tomorrowHeight - 2;
         w.rowTop = w.pad + (titled ? w.headerSize * 1.45f : 0);
         w.rowHeight = w.barTop - 2 - w.rowTop;
+        if (height >= SECTIONS_FROM && w.twoParts) sections(w, height);
         return w;
+    }
+
+    private static final int SECTIONS_FROM = 185;  // lower, the halves would have to give up their size
+
+    private static void sections(WidgetLayout w, int height) {
+        w.sections = true;
+        w.barHeight = height < 200 ? 14 : 22;
+        w.tomorrowBarHeight = w.barHeight;
+        w.labelHeight = w.labelSize + 4;
+        w.tomorrowHeight = w.headerSize + 3;
+        w.tomorrowTop = height - w.pad - w.tomorrowHeight;
+        w.tomorrowBarTop = height - w.pad - w.labelHeight - w.barHeight;
+        w.tomorrowTitleTop = w.tomorrowBarTop - w.tomorrowHeight;
+        w.barTop = w.tomorrowTitleTop - w.labelHeight - w.barHeight;
+        w.rowHeight = w.barTop - 2 - w.rowTop;
     }
 
     // ---- the place card and the bar of a day ---------------------------------------
@@ -1650,11 +1701,6 @@ public final class Logic {
     /** Milliseconds to the next whole minute: every change and every "через N хв" falls on one. */
     public static long toNextMinute(long nowMs) {
         return 60_000L - nowMs % 60_000L;
-    }
-
-    /** How many equal windows of a day stand in a row: three when they fit, never none. */
-    public static int windowColumns(int room, int window, int gap) {
-        return Math.max(1, Math.min(3, (room + gap) / (window + gap)));
     }
 
     /** The button of a place, which says so when nothing will be sent for it. */
@@ -1745,23 +1791,23 @@ public final class Logic {
     /** A clock time under the bar: its slot (0..48), what begins there, its centre. */
     public static final class Label {
         public int slot;
-        public int kind;  // OFF, ON, MAYBE, or UNKNOWN for a plain grey hour
+        public int kind;  // OFF, ON, MAYBE
         public float x;
+        public int row;   // 0, or 1 when the day has more changes than one line holds
     }
 
     /**
      * The clock times under the bar of a day, `width` wide, each label `labelW` wide with `gap`
      * between: the next change and the next outage with its end always (moved aside if they are close),
-     * then the later changes, the past ones, and grey hours 00, 24, 12, 06, 18 where there is room.
+     * then the later changes and the past ones where there is room. Midnight is no change.
      * `cur` is the slot of now, -1 for a day that is not today.
      */
     public static List<Label> barLabels(String day, int cur, float width, float labelW, float gap) {
-        List<int[]> ch = changes(day);
+        List<int[]> ch = changesInside(day);
         List<int[]> order = new ArrayList<>();
         int must = mustShow(ch, cur, order);
         for (int[] c : ch) if (c[0] > cur && !order.contains(c)) order.add(c);
         for (int k = ch.size() - 1; k >= 0; k--) if (ch.get(k)[0] <= cur) order.add(ch.get(k));
-        for (int h : new int[] {0, 48, 24, 12, 36}) order.add(new int[] {h, UNKNOWN});
         List<Label> out = new ArrayList<>();
         float half = labelW / 2;
         float sw = width / 48f;
@@ -1778,6 +1824,149 @@ public final class Logic {
             }
         }
         return out;
+    }
+
+    private static List<int[]> changesInside(String day) {
+        List<int[]> ch = changes(day);
+        ch.removeIf(c -> c[0] == 0);
+        return ch;
+    }
+
+    /** All the changes when they fit one line; otherwise outages on one line and returns of power on another. */
+    public static List<Label> barLabelRows(String day, int cur, float width, float labelW, float gap) {
+        List<Label> one = barLabels(day, cur, width, labelW, gap);
+        List<int[]> ch = changesInside(day);
+        if (one.size() >= ch.size()) return one;
+        List<Label> off = new ArrayList<>();
+        List<Label> on = new ArrayList<>();
+        for (int[] c : ch) {
+            List<Label> line = c[1] == ON ? on : off;
+            float x = clampX(c[0] * width / 48f, labelW / 2, width);
+            if (!free(line, x, labelW + gap)) continue;
+            Label l = new Label();
+            l.slot = c[0];
+            l.kind = c[1];
+            l.x = x;
+            l.row = c[1] == ON ? 1 : 0;
+            line.add(l);
+        }
+        off.addAll(on);
+        return off;
+    }
+
+    /** How many lines of times stand under a bar. */
+    public static int barLabelLines(List<Label> labels) {
+        int lines = 0;
+        for (Label l : labels) lines = Math.max(lines, l.row + 1);
+        return lines;
+    }
+
+    /** The whole run a touch falls in: its first slot and the slot after its last. */
+    public static int[] barRun(String day, int slot) {
+        int at = Math.max(0, Math.min(day.length() - 1, slot));
+        char c = day.charAt(at);
+        int from = at;
+        int to = at + 1;
+        while (from > 0 && day.charAt(from - 1) == c) from--;
+        while (to < day.length() && day.charAt(to) == c) to++;
+        return new int[] {from, to};
+    }
+
+    /** "15:30–19:30 · без світла · 4 год": what a touched run is. */
+    public static String barTip(String day, int from, int to) {
+        return clock(from) + "–" + clock(to) + " · " + tipWord(day.charAt(from)) + " · " + length(to - from);
+    }
+
+    private static String tipWord(char c) {
+        switch (state(c)) {
+            case ON: return "зі світлом";
+            case OFF: return "без світла";
+            case MAYBE: return "можливе вимкнення";
+            default: return "графіка немає";
+        }
+    }
+
+    /** Hours of a run with the word, where it fits: "4 год". */
+    public static String barHoursWord(int halves) {
+        return barHours(halves) + " год";
+    }
+
+    /** "через 2 год 29 хв": how long until the event of the card, in words a person would say. */
+    public static String heroCountdown(Now n) {
+        String text = n.hintIn;
+        return text.startsWith("(") && text.endsWith(")") ? text.substring(1, text.length() - 1) : text;
+    }
+
+    /** What the right half says: the widget's words, and a day with no schedule names the last one known. */
+    public static String[] heroFuture(Now n, String lastDay) {
+        if (n.state == UNKNOWN && !lastDay.isEmpty()) return new String[] {"Останній графік", lastDay, ""};
+        return widgetFuture(n);
+    }
+
+    /** The next notification still to come, from a sorted list; one already late is on its way. */
+    public static Event nextAlert(List<Event> events, long now) {
+        for (Event e : events) if (e.at >= now) return e;
+        return null;
+    }
+
+    private static String dayOfAlert(Event e, long now) {
+        long d = dayDiff(now, e.at);
+        if (d == 0) return "сьогодні";
+        if (d == 1) return "завтра";
+        return String.format(Locale.ROOT, "%02d.%02d", z(e.at).getDayOfMonth(), z(e.at).getMonthValue());
+    }
+
+    /** Under the button: "наступне о 15:15", or for another day "завтра о 07:45". */
+    public static String alertButtonLine(Event e, long now) {
+        return (dayDiff(now, e.at) == 0 ? "наступне" : dayOfAlert(e, now)) + " о " + hm(e.at);
+    }
+
+    public static String alertSheetTitle(Event e, long now) {
+        return "Наступне сповіщення: " + dayOfAlert(e, now) + " о " + hm(e.at);
+    }
+
+    /** "За 15 хв до вимкнення о 15:30", "У момент увімкнення о 19:30". */
+    public static String alertSheetDetail(Event e) {
+        boolean on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
+        long lead = (e.change - e.at) / 60;
+        return (lead > 0 ? "За " + lead + " хв до " : "У момент ") + (on ? "увімкнення" : "вимкнення") + " о " + hm(e.change);
+    }
+
+    private static String leadWords(int lead) {
+        return lead == 0 ? "одразу" : "за " + lead + " хв";
+    }
+
+    /** The notifications of a place on its row: "за 15 хв", "за 15 і 30 хв", "вимкнено". */
+    public static String alertsShort(Alerts a) {
+        if (a.off && a.on) {
+            if (a.leadOff == a.leadOn) return leadWords(a.leadOff);
+            if (a.leadOff > 0 && a.leadOn > 0) return "за " + a.leadOff + " і " + a.leadOn + " хв";
+            return leadWords(a.leadOff) + ", " + leadWords(a.leadOn);
+        }
+        if (a.off) return leadWords(a.leadOff);
+        if (a.on) return leadWords(a.leadOn);
+        return a.any() ? "графік" : "вимкнено";
+    }
+
+    /** One line under the card: when the schedule was checked and, when known, published. */
+    public static String checkedLine(long checked, long updated, long now) {
+        if (checked <= 0) return "";
+        String line = "Перевірено о " + hm(checked);
+        if (updated <= 0) return line;
+        String day = dayDiff(updated, now) == 0 ? "" : dayWord(updated, now) + " ";
+        return line + " · опубліковано " + day + "о " + hm(updated);
+    }
+
+    /** The button of the help on a power cut the schedule does not show. */
+    public static String helpSite(Region r) {
+        return r.id.equals("kyiv") ? "Сайт «Без світла» ›" : "Сайт обленерго ›";
+    }
+
+    /** The difference of two weeks in the places table; no claim without data. */
+    public static String changeWords(int minutes) {
+        if (minutes == Integer.MIN_VALUE) return "—";
+        if (minutes == 0) return "без змін";
+        return (minutes > 0 ? "↑ " : "↓ ") + hoursMinutes(Math.abs(minutes));
     }
 
     /** Compact tiles keep a literal state; an unpublished day is never treated as power. */

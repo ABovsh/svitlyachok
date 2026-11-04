@@ -37,6 +37,12 @@ public class SetupActivity extends Base {
     private boolean confirmedQueueChange;
     private Store.Request loadRequest;
     private TextView queueError;
+    private TextView regionHeading;
+    private LinearLayout regionLine;
+    private TextView regionValue;
+    private LinearLayout nameBox;
+    private LinearLayout nameLine;
+    private TextView nameValue;
 
     @Override boolean hasClock() { return false; }
 
@@ -64,11 +70,16 @@ public class SetupActivity extends Base {
         if (first) page.addView(welcome(), fill());
         else page.addView(topBar(edit == null ? "Нове місце" : "Місце"), fill());
 
-        page.addView(heading("Область"));
+        regionHeading = heading("Область");
+        page.addView(regionHeading);
         regions = box();
         regions.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
         page.addView(regions, fill());
+        regionValue = Ui.text(this, 16, Ui.heavy(this), pal.text);
+        regionLine = line("Область", regionValue, "Змінити", this::openRegions);
+        page.addView(regionLine, first ? gapTop(14) : gapTop(4));
         fillRegions();
+        showRegions(edit == null);
 
         page.addView(heading("Черга"));
         LinearLayout qbox = box();
@@ -80,8 +91,12 @@ public class SetupActivity extends Base {
         page.addView(qbox, fill());
         fillQueues();
 
-        page.addView(heading("Назва"));
+        nameValue = Ui.text(this, 16, Ui.heavy(this), pal.text);
+        nameLine = line("Назва", nameValue, null, this::openName);
+        page.addView(nameLine, gapTop(8));
         LinearLayout nbox = box();
+        nameBox = nbox;
+        nbox.setVisibility(View.GONE);
         nbox.setPadding(Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
         name = new EditText(this);
         if (edit != null) name.setText(edit.name);
@@ -111,10 +126,11 @@ public class SetupActivity extends Base {
         LinearLayout.LayoutParams ql = fill();
         ql.topMargin = Ui.dp(this, 12);
         nbox.addView(quick, ql);
-        page.addView(nbox, fill());
+        page.addView(nbox, gapTop(8));
+        showName();
 
         LinearLayout.LayoutParams bl = fill();
-        bl.topMargin = Ui.dp(this, 18);
+        bl.topMargin = Ui.dp(this, 12);
         page.addView(primary(first ? "Почати" : "Зберегти", v -> save()), bl);
 
         if (edit != null && Prefs.places(this).size() > 1) {
@@ -173,6 +189,7 @@ public class SetupActivity extends Base {
             t.setPadding(Ui.dp(this, 13), Ui.dp(this, 8), Ui.dp(this, 13), Ui.dp(this, 8));
             t.setContentDescription(r.name);
             t.setOnClickListener(v -> {
+                showRegions(false);
                 if (r.id.equals(region)) return;
                 region = r.id;
                 group = "";
@@ -183,6 +200,60 @@ public class SetupActivity extends Base {
             f.addView(t);
         }
         regions.addView(f, fill());
+        Logic.Region chosen = Logic.region(region);
+        regionValue.setText(chosen == null ? "" : chosen.name.replace(" область", ""));
+    }
+
+    /** A choice already made, on one line, with the way to change it. */
+    private LinearLayout line(String label, TextView value, String action, Runnable open) {
+        LinearLayout r = Ui.row(this);
+        r.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+        r.setBackground(Ui.card(this, pal, 0));
+        LinearLayout t = Ui.column(this);
+        TextView l = Ui.text(this, 12.5f, Ui.bold(this), pal.muted);
+        l.setText(label);
+        t.addView(l);
+        t.addView(value);
+        r.addView(t, weight());
+        if (action != null) {
+            TextView a = Ui.text(this, 14, Ui.heavy(this), pal.accentText);
+            a.setText(action);
+            r.addView(a, wrap());
+        } else {
+            ImageView pen = new ImageView(this);
+            pen.setImageResource(R.drawable.ic_edit);
+            pen.setColorFilter(pal.accentText, android.graphics.PorterDuff.Mode.SRC_IN);
+            pen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            r.addView(pen, new LinearLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20)));
+        }
+        r.setContentDescription(label + ", змінити");
+        r.setOnClickListener(v -> open.run());
+        return r;
+    }
+
+    private void showRegions(boolean open) {
+        regionHeading.setVisibility(open ? View.VISIBLE : View.GONE);
+        regions.setVisibility(open ? View.VISIBLE : View.GONE);
+        regionLine.setVisibility(open ? View.GONE : View.VISIBLE);
+    }
+
+    private void openRegions() {
+        showRegions(true);
+    }
+
+    private void openName() {
+        nameLine.setVisibility(View.GONE);
+        nameBox.setVisibility(View.VISIBLE);
+        name.requestFocus();
+    }
+
+    /** The line says the name the place will get: the one typed, or the one given by its queue. */
+    private void showName() {
+        if (nameValue == null || name == null) return;
+        String typed = name.getText().toString().trim();
+        if (!typed.isEmpty()) nameValue.setText(typed);
+        else if (!group.isEmpty()) nameValue.setText(Logic.placeName("", editing, group));
+        else nameValue.setText("за чергою");
     }
 
     private void fillQueues() {
@@ -204,7 +275,9 @@ public class SetupActivity extends Base {
             t.setContentDescription("черга " + Logic.queue(g));
             t.setOnClickListener(v -> {
                 group = g;
+                showRegions(false);
                 fillQueues();
+                showName();
             });
             LinearLayout.LayoutParams tl = weight();
             if (i % 4 > 0) tl.leftMargin = Ui.dp(this, 8);

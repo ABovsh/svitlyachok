@@ -755,7 +755,7 @@ public class LogicTest {
     @Test
     public void widgetFormFollowsItsSize() {
         assertEquals(Logic.W_ROW, Logic.widgetForm(130, 60));    // 2 x 1
-        assertEquals(Logic.W_ROW, Logic.widgetForm(300, 70));    // 4 x 1
+        assertEquals(Logic.W_WIDE, Logic.widgetForm(300, 70));   // 4 x 1: both halves and the day
         assertEquals(Logic.W_FULL, Logic.widgetForm(300, 130));  // 4 x 2: with the next 24 hours
         assertEquals(Logic.W_ROW, Logic.widgetForm(130, 130));   // 2 x 2: too narrow for the bar
     }
@@ -900,17 +900,14 @@ public class LogicTest {
             assertTrue(l.get(i).x >= 15 && l.get(i).x <= 318 - 15);
             for (int j = i + 1; j < l.size(); j++) assertTrue(Math.abs(l.get(i).x - l.get(j).x) >= 35 - 0.01f);
         }
-        // an outage to the end of the day: power back at 24:00; one from midnight starts at 00:00
+        // an outage to the end of the day: power back at 24:00; midnight itself is no change
         List<Logic.Label> t = Logic.barLabels(repeat('0', 4) + repeat('1', 36) + repeat('3', 8), -1, 318, 30, 5);
-        assertEquals(Logic.OFF, kind(t, 0));
+        assertFalse(has(t, 0));
         assertEquals(Logic.ON, kind(t, 4));
         assertEquals(Logic.MAYBE, kind(t, 40));
         assertEquals(Logic.ON, kind(t, 48));
-        // no outages: only the grey hours
-        List<Logic.Label> clean = Logic.barLabels(repeat('1', 48), 10, 318, 30, 5);
-        assertEquals(Logic.UNKNOWN, kind(clean, 0));
-        assertEquals(Logic.UNKNOWN, kind(clean, 48));
-        assertEquals(5, clean.size());  // 00, 06, 12, 18, 24
+        // no outages: nothing to say under the bar
+        assertTrue(Logic.barLabels(repeat('1', 48), 10, 318, 30, 5).isEmpty());
     }
 
     @Test
@@ -1081,10 +1078,10 @@ public class LogicTest {
     }
 
     @Test
-    public void widgetTodayTotalIsShownOnlyWhenTheDayHasAnOutage() {
-        assertEquals("", Logic.widgetToday(repeat('1', 48)));
+    public void widgetTodaySaysHowMuchLightAsTheCardDoes() {
+        assertEquals("24 год світла · 100 %", Logic.widgetToday(repeat('1', 48)));
         assertEquals("", Logic.widgetToday(null));
-        assertEquals("без світла 10 год",
+        assertEquals("14 год світла · 58 %",
                 Logic.widgetToday(repeat('1', 12) + repeat('0', 6) + repeat('1', 14) + repeat('0', 14) + repeat('1', 2)));
     }
 
@@ -1586,16 +1583,6 @@ public class LogicTest {
     }
 
     @Test
-    public void outageWindowsStandInUpToThreeEqualColumns() {
-        assertEquals(3, Logic.windowColumns(306, 92, 6));
-        assertEquals(3, Logic.windowColumns(1000, 92, 6));
-        assertEquals(3, Logic.windowColumns(288, 92, 6));   // exactly three and two gaps
-        assertEquals(2, Logic.windowColumns(287, 92, 6));
-        assertEquals(1, Logic.windowColumns(189, 92, 6));
-        assertEquals(1, Logic.windowColumns(40, 92, 6));    // never none
-    }
-
-    @Test
     public void statLineGivesShareAndHoursOnEqualTerms() {
         assertEquals("69% · 16,5 год", Logic.statLine(69, 16 * 60 + 40));
         assertEquals("31% · 7,5 год", Logic.statLine(31, 7 * 60 + 20));
@@ -1804,5 +1791,168 @@ public class LogicTest {
     public void aWidgetSaysTheQueueOnce() {
         assertEquals("Дім · черга 3.2", Logic.withQueue(place("Дім", "GPV3.2"), "Дім"));
         assertEquals("⚠ Черга 3.2", Logic.withQueue(place("Черга 3.2", "GPV3.2"), "⚠ Черга 3.2"));
+    }
+
+    // ---- the two halves, the compact sections, the hint on the bar ---------------------------
+
+    @Test
+    public void theCardCountsDownInWordsAPersonWouldSay() {
+        Logic.Now n = Logic.now(DAY_11 + repeat('1', 48), OCT30, at(5, 0), false);
+        assertEquals("через 1 год 00 хв", Logic.heroCountdown(n));
+        n = Logic.now(DAY_11 + repeat('1', 48), OCT30, at(13, 1), false);
+        assertEquals("через 1 год 29 хв", Logic.heroCountdown(n));
+        assertEquals("", Logic.heroCountdown(new Logic.Now()));
+    }
+
+    @Test
+    public void aRunOfTheBarWritesItsHoursWhenThereIsRoom() {
+        assertEquals("4 год", Logic.barHoursWord(8));
+        assertEquals("6,5 год", Logic.barHoursWord(13));
+        assertEquals("0,5 год", Logic.barHoursWord(1));
+    }
+
+    @Test
+    public void aTouchFindsTheWholeRun() {
+        String day = repeat('0', 18) + repeat('1', 13) + repeat('0', 8) + repeat('1', 9);
+        assertEquals(Arrays.asList(0, 18), asList(Logic.barRun(day, 0)));
+        assertEquals(Arrays.asList(0, 18), asList(Logic.barRun(day, 17)));
+        assertEquals(Arrays.asList(18, 31), asList(Logic.barRun(day, 18)));
+        assertEquals(Arrays.asList(39, 48), asList(Logic.barRun(day, 47)));
+        assertEquals(Arrays.asList(39, 48), asList(Logic.barRun(day, 60)));  // past the edge: the last run
+        assertEquals(Arrays.asList(0, 18), asList(Logic.barRun(day, -3)));
+    }
+
+    private static List<Integer> asList(int[] run) {
+        return Arrays.asList(run[0], run[1]);
+    }
+
+    @Test
+    public void theHintNamesStartEndWhatAndHowLong() {
+        String day = repeat('0', 18) + repeat('1', 13) + repeat('0', 8) + repeat('3', 1) + repeat('2', 8);
+        assertEquals("00:00–09:00 · без світла · 9 год", Logic.barTip(day, 0, 18));
+        assertEquals("09:00–15:30 · зі світлом · 6 год 30 хв", Logic.barTip(day, 18, 31));
+        assertEquals("19:30–20:00 · можливе вимкнення · 30 хв", Logic.barTip(day, 39, 40));
+        assertEquals("20:00–24:00 · графіка немає · 4 год", Logic.barTip(day, 40, 48));
+    }
+
+    @Test
+    public void underTheBarOnlyChangesAndInTwoRowsWhenTheyDoNotFitInOne() {
+        String calm = repeat('0', 18) + repeat('1', 13) + repeat('0', 8) + repeat('1', 9);
+        List<Logic.Label> one = Logic.barLabelRows(calm, 26, 357, 36, 5);
+        assertEquals(3, one.size());
+        for (Logic.Label l : one) assertEquals(0, l.row);
+        StringBuilder many = new StringBuilder();
+        for (int i = 0; i < 5; i++) many.append(repeat('0', 4)).append(repeat('1', 6));
+        String crowded = many.substring(0, 48);
+        List<Logic.Label> two = Logic.barLabelRows(crowded, -1, 357, 36, 5);
+        for (int slot : new int[] {4, 10, 14, 20, 24, 30, 34, 40, 44}) assertTrue("slot " + slot, has(two, slot));
+        for (Logic.Label l : two) assertEquals(l.kind == Logic.ON ? 1 : 0, l.row);
+        for (int i = 0; i < two.size(); i++) for (int j = i + 1; j < two.size(); j++) {
+            if (two.get(i).row == two.get(j).row) assertTrue(Math.abs(two.get(i).x - two.get(j).x) >= 41 - .01f);
+        }
+        assertEquals(2, Logic.barLabelLines(two));
+        assertEquals(1, Logic.barLabelLines(one));
+        assertEquals(0, Logic.barLabelLines(Logic.barLabelRows(repeat('1', 48), -1, 357, 36, 5)));
+    }
+
+    @Test
+    public void theNextNotificationIsSaidWithItsDay() {
+        Logic.Place p = new Logic.Place(); p.id = "p1"; p.name = "Дім"; p.group = "GPV1.1";
+        Logic.Alerts a = new Logic.Alerts();
+        String tl = DAY_11 + repeat('1', 20) + repeat('0', 4) + repeat('1', 24);
+        Logic.Event e = Logic.nextAlert(Logic.events(p, tl, OCT30, at(13, 1), a), at(13, 1));
+        assertEquals("наступне о 14:15", Logic.alertButtonLine(e, at(13, 1)));
+        assertEquals("Наступне сповіщення: сьогодні о 14:15", Logic.alertSheetTitle(e, at(13, 1)));
+        assertEquals("За 15 хв до вимкнення о 14:30", Logic.alertSheetDetail(e));
+        e = Logic.nextAlert(Logic.events(p, tl, OCT30, at(18, 20), a), at(18, 20));
+        assertEquals("наступне о 18:15".replace("18:15", "18:15"), Logic.alertButtonLine(Logic.nextAlert(Logic.events(p, tl, OCT30, at(18, 0), a), at(18, 0)), at(18, 0)));
+        assertEquals("За 15 хв до увімкнення о 18:30", Logic.alertSheetDetail(Logic.nextAlert(Logic.events(p, tl, OCT30, at(18, 0), a), at(18, 0))));
+        assertEquals("завтра о 09:45", Logic.alertButtonLine(e, at(18, 20)));
+        assertEquals("Наступне сповіщення: завтра о 09:45", Logic.alertSheetTitle(e, at(18, 20)));
+        a.leadOff = 0;
+        e = Logic.nextAlert(Logic.events(p, tl, OCT30, at(13, 1), a), at(13, 1));
+        assertEquals("У момент вимкнення о 14:30", Logic.alertSheetDetail(e));
+        assertNull(Logic.nextAlert(java.util.Collections.emptyList(), at(13, 1)));
+        // one a little late is on its way already: the line names what is still to come
+        a = new Logic.Alerts();
+        e = Logic.nextAlert(Logic.events(p, tl, OCT30, at(14, 20), a), at(14, 20));
+        assertEquals("наступне о 18:15", Logic.alertButtonLine(e, at(14, 20)));
+    }
+
+    @Test
+    public void thePlaceRowSaysItsNotificationsInTwoWords() {
+        Logic.Alerts a = new Logic.Alerts();
+        assertEquals("за 15 хв", Logic.alertsShort(a));
+        a.leadOn = 30;
+        assertEquals("за 15 і 30 хв", Logic.alertsShort(a));
+        a.leadOff = 0; a.leadOn = 0;
+        assertEquals("одразу", Logic.alertsShort(a));
+        a.leadOff = 0; a.leadOn = 15;
+        assertEquals("одразу, за 15 хв", Logic.alertsShort(a));
+        a = new Logic.Alerts(); a.on = false;
+        assertEquals("за 15 хв", Logic.alertsShort(a));
+        a.off = false; a.tomorrow = true;
+        assertEquals("графік", Logic.alertsShort(a));
+        a.tomorrow = false;
+        assertEquals("вимкнено", Logic.alertsShort(a));
+    }
+
+    @Test
+    public void theFooterSaysWhenCheckedAndPublishedInOneLine() {
+        assertEquals("Перевірено о 13:00 · опубліковано о 12:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 5)));
+        assertEquals("Перевірено о 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 5)));
+        assertEquals("", Logic.checkedLine(0, 0, at(13, 5)));
+        assertEquals("Перевірено о 13:00 · опубліковано вчора о 22:00", Logic.checkedLine(at(13, 0), at(-2, 0), at(13, 5)));
+    }
+
+    @Test
+    public void theHelpButtonNamesTheSiteItOpens() {
+        assertEquals("Сайт «Без світла» ›", Logic.helpSite(Logic.region("kyiv")));
+        assertEquals("Сайт обленерго ›", Logic.helpSite(Logic.region("kyiv_region")));
+    }
+
+    @Test
+    public void thePlacesTableComparesWeeksInWords() {
+        assertEquals("↑ 1 год 30 хв", Logic.changeWords(90));
+        assertEquals("↓ 30 хв", Logic.changeWords(-30));
+        assertEquals("без змін", Logic.changeWords(0));
+        assertEquals("—", Logic.changeWords(Integer.MIN_VALUE));
+    }
+
+    @Test
+    public void aLargeWidgetKeepsItsHalvesAsTheyWereWhileItShowsTheDaysInSections() {
+        Logic.WidgetLayout compact = Logic.widgetLayout(360, 150, true);
+        assertFalse(compact.sections);
+        for (int[] size : new int[][] {{360, 190}, {420, 220}, {300, 190}}) {
+            Logic.WidgetLayout w = Logic.widgetLayout(size[0], size[1], true);
+            assertTrue(w.sections);
+            assertTrue(w.rowHeight >= 69);
+            assertTrue(w.rowTop + w.rowHeight <= w.barTop);
+            assertTrue(w.tomorrowBarTop + w.tomorrowBarHeight + w.labelHeight <= size[1] - w.pad + .01f);
+            assertTrue(w.tomorrowTitleTop >= w.barTop + w.barHeight + w.labelHeight - .01f);
+            assertTrue(w.tomorrowBarTop >= w.tomorrowTitleTop + w.tomorrowHeight - .01f);
+        }
+        assertFalse(Logic.widgetLayout(250, 120, true).sections);
+    }
+
+    @Test
+    public void aWideWidgetHasBothHalvesAndTheDayInOneRow() {
+        Logic.WidgetLayout w = Logic.widgetLayout(360, 72, true);
+        assertFalse(w.twoParts);
+        assertTrue(Logic.widgetForm(250, 56) == Logic.W_WIDE);
+        assertTrue(Logic.widgetForm(240, 80) == Logic.W_ROW);
+        Logic.WideLayout l = Logic.wideLayout(360, 72);
+        assertTrue(l.rowTop + l.rowHeight <= l.barTop);
+        assertTrue(l.barTop + l.barHeight <= 72 - 4 + .01f);
+        assertTrue(l.rowHeight >= 30);
+        assertTrue(l.columnWidth >= 150);
+    }
+
+    @Test
+    public void aWidgetIsRedrawnWhenItsEventLightsUp() {
+        String tl = DAY_11 + repeat('1', 48);
+        // 14:30 is the change: its half hour and its quarter hour both wake the refresh
+        assertEquals(at(14, 15), Logic.nextRefresh(Arrays.asList(tl), OCT30, at(14, 5), at(14, 5)));
+        assertTrue(Logic.exactRefresh(Arrays.asList(tl), OCT30, at(14, 5), at(14, 15)));
     }
 }

@@ -15,25 +15,31 @@ final class DayHeader extends ViewGroup {
     private final List<String> formats;
     private final int button;
     private final int gap;
+    private final int row;
+    private static final float ICON_SCALE = 20f / 24;
     private boolean split;
     private int firstHeight;
 
-    DayHeader(Context c, Ui.Pal pal, String day, String slots, ImageView share) {
+    /** share may be null: a day with no schedule has nothing to share. */
+    DayHeader(Context c, Ui.Pal pal, String day, List<String> summaries, int ink, ImageView share) {
         super(c);
         this.share = share;
-        button = Ui.dp(c, 48); gap = Ui.dp(c, 6);
-        formats = Logic.daySummaries(slots);
-        title = Ui.text(c, 18, Ui.heavy(c), pal.text); title.setText(day);
-        total = Ui.text(c, 13, Ui.heavy(c), pal.onText); total.setSingleLine(true);
+        button = share == null ? 0 : Ui.dp(c, 48); gap = Ui.dp(c, 6); row = Ui.dp(c, 30);
+        formats = summaries;
+        title = Ui.text(c, 16, Ui.heavy(c), pal.text); title.setText(day);
+        total = Ui.text(c, 13, Ui.heavy(c), ink); total.setSingleLine(true);
         total.setContentDescription(formats.get(0));
         // The vector's visible bounds end at 21 of 24. Keep the 48 dp touch target while
         // placing that visible edge exactly at the timeline edge, rather than centring it.
+        addView(title); addView(total);
+        if (share == null) return;
         share.setScaleType(ImageView.ScaleType.MATRIX);
         Matrix m = new Matrix();
-        m.setTranslate(button - Ui.px(c, 21), (button - Ui.px(c, 24)) / 2);
+        m.setScale(ICON_SCALE, ICON_SCALE);
+        m.postTranslate(button - Ui.px(c, 21 * ICON_SCALE), (row - Ui.px(c, 24 * ICON_SCALE)) / 2);
         share.setImageMatrix(m);
         share.setPadding(0, 0, 0, 0);
-        addView(title); addView(total); addView(share);
+        addView(share);
     }
 
     private boolean summaryFits(int room) {
@@ -47,12 +53,12 @@ final class DayHeader extends ViewGroup {
 
     @Override protected void onMeasure(int ws, int hs) {
         int width = MeasureSpec.getSize(ws);
-        share.measure(MeasureSpec.makeMeasureSpec(button, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(button, MeasureSpec.EXACTLY));
+        if (share != null) share.measure(MeasureSpec.makeMeasureSpec(button, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(row, MeasureSpec.EXACTLY));
         title.measure(MeasureSpec.makeMeasureSpec(Math.max(1, width - button - gap), MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
         split = !summaryFits(width - title.getMeasuredWidth() - button - gap);
         if (split) summaryFits(width);
-        firstHeight = Math.max(button, Math.max(title.getMeasuredHeight(), split ? 0 : total.getMeasuredHeight()));
+        firstHeight = Math.max(row, Math.max(title.getMeasuredHeight(), split ? 0 : total.getMeasuredHeight()));
         setMeasuredDimension(width, firstHeight + (split ? total.getMeasuredHeight() + Ui.dp(getContext(), 2) : 0));
     }
 
@@ -60,8 +66,8 @@ final class DayHeader extends ViewGroup {
         int width = r - l;
         int ty = (firstHeight - title.getMeasuredHeight()) / 2;
         title.layout(0, ty, title.getMeasuredWidth(), ty + title.getMeasuredHeight());
-        int sy = (firstHeight - button) / 2;
-        share.layout(width - button, sy, width, sy + button);
+        int sy = (firstHeight - row) / 2;
+        if (share != null) share.layout(width - button, sy, width, sy + row);
         int y = split ? firstHeight + Ui.dp(getContext(), 2) : (firstHeight - total.getMeasuredHeight()) / 2;
         int right = split ? width : width - button;
         total.layout(right - total.getMeasuredWidth(), y, right, y + total.getMeasuredHeight());

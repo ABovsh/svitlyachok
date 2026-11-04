@@ -24,7 +24,6 @@ final class StatsChart extends View {
     private final Brush brush;
     private final float chartH;
     private final float top;
-    private final float bottom;
     private final float axis;
     private final DashPathEffect averageDash;
     private List<Logic.DayStat> days = new ArrayList<>();
@@ -35,12 +34,11 @@ final class StatsChart extends View {
     StatsChart(Context c, Ui.Pal pal) {
         super(c); this.pal = pal;
         brush = new Brush(pal, pal.card);
-        chartH = Ui.px(c, 150);
+        chartH = Ui.px(c, 112);
         value.setTypeface(Ui.heavy(c)); value.setTextSize(Ui.sp(c, 13)); value.setTextAlign(Paint.Align.CENTER);
         label.setTypeface(Ui.bold(c)); label.setTextSize(Ui.sp(c, 11)); label.setTextAlign(Paint.Align.CENTER);
-        top = value.getFontSpacing() + Ui.px(c, 8);
-        bottom = 2 * label.getFontSpacing() + Ui.px(c, 12);
-        axis = label.measureText("24") + Ui.px(c, 8);
+        top = value.getFontSpacing() + Ui.px(c, 2);
+        axis = 0;
         averageDash = new DashPathEffect(new float[] {Ui.px(c,5), Ui.px(c,4)}, 0);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
@@ -68,10 +66,11 @@ final class StatsChart extends View {
     @Override protected void onMeasure(int w, int h) {
         // Only the minimum: the scroll view stretches a narrower chart to exactly its own width.
         float minimum = axis + (weeks.isEmpty()
-                ? 7 * Math.max(label.measureText("28.10") + Ui.px(getContext(), 4), numberRoom() + Ui.px(getContext(), LEAST_GAP))
+                ? 7 * (numberRoom() + Ui.px(getContext(), LEAST_GAP))
                 : 4 * (value.measureText("100 %") + Ui.px(getContext(), 12)));
         int width = (int) Math.ceil(minimum);
         if (MeasureSpec.getMode(w) == MeasureSpec.EXACTLY) width = MeasureSpec.getSize(w);
+        float bottom = (weeks.isEmpty() ? 1 : 2) * label.getFontSpacing() + Ui.px(getContext(), 8);
         setMeasuredDimension(width, Math.round(top + chartH + bottom));
     }
 
@@ -87,13 +86,6 @@ final class StatsChart extends View {
         float gap = weeks.isEmpty()
                 ? Logic.statGap(slot, Ui.px(getContext(), 10), numberRoom(), Ui.px(getContext(), LEAST_GAP))
                 : Math.min(slot * .25f, Ui.px(getContext(), 10));
-        label.setTextAlign(Paint.Align.RIGHT);
-        for (int hour = 0; hour <= 24; hour += 6) {
-            float y = top + chartH * (24f - hour) / 24;
-            paint.setColor(pal.line); paint.setStrokeWidth(1);
-            cv.drawLine(axis, y, (float) getWidth(), y, paint);
-            label.setColor(pal.muted); cv.drawText(String.valueOf(hour), axis - Ui.px(getContext(), 6), y - (label.ascent()+label.descent())/2, label);
-        }
         label.setTextAlign(Paint.Align.CENTER);
         for (int i = 0; i < count; i++) {
             place(i, slot, gap);
@@ -145,7 +137,6 @@ final class StatsChart extends View {
         label.setColor(pal.muted);
         float y=bar.bottom-label.ascent()+Ui.px(getContext(),5);
         cv.drawText(WEEKDAYS[d.date.getDayOfWeek().getValue()-1],x,y,label);
-        cv.drawText(date(d.date),x,y+label.getFontSpacing(),label);
     }
 
     private void number(Canvas cv,String text,float x,float y,float segment,int outsideInk,boolean upper) {

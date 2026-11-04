@@ -277,6 +277,16 @@ final class Sync {
         }
     }
 
+    /** The next notification of one place, or null. */
+    static Logic.Event nextAlert(Context c, String place, long now) {
+        List<Logic.Event> own = new ArrayList<>();
+        for (Object[] o : upcoming(c, now)) {
+            Logic.Event e = (Logic.Event) o[0];
+            if (e.place.equals(place)) own.add(e);
+        }
+        return Logic.nextAlert(own, now);
+    }
+
     /** All reminders still to come, earliest first, without those already shown. */
     static List<Object[]> upcoming(Context c, long now) {
         List<Object[]> out = new ArrayList<>();
@@ -349,8 +359,9 @@ final class Sync {
             Bundle o = m.getAppWidgetOptions(id);
             // Portrait: the real cell is MIN_WIDTH x MAX_HEIGHT.
             android.appwidget.AppWidgetProviderInfo info = m.getAppWidgetInfo(id);
-            int[] cell = Logic.widgetDefaultSize(info != null
-                    && LargeLightWidget.class.getName().equals(info.provider.getClassName()));
+            String provider = info == null ? "" : info.provider.getClassName();
+            int[] cell = WideLightWidget.class.getName().equals(provider) ? Logic.widgetDefaultWide()
+                    : Logic.widgetDefaultSize(LargeLightWidget.class.getName().equals(provider));
             int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, cell[0]));
             int hDp = Math.min(260, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
             String key = BuildConfig.VERSION_CODE + "|" + c.getResources().getConfiguration().fontScale + "|" + WidgetArt.key(c, model, now, wDp, hDp);

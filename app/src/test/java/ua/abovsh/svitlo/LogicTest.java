@@ -1955,4 +1955,67 @@ public class LogicTest {
         assertEquals(at(14, 15), Logic.nextRefresh(Arrays.asList(tl), OCT30, at(14, 5), at(14, 5)));
         assertTrue(Logic.exactRefresh(Arrays.asList(tl), OCT30, at(14, 5), at(14, 15)));
     }
+
+    @Test
+    public void anUnknownCardNamesOnlyItsLastPublishedDay() {
+        Logic.Now n = new Logic.Now();
+        assertEquals(Arrays.asList("Останній графік", "29.10", ""), Arrays.asList(Logic.heroFuture(n, "29.10")));
+        assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.heroFuture(n, "")));
+        n = Logic.now(DAY_11, OCT30, at(13, 0), false);
+        assertEquals(Arrays.asList("Вимкнуть", "14:30", "до 18:30"), Arrays.asList(Logic.heroFuture(n, "29.10")));
+    }
+
+    @Test
+    public void countdownWordsLoseOnlyACompletePairOfBrackets() {
+        Logic.Now n = new Logic.Now();
+        n.hintIn = "(менш ніж за хвилину)";
+        assertEquals("менш ніж за хвилину", Logic.heroCountdown(n));
+        n.hintIn = "(час ще невідомий";
+        assertEquals("(час ще невідомий", Logic.heroCountdown(n));
+        n.hintIn = "час ще невідомий)";
+        assertEquals("час ще невідомий)", Logic.heroCountdown(n));
+    }
+
+    @Test
+    public void aReminderBeyondTomorrowNamesItsActualDate() {
+        Logic.Event e = new Logic.Event();
+        e.at = at(48 + 8, 0); e.change = e.at; e.kind = Logic.Event.AT_ON;
+        assertEquals("01.11 о 08:00", Logic.alertButtonLine(e, at(13, 0)));
+        assertEquals("Наступне сповіщення: 01.11 о 08:00", Logic.alertSheetTitle(e, at(13, 0)));
+        assertEquals("У момент увімкнення о 08:00", Logic.alertSheetDetail(e));
+    }
+
+    @Test
+    public void onlyAnEnabledReturnOfPowerReminderIsSummarized() {
+        Logic.Alerts a = new Logic.Alerts();
+        a.off = false; a.leadOn = 30;
+        assertEquals("за 30 хв", Logic.alertsShort(a));
+        a.leadOn = 0;
+        assertEquals("одразу", Logic.alertsShort(a));
+        a.off = true; a.leadOff = 15;
+        assertEquals("за 15 хв, одразу", Logic.alertsShort(a));
+    }
+
+    @Test
+    public void crowdedBarTimesStayWithinTheirRowsWithoutOverlap() {
+        String day = "01".repeat(24);
+        List<Logic.Label> labels = Logic.barLabelRows(day, 12, 90, 36, 5);
+        assertFalse(labels.isEmpty());
+        assertTrue(labels.size() < 47);
+        for (int i = 0; i < labels.size(); i++) {
+            Logic.Label a = labels.get(i);
+            assertTrue(a.x >= 18 && a.x <= 72);
+            for (int j = i + 1; j < labels.size(); j++) {
+                Logic.Label b = labels.get(j);
+                if (a.row == b.row) assertTrue(Math.abs(a.x - b.x) >= 41 - .01f);
+            }
+        }
+    }
+
+    @Test
+    public void aPossibleOutageNeverBecomesADefiniteTileState() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.MAYBE; n.title = "Можливе вимкнення"; n.big = "до 18:30";
+        assertEquals("Можливе вимкнення", Logic.tileLine(n));
+    }
 }

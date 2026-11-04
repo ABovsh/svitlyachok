@@ -84,7 +84,7 @@ final class BarView extends View {
                 return pressed;
             case android.view.MotionEvent.ACTION_UP:
                 if (pressed) {
-                    touched = (int) (e.getX() / getWidth() * 48);
+                    touched = (int) (e.getX() / (float) getWidth() * 48);
                     performClick();
                 }
                 pressed = false;
@@ -99,6 +99,7 @@ final class BarView extends View {
 
     @Override
     public boolean performClick() {
+        pressed = false;
         return super.performClick();
     }
 
@@ -238,10 +239,10 @@ final class BarView extends View {
     private void clocks(Canvas cv, float sw, float top) {
         Context c = getContext();
         float y = top + barH + Ui.px(c, 5) - clock.ascent();
-        for (Logic.Label l : labels(getWidth())) {
+        for (Logic.Label l : labels((float) getWidth())) {
             int colour = pal.status(l.kind);
             clock.setColor(colour);
-            float line = l.row * labelH;
+            float line = (float) l.row * labelH;
             cv.drawText(Logic.clock(l.slot), l.x, y + line, clock);
             if (l.slot > 0 && l.slot < 48) {
                 p.setColor(colour);

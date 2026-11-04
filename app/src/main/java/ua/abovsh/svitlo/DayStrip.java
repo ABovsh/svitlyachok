@@ -30,9 +30,9 @@ final class DayStrip extends View {
     @Override
     protected void onDraw(Canvas cv) {
         float slot = getWidth() / 48f;
-        float height = getHeight();
+        float height = (float) getHeight();
         edge.reset();
-        box.set(0, height - 2 * corner, getWidth(), height);
+        box.set(0, height - 2 * corner, (float) getWidth(), height);
         edge.addRoundRect(box, corner, corner, Path.Direction.CW);
         cv.save();
         cv.clipPath(edge);

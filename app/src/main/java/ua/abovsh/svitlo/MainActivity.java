@@ -406,19 +406,8 @@ public class MainActivity extends Base {
         bl.rightMargin = Ui.dp(this, 4);
         t.addView(bulb, bl);
         LinearLayout words = Ui.column(this);
-        FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
-        TextView label = Ui.text(this, 14, Ui.heavy(this), pal.text);
-        label.setText(p.name);
-        name.addView(label);
         boolean named = !Logic.autoNamed(p);
-        if (chosen && named) {
-            TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
-            queue.setText(Logic.queue(p.group));
-            queue.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
-            queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
-            name.addView(queue);
-        }
-        words.addView(name, fill());
+        words.addView(tileName(p, chosen && named), fill());
         // the same rule as the big card: lit as soon as the notifications of this place would speak
         boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
         TextView status = Ui.text(this, 14, Ui.bold(this), soon ? chipInk(n.next) : pal.status(n.state));
@@ -450,6 +439,21 @@ public class MainActivity extends Base {
     }
 
     /** The large widget's two halves: what is now and since when, what comes and when; and how long each. */
+    private View tileName(Logic.Place p, boolean withQueue) {
+        FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
+        TextView label = Ui.text(this, 14, Ui.heavy(this), pal.text);
+        label.setText(p.name);
+        name.addView(label);
+        if (withQueue) {
+            TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
+            queue.setText(Logic.queue(p.group));
+            queue.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
+            queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
+            name.addView(queue);
+        }
+        return name;
+    }
+
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
         Logic.Now n = Logic.nowWithHistory(tl, base, now, d != null && d.none, Prefs.knownHistory(this, p, d));
         boolean known = d != null;
@@ -693,13 +697,14 @@ public class MainActivity extends Base {
     /** One section: the day and how much light it has, its bar, the times of its changes. */
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
         boolean tomorrow = cur < 0;
+        String noSchedule = tomorrow ? "графік ще не опубліковано" : "";
         ImageView share = null;
         if (slots != null) {
             share = iconButton(R.drawable.ic_share, "Поділитися графіком: " + title, v -> Share.send(this, p, date));
             share.setBackground(null);
         }
         DayHeader head = new DayHeader(this, pal, title, slots != null ? Logic.daySummaries(slots)
-                : java.util.Collections.singletonList(tomorrow ? "графік ще не опубліковано" : ""), slots != null ? pal.onText : pal.muted, share);
+                : java.util.Collections.singletonList(noSchedule), slots != null ? pal.onText : pal.muted, share);
         head.setContentDescription(Logic.describe(title, slots));
         android.widget.FrameLayout section = new android.widget.FrameLayout(this);
         LinearLayout inner = Ui.column(this);

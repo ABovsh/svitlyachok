@@ -84,34 +84,11 @@ public class StatsActivity extends Base {
         int month = Logic.statShare(four, Logic.ON);
         int change = Logic.weekChange(weeks);
         boolean chosen = p.id.equals(place);
-        LinearLayout name = Ui.row(this);
-        TextView title = Ui.text(this, 15, Ui.heavy(this), pal.text);
-        title.setText(p.name); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        name.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f));
-        if (!Logic.autoNamed(p)) {
-            TextView q = Ui.text(this, 12.5f, Ui.body(this), pal.muted);
-            q.setText(Logic.queue(p.group)); q.setSingleLine(true); q.setPadding(Ui.dp(this, 5), 0, 0, 0);
-            name.addView(q, wrap());
-        }
-        LinearLayout weekBox = Ui.column(this);
-        weekBox.setPadding(0, 0, Ui.dp(this, 12), 0);
-        TextView weekText = Ui.text(this, 16, Ui.heavy(this), pal.onText);
-        weekText.setText(week < 0 ? "—" : week + " %");
-        weekBox.addView(weekText, fill());
-        if (week >= 0) {
-            LinearLayout meter = Ui.row(this);
-            meter.setClipToOutline(true);
-            meter.setBackground(Ui.round(pal.soft(Logic.OFF), Ui.px(this, 3)));
-            View filled = new View(this);
-            filled.setBackgroundColor(pal.on);
-            meter.addView(filled, new LinearLayout.LayoutParams(0, Ui.dp(this, 5), Math.max(week, 1)));
-            meter.addView(new View(this), new LinearLayout.LayoutParams(0, Ui.dp(this, 5), Math.max(100 - week, 0)));
-            LinearLayout.LayoutParams ml = fill(); ml.topMargin = Ui.dp(this, 2);
-            weekBox.addView(meter, ml);
-        }
+        View name = rowName(p);
+        View weekBox = weekCell(week);
         TextView monthText = Ui.text(this, 15, Ui.bold(this), pal.muted);
-        monthText.setText(month < 0 ? "—" : month + " %");
-        TextView changeText = Ui.text(this, 13, Ui.heavy(this), change == Integer.MIN_VALUE || change == 0 ? pal.muted : change > 0 ? pal.onText : pal.offText);
+        monthText.setText(percent(month));
+        TextView changeText = Ui.text(this, 13, Ui.heavy(this), changeInk(change));
         changeText.setText(Logic.changeWords(change));
         changeText.setGravity(android.view.Gravity.END);
         LinearLayout r = large() ? Ui.column(this) : Ui.row(this);
@@ -128,10 +105,55 @@ public class StatsActivity extends Base {
             r.addView(monthText, cell(MONTH_DP));
             r.addView(changeText, cell(CHANGE_DP));
         }
-        r.setContentDescription(p.name + ", черга " + Logic.queue(p.group) + ": за тиждень " + (week < 0 ? "немає даних" : week + " відсотків")
-                + ", за 4 тижні " + (month < 0 ? "немає даних" : month + " відсотків") + ", зміна " + Logic.changeWords(change) + (chosen ? ", вибрано" : ", показати графік"));
+        r.setContentDescription(p.name + ", черга " + Logic.queue(p.group) + ": за тиждень " + spoken(week)
+                + ", за 4 тижні " + spoken(month) + ", зміна " + Logic.changeWords(change) + (chosen ? ", вибрано" : ", показати графік"));
         r.setOnClickListener(v -> { place = p.id; render(); });
         return r;
+    }
+
+    private static String percent(int share) {
+        return share < 0 ? "—" : share + " %";
+    }
+
+    private static String spoken(int share) {
+        return share < 0 ? "немає даних" : share + " відсотків";
+    }
+
+    private int changeInk(int change) {
+        if (change == Integer.MIN_VALUE || change == 0) return pal.muted;
+        return change > 0 ? pal.onText : pal.offText;
+    }
+
+    private View rowName(Logic.Place p) {
+        LinearLayout name = Ui.row(this);
+        TextView title = Ui.text(this, 15, Ui.heavy(this), pal.text);
+        title.setText(p.name); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        name.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f));
+        if (!Logic.autoNamed(p)) {
+            TextView q = Ui.text(this, 12.5f, Ui.body(this), pal.muted);
+            q.setText(Logic.queue(p.group)); q.setSingleLine(true); q.setPadding(Ui.dp(this, 5), 0, 0, 0);
+            name.addView(q, wrap());
+        }
+        return name;
+    }
+
+    private View weekCell(int week) {
+        LinearLayout box = Ui.column(this);
+        box.setPadding(0, 0, Ui.dp(this, 12), 0);
+        TextView text = Ui.text(this, 16, Ui.heavy(this), pal.onText);
+        text.setText(percent(week));
+        box.addView(text, fill());
+        if (week < 0) return box;
+        LinearLayout meter = Ui.row(this);
+        meter.setClipToOutline(true);
+        meter.setBackground(Ui.round(pal.soft(Logic.OFF), Ui.px(this, 3)));
+        View filled = new View(this);
+        filled.setBackgroundColor(pal.on);
+        meter.addView(filled, new LinearLayout.LayoutParams(0, Ui.dp(this, 5), (float) Math.max(week, 1)));
+        meter.addView(new View(this), new LinearLayout.LayoutParams(0, Ui.dp(this, 5), (float) Math.max(100 - week, 0)));
+        LinearLayout.LayoutParams ml = fill(); ml.topMargin = Ui.dp(this, 2);
+        box.addView(meter, ml);
+        return box;
     }
 
     private View card(Logic.Place p, java.util.Map<java.time.LocalDate,String> history) {

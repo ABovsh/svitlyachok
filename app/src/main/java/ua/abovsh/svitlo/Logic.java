@@ -601,9 +601,12 @@ public final class Logic {
         return "графік опубліковано " + dayWord(updated, now) + " о " + hm(updated);
     }
 
+    private static final String TODAY_WORD = "сьогодні";
+    private static final String TOMORROW_WORD = "завтра";
+
     private static String dayWord(long t, long now) {
         long d = dayDiff(t, now);
-        if (d == 0) return "сьогодні";
+        if (d == 0) return TODAY_WORD;
         if (d == 1) return "вчора";
         return String.format(Locale.ROOT, "%02d.%02d", z(t).getDayOfMonth(), z(t).getMonthValue());
     }
@@ -758,7 +761,7 @@ public final class Logic {
         if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
         // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
-        String when = at.startsWith("завтра") ? " завтра о " + hm(change) : " о " + at;
+        String when = at.startsWith(TOMORROW_WORD) ? " завтра о " + hm(change) : " о " + at;
         if (next == '0') n.hint = "Вимкнуть" + when;
         else if (next == '3') n.hint = "Можливо вимкнуть" + when;
         else if (c == '0') n.hint = "Увімкнуть" + when;
@@ -1674,7 +1677,7 @@ public final class Logic {
 
     private static void sections(WidgetLayout w, int height) {
         w.sections = true;
-        w.barHeight = height < 200 ? 14 : 22;
+        w.barHeight = height < 200 ? 14f : 22f;
         w.tomorrowBarHeight = w.barHeight;
         w.labelHeight = w.labelSize + 4;
         w.tomorrowHeight = w.headerSize + 3;
@@ -1911,8 +1914,8 @@ public final class Logic {
 
     private static String dayOfAlert(Event e, long now) {
         long d = dayDiff(now, e.at);
-        if (d == 0) return "сьогодні";
-        if (d == 1) return "завтра";
+        if (d == 0) return TODAY_WORD;
+        if (d == 1) return TOMORROW_WORD;
         return String.format(Locale.ROOT, "%02d.%02d", z(e.at).getDayOfMonth(), z(e.at).getMonthValue());
     }
 

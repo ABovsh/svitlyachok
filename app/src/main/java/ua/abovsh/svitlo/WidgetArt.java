@@ -117,7 +117,6 @@ final class WidgetArt {
         Bitmap bm = Bitmap.createBitmap(f.w, f.h, Bitmap.Config.ARGB_8888);
         boolean live = m != null && !m.gone;
         int form = Logic.widgetForm(wDp, hDp);
-        boolean full = form == Logic.W_FULL;
         boolean halves = form != Logic.W_ROW;
         int left = live ? pal.soft(m.now.state) : pal.card;
         int right = live ? pal.soft(Logic.widgetRightState(m.now, future(m)[1])) : pal.card;
@@ -271,7 +270,7 @@ final class WidgetArt {
         if (secondBar) {
             float second = w.tomorrowBarTop * s;
             tomorrowBar(b, m, new RectF(pad, second, f.w - pad, second + w.tomorrowBarHeight * s), s);
-            tomorrowWords(c, b, m, tomorrowDay, new float[] {pad, second + (w.tomorrowBarHeight + w.labelSize + 1) * s, width, w.labelSize * s});
+            tomorrowWords(c, b, tomorrowDay, new float[] {pad, second + (w.tomorrowBarHeight + w.labelSize + 1) * s, width, w.labelSize * s});
             return;
         }
         times(c, b, today, Logic.index(m.base, now), new float[] {pad, labelY, width, w.labelSize * s, s});
@@ -298,7 +297,7 @@ final class WidgetArt {
     }
 
     /** box: x, baseline, width, size. Where a low widget has no room for a section: tomorrow's light in words. */
-    private static void tomorrowWords(Context c, Brush b, Model m, String day, float[] box) {
+    private static void tomorrowWords(Context c, Brush b, String day, float[] box) {
         Paint name = text(Ui.heavy(c), box[3], b.pal.muted, Paint.Align.LEFT);
         b.cv.drawText("завтра", box[0], box[1], name);
         Paint side = fit(text(Ui.bold(c), box[3], b.pal.onText, Paint.Align.RIGHT), Logic.widgetToday(day), box[2] - name.measureText("завтра") - 8);

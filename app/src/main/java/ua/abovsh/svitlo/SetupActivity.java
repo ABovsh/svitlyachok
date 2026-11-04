@@ -77,7 +77,7 @@ public class SetupActivity extends Base {
         page.addView(regions, fill());
         regionValue = Ui.text(this, 16, Ui.heavy(this), pal.text);
         regionLine = line("Область", regionValue, "Змінити", this::openRegions);
-        page.addView(regionLine, first ? gapTop(14) : gapTop(4));
+        page.addView(regionLine, gapTop(first ? 14 : 4));
         fillRegions();
         showRegions(edit == null);
 

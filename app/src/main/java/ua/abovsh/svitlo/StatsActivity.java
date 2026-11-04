@@ -124,15 +124,16 @@ public class StatsActivity extends Base {
         return change > 0 ? pal.onText : pal.offText;
     }
 
+    /** A long name wraps: it is never cut. */
     private View rowName(Logic.Place p) {
-        LinearLayout name = Ui.row(this);
+        FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
         TextView title = Ui.text(this, 15, Ui.heavy(this), pal.text);
-        title.setText(p.name); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        name.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 0f));
+        title.setText(p.name);
+        name.addView(title);
         if (!Logic.autoNamed(p)) {
             TextView q = Ui.text(this, 12.5f, Ui.body(this), pal.muted);
-            q.setText(Logic.queue(p.group)); q.setSingleLine(true); q.setPadding(Ui.dp(this, 5), 0, 0, 0);
-            name.addView(q, wrap());
+            q.setText(Logic.queue(p.group));
+            name.addView(q);
         }
         return name;
     }

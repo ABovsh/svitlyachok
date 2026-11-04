@@ -520,8 +520,9 @@ public class MainActivity extends Base {
     private TextView word(String text, int ink) {
         TextView t = Ui.text(this, 20, Ui.heavy(this), ink);
         t.setText(text);
+        if (stacked()) return t;  // a whole row to itself: a long word wraps rather than shrinks
         t.setSingleLine(true);
-        t.setAutoSizeTextTypeUniformWithConfiguration(13, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        t.setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         return t;
     }
 

@@ -2044,7 +2044,7 @@ public class LogicTest {
         assertEquals("—", Logic.dayPercent(null));
         assertEquals("—", Logic.dayPercent(""));
         assertEquals("—", Logic.dayPercent(repeat('1', 47) + "2"));
-        assertEquals(Arrays.asList("Графік неповний"), Logic.daySummaries(repeat('1', 47) + "2"));
+        assertEquals(java.util.Collections.nCopies(3, "Графік неповний"), Logic.daySummaries(repeat('1', 47) + "2"));
     }
 
     @Test public void twoRowsCoverEveryHalfHourIncludingBothEdges() {
@@ -2062,7 +2062,7 @@ public class LogicTest {
     @Test public void fullWidgetReservesReadablePanesAndHidesTomorrowWhenItDoesNotFit() {
         for (int h : new int[] {110, 120, 150, 176, 190, 220, 260}) {
             float[] box = Logic.widgetGridLayout(h);
-            assertTrue(box[1] >= 24);
+            assertTrue(box[1] >= 40);
             assertEquals(h - 8, box[0] + box[1] + box[3] * (box[2] > 0 ? 2 : 1), .01f);
             if (box[2] > 0) assertTrue(box[1] >= 52);
         }

@@ -969,7 +969,7 @@ public final class Logic {
     public static float[] widgetGridLayout(int height) {
         float pad = 8;
         float header = 19;
-        float section = Math.min(59, height - 16 - header - 24);
+        float section = Math.min(59, height - 16 - header - 40);
         float panes = height - 2 * pad - header - section;
         boolean tomorrow = panes >= 52 + section;
         if (tomorrow) panes -= section;
@@ -979,7 +979,7 @@ public final class Logic {
     /** Exact positive summaries, from full wording to the narrowest single-line form. */
     public static List<String> daySummaries(String slots) {
         int on = count(slots, '1');
-        if (count(slots, '2') > 0) return java.util.Collections.singletonList("Графік неповний");
+        if (count(slots, '2') > 0) return java.util.Collections.nCopies(3, "Графік неповний");
         String pct = dayPercent(slots).replace("%", " %");
         String hours = (on % 2 == 0 ? String.valueOf(on / 2) : on / 2 + ",5") + " год";
         List<String> out = new ArrayList<>();

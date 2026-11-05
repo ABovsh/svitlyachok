@@ -241,7 +241,7 @@ final class WidgetArt {
         Logic.WideLayout w = Logic.wideLayout(Math.round(f.w / f.s), Math.round(f.h / f.s));
         float s = f.s;
         float side = w.side * s;
-        header(c, b, m, new float[] {side, w.pad * s, f.w - 2 * side, w.headerSize * s, s});
+        header(c, b, m, new float[] {side, w.pad * s, f.w - 2 * side, w.headerSize * s, s}, Logic.dayPercent(dayOf(m.tl, 0)));
         new Panes(c, b, m, future(m), new float[] {side, w.rowTop * s, w.columnWidth * s, w.rowHeight * s, s}, .30f).draw();
         bar(b, m.base, m.tl, now, new RectF(side, w.barTop * s, f.w - side, (w.barTop + w.barHeight) * s), s);
     }
@@ -252,7 +252,13 @@ final class WidgetArt {
         float pad = 8 * s;
         float width = f.w - 2 * pad;
         float[] layout = Logic.widgetGridLayout(Math.round(f.h / s));
-        header(c, b, m, new float[] {pad, pad, width, 13 * s, s});
+        if (layout[2] > 0 && Logic.widgetTomorrowMissing(dayOf(m.tl, 48))) {
+            layout[1] += layout[3];
+            layout[2] = 0;
+        }
+        String day = dayOf(m.tl, 0);
+        String total = f.h / s < 150 && day != null ? Logic.daySummaries(day).get(2) : Logic.dayPercent(day);
+        header(c, b, m, new float[] {pad, pad, width, 13 * s, s}, total);
         new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).draw();
         float first = (layout[0] + layout[1]) * s;
         dayGrid(c, b, dayOf(m.tl, 0), "Сьогодні", (float) Logic.index(m.base, now), new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
@@ -267,11 +273,14 @@ final class WidgetArt {
         Paint side = text(Ui.bold(c), 11 * s, day == null ? b.pal.muted : b.pal.onText, Paint.Align.RIGHT);
         float room = box.width() - label.measureText(title) - 5 * s;
         fit(side, total, room);
-        float baseline = box.top + 12 * s;
-        b.cv.drawText(title, box.left, baseline, label);
-        b.cv.drawText(total, box.right, baseline, side);
+        boolean heading = box.height() >= 50 * s || day == null;
+        if (heading) {
+            float baseline = box.top + 12 * s;
+            b.cv.drawText(title, box.left, baseline, label);
+            b.cv.drawText(total, box.right, baseline, side);
+        }
         if (day == null) return;
-        RectF cells = new RectF(box.left, box.top + 16 * s, box.right, box.bottom - 2 * s);
+        RectF cells = new RectF(box.left, box.top + (heading ? 16 * s : 2 * s), box.right, box.bottom - 2 * s);
         BarView.grid(b, day, now, cells, text(Ui.heavy(c), 13 * s, b.pal.text, Paint.Align.CENTER), -1, -1);
     }
 
@@ -281,10 +290,9 @@ final class WidgetArt {
     }
 
     /** box: x, y, width, size, scale. The name, and how much light today as the card says it. */
-    private static void header(Context c, Brush b, Model m, float[] box) {
+    private static void header(Context c, Brush b, Model m, float[] box, String percent) {
         float full = box[2];
         String title = Logic.withQueue(m.place, widgetName(m));
-        String percent = Logic.dayPercent(dayOf(m.tl, 0));
         Paint side = text(Ui.heavy(c), box[3] * .85f, b.pal.onText, Paint.Align.RIGHT);
         Paint name = fit(text(Ui.heavy(c), box[3], b.pal.text, Paint.Align.LEFT), title, Math.max(1, full - side.measureText(percent) - 8 * box[4]));
         float baseline = box[1] - name.ascent();

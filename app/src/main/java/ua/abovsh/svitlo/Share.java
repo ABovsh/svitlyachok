@@ -113,7 +113,7 @@ final class Share {
             Paint head = text(Ui.display(c), 16, pal.text);
             float y = line(title, top, head);
             if (slots == null) return line("Графік ще не опубліковано", y + 8 * S, text(Ui.body(c), 14, pal.muted));
-            y = light(Logic.dayLight(slots), head.measureText(title), top, head.getTextSize(), y);
+            y = light(Logic.daySummaries(slots).get(0), head.measureText(title), top, head.getTextSize(), y);
             y = bar(slots, nowRel, y + 12 * S);
             return chips(Logic.outages(slots, cur), y);
         }

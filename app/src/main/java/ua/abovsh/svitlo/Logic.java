@@ -981,8 +981,8 @@ public final class Logic {
     /** Name, two state panes, and either one full day or two half-day rows. */
     public static float[] widgetGridLayout(int height, boolean split) {
         float top = 27;
-        float sections = split ? 2 : 1;
-        float section = Math.min(split ? 34 : 59, ((float) height - 8 - top - 40) / sections);
+        float sections = split ? 2f : 1f;
+        float section = Math.min(split ? 34f : 59f, ((float) height - 8 - top - 40) / sections);
         float panes = (float) height - 8 - top - sections * section;
         return new float[] {top, panes, split ? 1 : 0, section};
     }

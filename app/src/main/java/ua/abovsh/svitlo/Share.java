@@ -140,26 +140,9 @@ final class Share {
 
         /** The day's bar with the hours under it and, for today, a stroke at now. */
         private float bar(String slots, float nowRel, float top) {
-            RectF bar = new RectF(left, top, right, top + 14 * S);
-            BarView.runs(b, slots, 0, 48, 0, bar, 2 * S);
-            Paint lab = text(Ui.bold(c), 10.5f, pal.dim);
-            lab.setTextAlign(Paint.Align.CENTER);
-            float sw = bar.width() / 48f;
-            for (int hr = 0; hr <= 24; hr += 6) {
-                String l = String.format(Locale.ROOT, "%02d", hr);
-                float half = lab.measureText(l) / 2;
-                b.cv.drawText(l, Math.max(left + half, Math.min(right - half, left + hr * 2 * sw)), bar.bottom + 15 * S, lab);
-            }
-            if (nowRel >= 0 && nowRel <= 48) {
-                float x = left + nowRel * sw;
-                b.p.setColor(Ui.Pal.MARKER_EDGE);
-                b.r.set(x - 2.5f * S, bar.top - 3 * S, x + 2.5f * S, bar.bottom + 3 * S);
-                b.cv.drawRoundRect(b.r, 2.5f * S, 2.5f * S, b.p);
-                b.p.setColor(Ui.Pal.MARKER);
-                b.r.set(x - 1.2f * S, bar.top - 2 * S, x + 1.2f * S, bar.bottom + 2 * S);
-                b.cv.drawRoundRect(b.r, 1.2f * S, 1.2f * S, b.p);
-            }
-            return bar.bottom + 20 * S;
+            RectF cells = new RectF(left, top, right, top + 55 * S);
+            BarView.grid(b, slots, nowRel, cells, text(Ui.heavy(c), 14, pal.text), -1, -1);
+            return cells.bottom + 6 * S;
         }
 
         /** The outages as chips: the one going on now filled red, the past ones faded. */

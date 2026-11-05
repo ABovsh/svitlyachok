@@ -79,7 +79,7 @@ final class WidgetArt {
         Logic.Now n = m.now;
         b.append('|').append(m.stale).append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
                 .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay);
-        b.append('|').append(n.hint).append('|').append(n.next).append('|').append(n.change);
+        b.append('|').append(n.hint).append('|').append(Logic.dayPercent(dayOf(m.tl, 0))).append('|').append(n.next).append('|').append(n.change);
         if (Logic.widgetForm(wDp, hDp) != Logic.W_ROW) {  // the bar moves every half hour
             b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
         }
@@ -183,13 +183,16 @@ final class WidgetArt {
         value.setTextSize(clock ? sized[2] : sized[0] * 1.2f);
         fit(value, next[1], tw);
         if (!clock && n.next == Logic.UNKNOWN) value.setColor(n.state == Logic.ON ? pal.status(Logic.ON) : pal.muted);
-        Paint name = fit(text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT), widgetName(m), tw);
+        String percent = Logic.dayPercent(dayOf(m.tl, 0));
+        Paint share = text(Ui.heavy(c), sized[0] * .8f, m.lit ? lit : pal.muted, Paint.Align.RIGHT);
+        Paint name = fit(text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT), widgetName(m), Math.max(1, tw - share.measureText(percent) - 4 * s));
         int eventInk = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
         Paint event = fit(text(Ui.heavy(c), sized[1], m.lit ? lit : eventInk, Paint.Align.LEFT), next[0], tw);
         float block = Logic.widgetRowBlock(sized);
         float y = (f.h - block) / 2f;
         smallNow(c, b, n.state, new float[] {left, y, y + block, sized[1], s});
-        capLine(b, widgetName(m), tx, y, name);
+        float nameBaseline = capLine(b, widgetName(m), tx, y, name);
+        b.cv.drawText(percent, f.w - pad * .8f, nameBaseline, share);
         float eventTop = clock ? .74f * sized[0] + sized[3]
                 : Logic.widgetEventTop(block, name.getTextSize(), event.getTextSize(), value.getTextSize());
         capLine(b, next[0], tx, y + eventTop, event);
@@ -239,79 +242,33 @@ final class WidgetArt {
         bar(b, m.base, m.tl, now, new RectF(side, w.barTop * s, f.w - side, (w.barTop + w.barHeight) * s), s);
     }
 
-    /** The whole card works: the name and today's light, both halves as large as they fit, then the days. */
+    /** The same hour cells as the app; never squeeze tomorrow into an unreadable strip. */
     private static void large(Context c, Brush b, Model m, long now, Frame f) {
-        Logic.WidgetLayout w = Logic.widgetLayout(Math.round(f.w / f.s), Math.round(f.h / f.s), true);
         float s = f.s;
-        float pad = w.pad * s;
+        float pad = 8 * s;
         float width = f.w - 2 * pad;
-        String[] next = future(m);
-        boolean said = next[0].startsWith("Завтра") || next[0].startsWith("Сьогодні й завтра");
-        boolean tomorrow = w.tomorrowHeight > 0 && !said;
-        String tomorrowDay = dayOf(m.tl, 48);
-        boolean secondBar = tomorrow && !Logic.widgetTomorrowMissing(tomorrowDay);
-        header(c, b, m, new float[] {pad, pad, width, w.headerSize * s, s});
-        float top = w.rowTop * s;
-        // what has nothing to show gives its height to the halves
-        float freed = 0;
-        if (w.sections) freed = (secondBar ? 0 : w.barHeight + w.labelHeight) + (tomorrow ? 0 : w.tomorrowHeight);
-        else if (!tomorrow) freed = w.tomorrowHeight;
-        freed *= s;
-        new Panes(c, b, m, next, new float[] {pad, top, w.columnWidth * s, w.rowHeight * s + freed, s}, w.sections ? SECTION_HEAD : .30f).draw();
-        String today = dayOf(m.tl, 0);
-        float barTop = w.barTop * s + freed;
-        bar(b, m.base, m.tl, now, new RectF(pad, barTop, f.w - pad, barTop + w.barHeight * s), s);
-        float labelY = barTop + (w.barHeight + w.labelSize + 1) * s;
-        if (w.sections) {
-            times(c, b, today, Logic.index(m.base, now), new float[] {pad, labelY, width, w.labelSize * s, s});
-            if (tomorrow) tomorrowSection(c, b, m, w, new float[] {pad, width, freed, s}, tomorrowDay, secondBar);
-            return;
+        float[] layout = Logic.widgetGridLayout(Math.round(f.h / s));
+        header(c, b, m, new float[] {pad, pad, width, 13 * s, s});
+        new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).draw();
+        float first = (layout[0] + layout[1]) * s;
+        dayGrid(c, b, dayOf(m.tl, 0), "Сьогодні", Logic.index(m.base, now), new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
+        if (layout[2] > 0) {
+            dayGrid(c, b, dayOf(m.tl, 48), "Завтра", -1, new RectF(pad, first + layout[3] * s, f.w - pad, f.h - pad), s);
         }
-        if (secondBar) {
-            float second = w.tomorrowBarTop * s;
-            tomorrowBar(b, m, new RectF(pad, second, f.w - pad, second + w.tomorrowBarHeight * s), s);
-            tomorrowWords(c, b, tomorrowDay, new float[] {pad, second + (w.tomorrowBarHeight + w.labelSize + 1) * s, width, w.labelSize * s});
-            return;
-        }
-        times(c, b, today, Logic.index(m.base, now), new float[] {pad, labelY, width, w.labelSize * s, s});
-        if (tomorrow) tomorrowLine(c, b, m, new float[] {pad, w.tomorrowTop * s, width, w.tomorrowHeight * s});
     }
 
-    /** box: x, width, freed height, scale. As on the card: the day and its light, its bar, its times. */
-    private static void tomorrowSection(Context c, Brush b, Model m, Logic.WidgetLayout w, float[] box, String day, boolean hasBar) {
-        float pad = box[0];
-        float width = box[1];
-        float s = box[3];
-        float titleTop = w.tomorrowTitleTop * s + box[2];
-        java.time.LocalDate date = m.base.plusDays(1);
-        Paint title = text(Ui.heavy(c), w.headerSize * s, b.pal.text, Paint.Align.LEFT);
-        String words = "Завтра, " + date.getDayOfMonth() + "." + date.getMonthValue();
-        drawCentred(b, words, pad, titleTop, w.tomorrowHeight * s, title);
-        String summary = hasBar ? Logic.widgetToday(day) : "графік ще не опубліковано";
-        Paint side = fit(text(Ui.bold(c), w.headerSize * .9f * s, hasBar ? b.pal.onText : b.pal.muted, Paint.Align.RIGHT), summary, width - title.measureText(words) - 8 * s);
-        drawCentred(b, summary, pad + width, titleTop, w.tomorrowHeight * s, side);
-        if (!hasBar) return;
-        float second = w.tomorrowBarTop * s;
-        tomorrowBar(b, m, new RectF(pad, second, pad + width, second + w.barHeight * s), s);
-        times(c, b, day, -1, new float[] {pad, second + (w.barHeight + w.labelSize + 1) * s, width, w.labelSize * s, s});
-    }
-
-    /** box: x, baseline, width, size. Where a low widget has no room for a section: tomorrow's light in words. */
-    private static void tomorrowWords(Context c, Brush b, String day, float[] box) {
-        Paint name = text(Ui.heavy(c), box[3], b.pal.muted, Paint.Align.LEFT);
-        b.cv.drawText("завтра", box[0], box[1], name);
-        Paint side = fit(text(Ui.bold(c), box[3], b.pal.onText, Paint.Align.RIGHT), Logic.widgetToday(day), box[2] - name.measureText("завтра") - 8);
-        b.cv.drawText(Logic.widgetToday(day), box[0] + box[2], box[1], side);
-    }
-
-    /** box: x, baseline, width, size, scale. The clock times of the changes, in their colours, as on the card. */
-    private static void times(Context c, Brush b, String day, int cur, float[] box) {
+    private static void dayGrid(Context c, Brush b, String day, String title, float now, RectF box, float s) {
+        Paint label = text(Ui.heavy(c), 11 * s, b.pal.text, Paint.Align.LEFT);
+        String total = day == null ? "графіка ще немає" : Logic.daySummaries(day).get(2);
+        Paint side = text(Ui.bold(c), 11 * s, day == null ? b.pal.muted : b.pal.onText, Paint.Align.RIGHT);
+        float room = box.width() - label.measureText(title) - 5 * s;
+        fit(side, total, room);
+        float baseline = box.top + 12 * s;
+        b.cv.drawText(title, box.left, baseline, label);
+        b.cv.drawText(total, box.right, baseline, side);
         if (day == null) return;
-        Paint p = text(Ui.heavy(c), box[3], b.pal.text, Paint.Align.CENTER);
-        for (Logic.Label l : Logic.barLabels(day, cur, box[2], p.measureText("00:00"), 5 * box[4])) {
-            p.setColor(b.pal.status(l.kind));
-            b.cv.drawText(Logic.clock(l.slot), box[0] + l.x, box[1], p);
-        }
+        RectF cells = new RectF(box.left, box.top + 16 * s, box.right, box.bottom - 2 * s);
+        BarView.grid(b, day, now, cells, text(Ui.heavy(c), 13 * s, b.pal.text, Paint.Align.CENTER), -1, -1);
     }
 
     private static String dayOf(String tl, int from) {
@@ -323,17 +280,12 @@ final class WidgetArt {
     private static void header(Context c, Brush b, Model m, float[] box) {
         float full = box[2];
         String title = Logic.withQueue(m.place, widgetName(m));
-        Paint name = fit(text(Ui.heavy(c), box[3], b.pal.text, Paint.Align.LEFT), title, full);
-        line(b, title, box[0], box[1], name);
-        String total = Logic.widgetToday(dayOf(m.tl, 0));
-        if (total.isEmpty()) return;
-        Paint side = text(Ui.bold(c), box[3] * .9f, b.pal.onText, Paint.Align.RIGHT);
-        float free = full - name.measureText(title) - 10 * box[4];
-        String wide = "сьогодні " + total;
-        String words = side.measureText(wide) <= free ? wide : total;
-        if (side.measureText(words) > free) return;  // the name matters more
+        String percent = Logic.dayPercent(dayOf(m.tl, 0));
+        Paint side = text(Ui.heavy(c), box[3] * .85f, b.pal.onText, Paint.Align.RIGHT);
+        Paint name = fit(text(Ui.heavy(c), box[3], b.pal.text, Paint.Align.LEFT), title, Math.max(1, full - side.measureText(percent) - 8 * box[4]));
         float baseline = box[1] - name.ascent();
-        b.cv.drawText(words, box[0] + full, baseline, side);
+        b.cv.drawText(title, box[0], baseline, name);
+        b.cv.drawText(percent, box[0] + full, baseline, side);
     }
 
     private static float height(Paint p) {
@@ -492,17 +444,6 @@ final class WidgetArt {
         b.cv.drawText(words, x, y + (rowHeight - height(p)) / 2 - p.ascent(), p);
     }
 
-    /** box: x, y, width, height. All of tomorrow's outages when they fit, otherwise their count and total. */
-    private static void tomorrowLine(Context c, Brush b, Model m, float[] box) {
-        String day = dayOf(m.tl, 48);
-        String[] words = Logic.widgetTomorrow(day);
-        boolean missing = Logic.widgetTomorrowMissing(day);  // nothing to read here: it stays out of the way
-        Paint p = text(Ui.body(c), box[3] * (missing ? .56f : .7f), missing ? Ui.fade(b.pal.muted, .6f) : b.pal.text, Paint.Align.LEFT);
-        String shown = words[sizeToFit(p, words[0], box[2]) >= p.getTextSize() * .8f ? 0 : 1];
-        fit(p, shown, box[2]);
-        drawCentred(b, shown, box[0], box[1], box[3], p);
-    }
-
     /** A line of text whose top is at y; returns the y under it. */
     private static float line(Brush b, String text, float x, float y, Paint p) {
         b.cv.drawText(text, x, y - p.ascent(), p);
@@ -528,12 +469,6 @@ final class WidgetArt {
         b.cv.drawRect(marker - 1.7f*s, bounds.top - 2.7f*s, marker + 1.7f*s, bounds.bottom + 2.7f*s, b.p);
         b.p.setColor(Ui.Pal.MARKER);
         b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
-    }
-
-    /** Tomorrow under today, on the same hours. */
-    private static void tomorrowBar(Brush b, Model m, RectF bounds, float s) {
-        BarView.runs(b, m.tl, 48, 48, 0, new RectF(bounds), 1.5f * s);
-        hourLines(b, bounds, s);
     }
 
     private static void hourLines(Brush b, RectF bounds, float s) {

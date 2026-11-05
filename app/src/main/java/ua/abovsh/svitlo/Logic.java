@@ -944,10 +944,42 @@ public final class Logic {
         return false;
     }
 
+    /** Keep the normal type size: shorten only the long outage state when it needs the room. */
+    public static String fittedState(String text, float measured, float available) {
+        return text.equals("Світла немає") && measured > available ? "Немає" : text;
+    }
+
+    /** Only a complete known day has a precise daily percentage; possible outages are not counted as power. */
+    public static String dayPercent(String day) {
+        if (day == null || day.length() != 48 || count(day, '2') > 0) return "—";
+        return (count(day, '3') > 0 ? "≥" : "") + Math.round(count(day, '1') * 100f / 48) + "%";
+    }
+
+    /** A tap on the two rows of twelve hours, including which half of its hour it hits. */
+    public static int hourGridSlot(float x, float y, float width, float height) {
+        float gap = height * 3 / 55;
+        float cell = Math.max(1, (width - gap * 11) / 12);
+        int column = Math.max(0, Math.min(11, (int) (x / (cell + gap))));
+        int hour = (y >= height / 2 ? 12 : 0) + column;
+        return hour * 2 + (x - column * (cell + gap) >= cell / 2 ? 1 : 0);
+    }
+
+    /** Geometry of a full widget: preserve at least 52 dp for its two state panes; tomorrow fits only as a full section. */
+    public static float[] widgetGridLayout(int height) {
+        float pad = 8;
+        float header = 19;
+        float section = Math.min(59, height - 16 - header - 24);
+        float panes = height - 2 * pad - header - section;
+        boolean tomorrow = panes >= 52 + section;
+        if (tomorrow) panes -= section;
+        return new float[] {pad + header, panes, tomorrow ? 1 : 0, section};
+    }
+
     /** Exact positive summaries, from full wording to the narrowest single-line form. */
     public static List<String> daySummaries(String slots) {
         int on = count(slots, '1');
-        String pct = Math.round(on * 100f / 48) + " %";
+        if (count(slots, '2') > 0) return java.util.Collections.singletonList("Графік неповний");
+        String pct = dayPercent(slots).replace("%", " %");
         String hours = (on % 2 == 0 ? String.valueOf(on / 2) : on / 2 + ",5") + " год";
         List<String> out = new ArrayList<>();
         out.add(hoursMinutes(on * 30) + LIGHT_SHARE + pct);
@@ -1225,10 +1257,10 @@ public final class Logic {
 
     private static String eventWhat(int kind, boolean maybe) {
         switch (kind) {
-            case Event.SOON_OFF: return maybe ? "Можливе вимкнення" : "Скоро вимкнуть світло";
-            case Event.SOON_ON: return "Скоро увімкнуть світло";
-            case Event.AT_OFF: return maybe ? "Можливе вимкнення за графіком" : "Вимкнення за графіком";
-            default: return "Світло має з'явитися";
+            case Event.SOON_OFF: return maybe ? "Можливе вимкнення" : "Вимкнуть світло";
+            case Event.SOON_ON: return "Увімкнуть світло";
+            case Event.AT_OFF: return maybe ? "Можливе вимкнення" : "За графіком: немає";
+            default: return "За графіком: є";
         }
     }
 
@@ -1250,6 +1282,7 @@ public final class Logic {
         public int kind;
         public String title = "";
         public String day = "";
+        public String key = "";  // schedule content, independent of its short visible summary
         public String text = "";
     }
 
@@ -1290,18 +1323,15 @@ public final class Logic {
     private static Note note(Place p, String b, String a, int from, boolean today) {
         if (a == null) return null;  // not published, or a glitch of the source
         Note n = new Note();
-        if (b == null) {
-            n.kind = Note.PUBLISHED;
-            n.title = headed(SCHEDULE_MARK, "графік на " + (today ? TODAY_WORD : TOMORROW_WORD));
-            int k = offCount(a);
-            n.text = named(p.name, k == 0 ? uncertainDay(a, "Вимкнень не заплановано") : outagesWord(k) + ", " + dayTotal(a) + ": " + list(a));
-            return n;
-        }
-        if (!outagesChanged(b, a, from)) return null;
-        n.kind = Note.CHANGED;
-        n.title = headed(SCHEDULE_MARK, "графік змінився");
-        String w = today ? "Сьогодні" : "Завтра";
-        n.text = named(p.name, offCount(a) == 0 ? w + ": " + uncertainDay(a, NO_OUTAGES) : w + " " + dayTotal(a) + ": " + list(a));
+        if (b != null && !outagesChanged(b, a, from)) return null;
+        n.kind = b == null ? Note.PUBLISHED : Note.CHANGED;
+        n.title = headed(SCHEDULE_MARK, "графік оновлено");
+        n.key = a;
+        String when = today ? "Сьогодні" : "Завтра";
+        String summary = daySummaries(a).get(0);
+        if (count(a, '2') > 0) summary = "Графік неповний";
+        if (count(a, '3') > 0) summary += " · Можливі вимкнення";
+        n.text = named(p.name, when + " · " + summary);
         return n;
     }
 
@@ -1954,15 +1984,15 @@ public final class Logic {
     /** One line under the card: when the schedule was checked and, when known, published. */
     public static String checkedLine(long checked, long updated, long now) {
         if (checked <= 0) return "";
-        String line = "Перевірено о " + hm(checked);
+        String line = "Перевірено: " + hm(checked);
         if (updated <= 0) return line;
         String day = dayDiff(updated, now) == 0 ? "" : dayWord(updated, now) + " ";
-        return line + " · опубліковано " + day + "о " + hm(updated);
+        return "Розклад оновлено: " + day + hm(updated) + " · " + line;
     }
 
     /** The button of the help on a power cut the schedule does not show. */
     public static String helpSite(Region r) {
-        return r.id.equals("kyiv") ? "Сайт «Без світла» ›" : "Сайт обленерго ›";
+        return r.id.equals("kyiv") ? "Сайт «Без світла» ›" : "Сайт для " + r.name.replace("а область", "ої області") + " ›";
     }
 
     /** The difference of two weeks in the places table; no claim without data. */

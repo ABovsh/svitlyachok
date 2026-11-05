@@ -397,8 +397,8 @@ public class MainActivity extends Base {
         Logic.Now n = Logic.now(Logic.timeline(d, p.group, base), base, now, d != null && d.none);
         if (d == null) { n.title = loading ? "Завантажую" : "Графіка немає"; n.big = ""; }
         LinearLayout t = Ui.row(this);
-        t.setMinimumHeight(Ui.dp(this, 60));
-        int pad = Ui.dp(this, chosen ? 7 : 8);
+        t.setMinimumHeight(Ui.dp(this, 56));
+        int pad = Ui.dp(this, chosen ? 5 : 6);
         t.setPadding(pad, pad, Ui.dp(this, 3), pad);  // the lit line of a coming change needs the room
         BulbView bulb = new BulbView(this, pal);
         bulb.still(); bulb.set(n.state);
@@ -407,7 +407,8 @@ public class MainActivity extends Base {
         t.addView(bulb, bl);
         LinearLayout words = Ui.column(this);
         boolean named = !Logic.autoNamed(p);
-        words.addView(tileName(p, chosen && named), fill());
+        String day = Logic.day(d, p.group, base);
+        words.addView(tileName(p, chosen && named, Logic.dayPercent(day)), fill());
         // the same rule as the big card: lit as soon as the notifications of this place would speak
         boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
         TextView status = Ui.text(this, 14, Ui.bold(this), soon ? chipInk(n.next) : pal.status(n.state));
@@ -426,12 +427,6 @@ public class MainActivity extends Base {
         bg.setStroke(edge, chosen ? pal.accentText : pal.line);
         card.setBackground(bg);
         card.addView(t, new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        String day = Logic.day(d, p.group, base);
-        if (day != null) {  // in the padding under the words: the tile is as high as it was
-            android.widget.FrameLayout.LayoutParams line = new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 5), Gravity.BOTTOM);
-            line.setMargins(edge, 0, edge, edge);
-            card.addView(new DayStrip(this, pal, day, Logic.index(base, now) + (Logic.z(now).getMinute() % 30) / 30f, Ui.px(this, 15) - edge), line);
-        }
         card.setContentDescription((named ? p.name + ", черга " + Logic.queue(p.group) : p.name) + ": " + n.title
                 + (n.big.isEmpty() ? "" : ", " + n.big) + (soon ? ", скоро зміна" : "") + (chosen ? ", вибрано" : ", показати графік"));
         card.setOnClickListener(v -> { Prefs.setCurrent(this, p.id); render(); scroll.smoothScrollTo(0, 0); });
@@ -439,7 +434,7 @@ public class MainActivity extends Base {
     }
 
     /** The large widget's two halves: what is now and since when, what comes and when; and how long each. */
-    private View tileName(Logic.Place p, boolean withQueue) {
+    private View tileName(Logic.Place p, boolean withQueue, String percent) {
         FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
         TextView label = Ui.text(this, 14, Ui.heavy(this), pal.text);
         label.setText(p.name);
@@ -451,7 +446,15 @@ public class MainActivity extends Base {
             queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
             name.addView(queue);
         }
-        return name;
+        LinearLayout row = Ui.row(this);
+        row.addView(name, weight());
+        TextView share = Ui.text(this, 11, Ui.heavy(this), pal.muted);
+        share.setText(percent);
+        share.setSingleLine(true);
+        share.setPadding(Ui.dp(this, 3), 0, 0, 0);
+        share.setContentDescription("Очікується світла сьогодні: " + percent);
+        row.addView(share, wrap());
+        return row;
     }
 
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
@@ -519,11 +522,23 @@ public class MainActivity extends Base {
     }
 
     private TextView word(String text, int ink) {
-        TextView t = Ui.text(this, 20, Ui.heavy(this), ink);
+        TextView t = new TextView(this) {
+            @Override protected void onMeasure(int width, int height) {
+                float room = MeasureSpec.getMode(width) == MeasureSpec.UNSPECIFIED ? Float.MAX_VALUE
+                        : MeasureSpec.getSize(width) - getCompoundPaddingLeft() - getCompoundPaddingRight();
+                String fitted = Logic.fittedState(text, getPaint().measureText(text), room);
+                if (!fitted.contentEquals(getText())) setText(fitted);
+                super.onMeasure(width, height);
+            }
+        };
+        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+        t.setTypeface(Ui.heavy(this));
+        t.setTextColor(ink);
+        t.setIncludeFontPadding(false);
         t.setText(text);
         if (stacked()) return t;  // a whole row to itself: a long word wraps rather than shrinks
         t.setSingleLine(true);
-        t.setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        if (!text.equals("Світла немає")) t.setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         return t;
     }
 
@@ -721,7 +736,7 @@ public class MainActivity extends Base {
             inner.addView(none, fill());
             return;
         }
-        BarView bar = new BarView(this, pal, tomorrow ? 0 : 7); bar.set(slots, tomorrow ? -1 : nowRel);
+        BarView bar = new BarView(this, pal); bar.set(slots, tomorrow ? -1 : nowRel);
         if (!tomorrow) clockUpdates.add(() -> {
             long time=Sync.now();bar.set(slots,Logic.index(date,time)+(Logic.z(time).getMinute()%30)/30f);
         });

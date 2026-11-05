@@ -45,7 +45,7 @@ final class AlertsSheet {
         col.addView(title, Base.fill());
         TextView why = Ui.text(a, 14, Ui.body(a), a.pal.muted);
         why.setLineSpacing(0, 1.1f);
-        why.setText("На екрані графік обленерго, а не вимірювання у вашому домі. Причиною можуть бути екстрені відключення, аварія або ремонт на лінії.");
+        why.setText("Графік не вимірює стан мережі. Можливі екстрені вимкнення, аварія, ремонт, затримка даних або несправність вводу чи автомата.");
         why.setPadding(Ui.dp(a, 6), Ui.dp(a, 8), Ui.dp(a, 6), Ui.dp(a, 12));
         col.addView(why, Base.fill());
         Logic.Region r = Logic.region(place.region);
@@ -60,7 +60,7 @@ final class AlertsSheet {
         }
         TextView note = Ui.text(a, 13, Ui.body(a), a.pal.muted);
         note.setLineSpacing(0, 1.1f);
-        note.setText("Графік оновлюється автоматично. Екстрених відключень у ньому може не бути.");
+        note.setText("Якщо проблема лише у вашому будинку, зверніться до електрика.");
         note.setPadding(Ui.dp(a, 6), Ui.dp(a, 10), Ui.dp(a, 6), 0);
         col.addView(note, Base.fill());
         sheet(a, col, () -> { });

@@ -270,8 +270,8 @@ final class Sync {
             for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
                 boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
                 // the source may drop a day and bring it back unchanged: that is nothing new to the person
-                if (!wanted || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.text)) continue;
-                Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.text));
+                if (!wanted || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
+                Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.key));
                 post(c, p.id, CH_SCHEDULE, n.title, n.text);
             }
         }
@@ -330,8 +330,8 @@ final class Sync {
         String name = at == null || ps.size() < 2 ? "" : at.name + " · ";
         String id = at == null ? "" : at.id;
         long gone = now() + 600;
-        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + "Скоро вимкнуть світло", name, false, gone), true);
-        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + "Скоро увімкнуть світло", name, true, gone), true);
+        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + "Вимкнуть світло", name, false, gone), true);
+        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + "Увімкнуть світло", name, true, gone), true);
     }
 
     private static Logic.Notice sample(String title, String name, boolean on, long until) {

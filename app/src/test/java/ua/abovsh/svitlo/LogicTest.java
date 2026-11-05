@@ -243,13 +243,13 @@ public class LogicTest {
         Logic.Event e = Logic.events(home(), t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
         Logic.Notice s = Logic.eventText(e, t, OCT30);
         // the place opens the second line: the title stays short enough for one line
-        assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", s.title);
+        assertEquals("\uD83D\uDD34 Вимкнуть світло", s.title);
         assertEquals("Дім · о 14:30", s.text);
         assertFalse(s.on);
         assertEquals(at(14, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
         Logic.Notice n = Logic.eventText(on, t, OCT30);
-        assertEquals("\uD83D\uDFE2 Скоро увімкнуть світло", n.title);
+        assertEquals("\uD83D\uDFE2 Увімкнуть світло", n.title);
         assertEquals("Дім · о 18:30", n.text);
         assertTrue(n.on);
         assertEquals(at(18, 30), n.until);
@@ -269,11 +269,11 @@ public class LogicTest {
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
         Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30);
-        assertEquals("\uD83D\uDD34 Вимкнення за графіком", off.title);
+        assertEquals("\uD83D\uDD34 За графіком: немає", off.title);
         assertEquals("Дім · до 18:30", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
         Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30);
-        assertEquals("\uD83D\uDFE2 Світло має з'явитися", on.title);
+        assertEquals("\uD83D\uDFE2 За графіком: є", on.title);
         assertEquals("Дім · за графіком з 18:30", on.text);
     }
 
@@ -647,8 +647,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Графік на завтра", n.get(0).title);
-        assertEquals("Дім · 2 вимкнення, без світла 4 год: 00:00 – 02:00, 20:00 – 22:00", n.get(0).text);
+        assertEquals("\uD83D\uDCC5 Графік оновлено", n.get(0).title);
+        assertEquals("Дім · Завтра · 20 год світла · 83 %", n.get(0).text);
     }
 
     @Test
@@ -658,8 +658,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), after, at(12, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.CHANGED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Графік змінився", n.get(0).title);
-        assertEquals("Дім · Сьогодні без світла 7 год: 06:00 – 08:00, 14:30 – 18:30, 19:00 – 20:00", n.get(0).text);
+        assertEquals("\uD83D\uDCC5 Графік оновлено", n.get(0).title);
+        assertEquals("Дім · Сьогодні · 17 год світла · 71 %", n.get(0).text);
     }
 
     @Test
@@ -678,7 +678,7 @@ public class LogicTest {
         String clean = HOURS_11_TOMORROW.replace("\"no\"", "\"yes\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31
                 + "\":{\"GPV1.1\":" + clean + "}}"));
-        assertEquals("Дім · Вимкнень не заплановано", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
+        assertEquals("Дім · Завтра · 24 год світла · 100 %", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
     }
 
     @Test
@@ -809,13 +809,13 @@ public class LogicTest {
         Logic.Event e = Logic.events(only, t, OCT30, at(10, 0), new Logic.Alerts()).get(0);
         assertEquals("p1", e.place);
         Logic.Notice n = Logic.eventText(e, t, OCT30);
-        assertEquals("\uD83D\uDD34 Скоро вимкнуть світло", n.title);
+        assertEquals("\uD83D\uDD34 Вимкнуть світло", n.title);
         assertEquals("о 14:30", n.text);
         List<Logic.Note> tomorrow = Logic.notes(only, data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
-        assertEquals("\uD83D\uDCC5 Графік на завтра", tomorrow.get(0).title);
+        assertEquals("\uD83D\uDCC5 Графік оновлено", tomorrow.get(0).title);
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}"));
-        assertEquals("\uD83D\uDCC5 Графік змінився", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
+        assertEquals("\uD83D\uDCC5 Графік оновлено", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
     }
 
     // ---- 1.3.1: the update downloads inside the app ----------------------------------
@@ -1899,16 +1899,16 @@ public class LogicTest {
 
     @Test
     public void theFooterSaysWhenCheckedAndPublishedInOneLine() {
-        assertEquals("Перевірено о 13:00 · опубліковано о 12:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 5)));
-        assertEquals("Перевірено о 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 5)));
+        assertEquals("Розклад оновлено: 12:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 5)));
+        assertEquals("Перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 5)));
         assertEquals("", Logic.checkedLine(0, 0, at(13, 5)));
-        assertEquals("Перевірено о 13:00 · опубліковано вчора о 22:00", Logic.checkedLine(at(13, 0), at(-2, 0), at(13, 5)));
+        assertEquals("Розклад оновлено: вчора 22:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(-2, 0), at(13, 5)));
     }
 
     @Test
     public void theHelpButtonNamesTheSiteItOpens() {
         assertEquals("Сайт «Без світла» ›", Logic.helpSite(Logic.region("kyiv")));
-        assertEquals("Сайт обленерго ›", Logic.helpSite(Logic.region("kyiv_region")));
+        assertEquals("Сайт для Київської області ›", Logic.helpSite(Logic.region("kyiv_region")));
     }
 
     @Test
@@ -2017,5 +2017,77 @@ public class LogicTest {
         Logic.Now n = new Logic.Now();
         n.state = Logic.MAYBE; n.title = "Можливе вимкнення"; n.big = "до 18:30";
         assertEquals("Можливе вимкнення", Logic.tileLine(n));
+    }
+    @Test public void scheduleNoticeIsShortAndNamesTheDay() throws Exception {
+        Logic.Note n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0)).get(0);
+        assertEquals("\uD83D\uDCC5 Графік оновлено", n.title);
+        assertTrue(n.text, n.text.startsWith("Дім · Завтра · "));
+        assertTrue(n.text, n.text.contains("світла · "));
+        assertTrue(n.text, n.text.endsWith("%"));
+        assertFalse(n.text, n.text.contains(" – "));
+    }
+
+    @Test public void publishedTimePrecedesTheSeparateCheckTime() {
+        assertEquals("Розклад оновлено: 12:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 0)));
+        assertEquals("Перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 0)));
+    }
+
+    @Test public void helpLinkNamesTheSelectedRegion() {
+        assertEquals("Сайт для Київської області ›", Logic.helpSite(Logic.region("kyiv_region")));
+        assertEquals("Сайт для Львівської області ›", Logic.helpSite(Logic.region("lviv")));
+    }
+    @Test public void percentagesKeepZeroUncertaintyAndUnknownDistinct() {
+        assertEquals("0%", Logic.dayPercent(repeat('0', 48)));
+        assertEquals("100%", Logic.dayPercent(repeat('1', 48)));
+        assertEquals("46%", Logic.dayPercent(repeat('1', 22) + repeat('0', 26)));
+        assertEquals("≥50%", Logic.dayPercent(repeat('1', 24) + repeat('3', 24)));
+        assertEquals("—", Logic.dayPercent(null));
+        assertEquals("—", Logic.dayPercent(""));
+        assertEquals("—", Logic.dayPercent(repeat('1', 47) + "2"));
+        assertEquals(Arrays.asList("Графік неповний"), Logic.daySummaries(repeat('1', 47) + "2"));
+    }
+
+    @Test public void twoRowsCoverEveryHalfHourIncludingBothEdges() {
+        for (int slot = 0; slot < 48; slot++) {
+            float x = (slot / 2 % 12 + (slot % 2 == 0 ? .25f : .75f)) * 25;
+            float y = slot < 24 ? 12 : 42;
+            assertEquals(slot, Logic.hourGridSlot(x, y, 300, 55));
+        }
+        assertEquals(0, Logic.hourGridSlot(-1, 0, 300, 55));
+        assertEquals(47, Logic.hourGridSlot(300, 55, 300, 55));
+        assertEquals(23, Logic.hourGridSlot(300, 0, 300, 55));
+        assertTrue(Logic.hourGridSlot(0, 0, 0, 0) >= 0);
+    }
+
+    @Test public void fullWidgetReservesReadablePanesAndHidesTomorrowWhenItDoesNotFit() {
+        for (int h : new int[] {110, 120, 150, 176, 190, 220, 260}) {
+            float[] box = Logic.widgetGridLayout(h);
+            assertTrue(box[1] >= 24);
+            assertEquals(h - 8, box[0] + box[1] + box[3] * (box[2] > 0 ? 2 : 1), .01f);
+            if (box[2] > 0) assertTrue(box[1] >= 52);
+        }
+        assertEquals(0, Logic.widgetGridLayout(150)[2], 0);
+        assertEquals(1, Logic.widgetGridLayout(220)[2], 0);
+    }
+
+    @Test public void aMovedScheduleWithTheSameSummaryKeepsItsOwnIdentity() throws Exception {
+        Logic.Note a = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0)).get(0);
+        Logic.Data moved = data(WITH_TOMORROW);
+        String day = Logic.day(moved, home().group, OCT30.plusDays(1));
+        String rotated = day.substring(2) + day.substring(0, 2);
+        // The same number of hours at a different time must still produce a different notification key.
+        assertEquals(Logic.daySummaries(day), Logic.daySummaries(rotated));
+        String memory = Logic.rememberNote("", a.day, a.key);
+        assertTrue(Logic.noteSeen(memory, a.day, a.key));
+        moved.days.get(OCT30.plusDays(1)).put(home().group, rotated);
+        Logic.Note next = Logic.notes(home(), data(WITH_TOMORROW), moved, at(19, 0)).get(0);
+        assertEquals(a.text, next.text);
+        assertFalse(Logic.noteSeen(memory, next.day, next.key));
+    }
+
+    @Test public void outageStateShortensOnlyWhenItsNormalTypeDoesNotFit() {
+        assertEquals("Немає", Logic.fittedState("Світла немає", 150, 130));
+        assertEquals("Світла немає", Logic.fittedState("Світла немає", 150, 150));
+        assertEquals("Світло є", Logic.fittedState("Світло є", 150, 130));
     }
 }

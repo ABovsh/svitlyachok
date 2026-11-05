@@ -36,6 +36,7 @@ final class Sync {
     private static final String NOTICE_GROUP = "places";
     private static final int SUMMARY_ID = 900;
     private static final String REMINDER_PLACE = "reminder_place";
+    private static final String NOTICE_PLACE = "notice_place";
 
     private Sync() {}
 
@@ -210,7 +211,7 @@ final class Sync {
                 .putExtra(MainActivity.EXTRA_PLACE, place);
         Intent dismissed = new Intent(c, AlarmReceiver.class).setAction(ACTION_DISMISS);
         Bundle identity = new Bundle();
-        identity.putString("notice_place", place);
+        identity.putString(NOTICE_PLACE, place);
         Notification.Builder b = new Notification.Builder(c, channel)
                 .setSmallIcon(icon)
                 .setColor(colour)
@@ -242,7 +243,7 @@ final class Sync {
         List<android.service.notification.StatusBarNotification> children = new ArrayList<>();
         Set<String> places = new java.util.HashSet<>();
         for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
-            String place = active.getNotification().extras.getString("notice_place", "");
+            String place = active.getNotification().extras.getString(NOTICE_PLACE, "");
             if (isGroupChild(active)) {
                 children.add(active);
                 places.add(place);
@@ -290,7 +291,7 @@ final class Sync {
     private static boolean isGroupChild(android.service.notification.StatusBarNotification active) {
         int id = active.getId();
         return id != SUMMARY_ID && id != 998 && id != 999
-                && !active.getNotification().extras.getString("notice_place", "").isEmpty();
+                && !active.getNotification().extras.getString(NOTICE_PLACE, "").isEmpty();
     }
 
     private static boolean sameGroup(NotificationManager manager, String signature) {

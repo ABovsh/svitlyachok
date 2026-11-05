@@ -150,7 +150,7 @@ public class MainActivity extends Base {
                 new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
         android.graphics.Paint title = new android.graphics.Paint(name.getPaint());
         title.setTextSize(Ui.sp(this, 16));
-        float titleRoom = Ui.px(this, getResources().getConfiguration().screenWidthDp - 32 - 38 - 20 - 2 * HERO_BUTTON - 8);
+        float titleRoom = Ui.px(this, getResources().getConfiguration().screenWidthDp - 32f - 38 - 20 - 2 * HERO_BUTTON - 8);
         if (title.measureText(name.getText().toString()) > titleRoom) {
             // Give large text the full width instead of trapping it between three icons.
             r.removeView(t); t.removeView(name); t.removeView(sub);

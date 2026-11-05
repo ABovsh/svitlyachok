@@ -538,6 +538,7 @@ public class MainActivity extends Base {
         t.setText(text);
         if (stacked()) return t;  // a whole row to itself: a long word wraps rather than shrinks
         t.setSingleLine(true);
+        t.setHorizontallyScrolling(false);  // autosize must use the column width, not an unlimited scroll area
         if (!text.equals("Світла немає")) t.setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         return t;
     }

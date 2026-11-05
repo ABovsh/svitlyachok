@@ -225,7 +225,8 @@ final class Sync {
                 .setDeleteIntent(PendingIntent.getBroadcast(c, id, dismissed, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
                 .setContentIntent(PendingIntent.getActivity(c, id, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
-        if (Prefs.places(c).size() > 1) b.setGroup(NOTICE_GROUP).setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN);
+        // Probes stay standalone; every grouped real notice needs a summary, even the first child.
+        if (Prefs.places(c).size() > 1 && id >= 1000) b.setGroup(NOTICE_GROUP).setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN);
         if (silent) b.setOnlyAlertOnce(true);
         if (reminder) decorateReminder(b, place, n);
         b.setStyle(new Notification.BigTextStyle().bigText(n.text));
@@ -250,7 +251,7 @@ final class Sync {
                 places.add(place);
             }
         }
-        if (Prefs.places(c).size() < 2 || children.size() < 2) {
+        if (Prefs.places(c).size() < 2 || children.isEmpty()) {
             manager.cancel(SUMMARY_ID);
             lastGroupContent = "";
             return;

@@ -105,7 +105,7 @@ final class BarView extends View {
             char state = at(slots, hour * 2 + half);
             RectF part = b.r2;
             part.set(cell.left + half * cell.width() / 2, cell.top, cell.left + (half + 1) * cell.width() / 2, cell.bottom);
-            b.p.setStyle(Paint.Style.FILL); b.p.setColor(b.pal.fill(Logic.state(state)));
+            b.p.setStyle(Paint.Style.FILL); b.p.setColor(Ui.blend(b.pal.card, b.pal.slot(state)));
             b.cv.drawRect(part, b.p);
             if (state == '3') stripes(b, part);
         }

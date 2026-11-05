@@ -758,6 +758,7 @@ public class MainActivity extends Base {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         String line = Logic.checkedLine(Store.checkedAt(this, p.region), d != null ? d.updated : 0, now);
+        if (stacked()) line = line.replace("Розклад оновлено:", "Оновлено:");
         if (!line.isEmpty()) {
             TextView t = Ui.text(this, 13, Ui.body(this), pal.muted);
             t.setText(line);

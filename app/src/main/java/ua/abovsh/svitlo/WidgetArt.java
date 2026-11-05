@@ -182,7 +182,7 @@ final class WidgetArt {
         float[] sized = Logic.widgetRowSizes(rowH, clock ? sizeToFit(value, next[1], tw) : Float.MAX_VALUE);
         value.setTextSize(clock ? sized[2] : sized[0] * 1.2f);
         fit(value, next[1], tw);
-        if (!clock && n.next == Logic.UNKNOWN) value.setColor(n.state == Logic.ON ? pal.status(Logic.ON) : pal.muted);
+        if (!clock && n.next == Logic.UNKNOWN) value.setColor(unknownValueInk(n, pal));
         String percent = Logic.dayPercent(dayOf(m.tl, 0));
         Paint share = text(Ui.heavy(c), sized[0] * .8f, m.lit ? lit : pal.muted, Paint.Align.RIGHT);
         Paint name = fit(text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT), widgetName(m), Math.max(1, tw - share.measureText(percent) - 4 * s));
@@ -197,6 +197,10 @@ final class WidgetArt {
                 : Logic.widgetEventTop(block, name.getTextSize(), event.getTextSize(), value.getTextSize());
         capLine(b, next[0], tx, y + eventTop, event);
         b.cv.drawText(next[1], tx, y + block, value);
+    }
+
+    private static int unknownValueInk(Logic.Now n, Ui.Pal pal) {
+        return n.state == Logic.ON ? pal.status(Logic.ON) : pal.muted;
     }
 
     /** box: segment width, top and bottom of the lines beside it, size of the event, scale. The word stands on the clock's line. */
@@ -251,7 +255,7 @@ final class WidgetArt {
         header(c, b, m, new float[] {pad, pad, width, 13 * s, s});
         new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).draw();
         float first = (layout[0] + layout[1]) * s;
-        dayGrid(c, b, dayOf(m.tl, 0), "Сьогодні", Logic.index(m.base, now), new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
+        dayGrid(c, b, dayOf(m.tl, 0), "Сьогодні", (float) Logic.index(m.base, now), new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
         if (layout[2] > 0) {
             dayGrid(c, b, dayOf(m.tl, 48), "Завтра", -1, new RectF(pad, first + layout[3] * s, f.w - pad, f.h - pad), s);
         }
@@ -286,10 +290,6 @@ final class WidgetArt {
         float baseline = box[1] - name.ascent();
         b.cv.drawText(title, box[0], baseline, name);
         b.cv.drawText(percent, box[0] + full, baseline, side);
-    }
-
-    private static float height(Paint p) {
-        return p.descent() - p.ascent();
     }
 
     /** The largest size at which `words` fit `width`. */
@@ -438,16 +438,21 @@ final class WidgetArt {
             if (leftSpare > 0) line(b, start[1], x, y, fit(small, start[1], width));
             if (rightSpare > 0) line(b, next[2], rightX, y, fit(smallRight, next[2], width));
         }
-    }
+        private static float height(Paint p) {
+            return p.descent() - p.ascent();
+        }
 
-    private static void drawCentred(Brush b, String words, float x, float y, float rowHeight, Paint p) {
-        b.cv.drawText(words, x, y + (rowHeight - height(p)) / 2 - p.ascent(), p);
-    }
 
-    /** A line of text whose top is at y; returns the y under it. */
-    private static float line(Brush b, String text, float x, float y, Paint p) {
-        b.cv.drawText(text, x, y - p.ascent(), p);
-        return y + p.descent() - p.ascent();
+        private static void drawCentred(Brush b, String words, float x, float y, float rowHeight, Paint p) {
+            b.cv.drawText(words, x, y + (rowHeight - height(p)) / 2 - p.ascent(), p);
+        }
+
+        /** A line of text whose top is at y; returns the y under it. */
+        private static float line(Brush b, String text, float x, float y, Paint p) {
+            b.cv.drawText(text, x, y - p.ascent(), p);
+            return y + p.descent() - p.ascent();
+        }
+
     }
 
     /** Today 00–24, ordinary past dimming and a marker at now. */

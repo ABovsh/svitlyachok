@@ -33,6 +33,7 @@ public final class Logic {
         catch (java.time.DateTimeException e) { return find.apply("Europe/Kiev"); }
     }
     public static final int OFF = 0;
+    private static final String POSSIBLE_OUTAGE = "Можливе вимкнення";
     public static final int ON = 1;
     public static final int UNKNOWN = 2;
     public static final int MAYBE = 3;
@@ -644,7 +645,7 @@ public final class Logic {
         switch (state) {
             case ON: return "Світло є";
             case OFF: return "Світла немає";
-            case MAYBE: return "Можливе вимкнення";
+            case MAYBE: return POSSIBLE_OUTAGE;
             default: return NO_SCHEDULE;
         }
     }
@@ -1257,9 +1258,9 @@ public final class Logic {
 
     private static String eventWhat(int kind, boolean maybe) {
         switch (kind) {
-            case Event.SOON_OFF: return maybe ? "Можливе вимкнення" : "Вимкнуть світло";
+            case Event.SOON_OFF: return maybe ? POSSIBLE_OUTAGE : "Вимкнуть світло";
             case Event.SOON_ON: return "Увімкнуть світло";
-            case Event.AT_OFF: return maybe ? "Можливе вимкнення" : "За графіком: немає";
+            case Event.AT_OFF: return maybe ? POSSIBLE_OUTAGE : "За графіком: немає";
             default: return "За графіком: є";
         }
     }
@@ -1362,12 +1363,6 @@ public final class Logic {
 
     static boolean noteSeen(String memory, String date, String text) {
         return java.util.Arrays.asList(memory.split("\n")).contains(date + "=" + text.replace('\n', ' '));
-    }
-
-    private static String uncertainDay(String day, String clear) {
-        if (count(day, '3') > 0) return "Можливі вимкнення: " + list(day, true);
-        if (count(day, '2') > 0) return "Графік опубліковано частково";
-        return clear;
     }
 
     /**

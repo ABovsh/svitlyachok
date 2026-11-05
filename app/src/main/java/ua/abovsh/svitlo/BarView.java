@@ -26,7 +26,6 @@ final class BarView extends View {
         digits.setTextSize(Ui.sp(c, 14));
     }
 
-    int barTop() { return 0; }
     int touchedSlot() { return touched; }
 
     float slotX(float slot) {
@@ -49,7 +48,7 @@ final class BarView extends View {
     @Override public boolean onTouchEvent(android.view.MotionEvent e) {
         if (!hasOnClickListeners() || slots == null) return false;
         if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP) {
-            touched = Logic.hourGridSlot(e.getX(), e.getY(), getWidth(), getHeight());
+            touched = Logic.hourGridSlot(e.getX(), e.getY(), (float) getWidth(), (float) getHeight());
             performClick();
         }
         return true;
@@ -60,7 +59,7 @@ final class BarView extends View {
     @Override protected void onDraw(Canvas cv) {
         if (slots == null) return;
         b.on(cv);
-        drawBounds.set(0, 0, getWidth(), getHeight());
+        drawBounds.set(0, 0, (float) getWidth(), (float) getHeight());
         digits.setTextSize(Ui.sp(getContext(), 14));
         grid(b, slots, nowRel, drawBounds, digits, chosenFrom, chosenTo);
     }
@@ -72,23 +71,19 @@ final class BarView extends View {
         text.setTextAlign(Paint.Align.CENTER);
         float cellW = (bounds.width() - gap * 11) / 12;
         float cellH = (bounds.height() - gap) / 2;
-        text.setTextSize(Math.min(size, Math.min((cellW - gap) / text.measureText("00") * size, cellH * .63f)));
+        float widest = 0;
+        for (String hour : HOURS) widest = Math.max(widest, text.measureText(hour));
+        text.setTextSize(Math.min(size, Math.min((cellW - gap) / widest * size, cellH * .63f)));
         for (int hour = 0; hour < 24; hour++) {
             float left = bounds.left + hour % 12 * (cellW + gap);
-            float top = bounds.top + hour / 12 * (cellH + gap);
+            int row = hour / 12;
+            float top = bounds.top + (float) row * (cellH + gap);
             RectF cell = b.r;
             cell.set(left, top, left + cellW, top + cellH);
             float radius = Math.min(cellW, cellH) * .22f;
             b.path.reset(); b.path.addRoundRect(cell, radius, radius, android.graphics.Path.Direction.CW);
             b.cv.save(); b.cv.clipPath(b.path);
-            for (int half = 0; half < 2; half++) {
-                char state = at(slots, hour * 2 + half);
-                RectF part = b.r2;
-                part.set(left + half * cellW / 2, top, left + (half + 1) * cellW / 2, top + cellH);
-                b.p.setStyle(Paint.Style.FILL); b.p.setColor(b.pal.fill(Logic.state(state)));
-                b.cv.drawRect(part, b.p);
-                if (state == '3') stripes(b, part);
-            }
+            fillHour(b, slots, hour, cell);
             b.cv.restore();
             text.setColor(at(slots, hour * 2) == '2' && at(slots, hour * 2 + 1) == '2' ? b.pal.muted : 0xFFFFFFFF);
             float baseline = cell.centerY() - (text.ascent() + text.descent()) / 2;
@@ -102,6 +97,17 @@ final class BarView extends View {
                 b.cv.drawRoundRect(cell, radius, radius, b.p);
                 b.p.setStyle(Paint.Style.FILL);
             }
+        }
+    }
+
+    private static void fillHour(Brush b, String slots, int hour, RectF cell) {
+        for (int half = 0; half < 2; half++) {
+            char state = at(slots, hour * 2 + half);
+            RectF part = b.r2;
+            part.set(cell.left + half * cell.width() / 2, cell.top, cell.left + (half + 1) * cell.width() / 2, cell.bottom);
+            b.p.setStyle(Paint.Style.FILL); b.p.setColor(b.pal.fill(Logic.state(state)));
+            b.cv.drawRect(part, b.p);
+            if (state == '3') stripes(b, part);
         }
     }
 

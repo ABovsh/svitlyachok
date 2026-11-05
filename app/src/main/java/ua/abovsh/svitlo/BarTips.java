@@ -66,7 +66,7 @@ final class BarTips {
         words.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         words.setOnClickListener(v -> hide());
         words.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.AT_MOST), View.MeasureSpec.UNSPECIFIED);
-        int top = ((View) bar.getParent()).getTop() + bar.getTop() + bar.barTop();  // of the bar itself
+        int top = ((View) bar.getParent()).getTop() + bar.getTop();  // of the bar itself
         float centre = bar.slotX(slot);
         FrameLayout.LayoutParams at = new FrameLayout.LayoutParams(words.getMeasuredWidth(), words.getMeasuredHeight());
         at.gravity = Gravity.TOP | Gravity.START;

@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * "Поділитися": one day of a place as a picture, for a messenger the person picks. The picture

@@ -587,11 +587,11 @@ public final class Logic {
     static final String MIDNIGHT = "24:00";
     static final String NO_POWER = "без світла ";
 
-    /** The end of something as a clock: "18:30", "24:00" for tonight's midnight, "завтра 06:00". */
+    /** The end of an interval; a smaller clock after its start already means the next day. */
     public static String until(long t, long now) {
         long d = dayDiff(now, t);
         if (d == 1 && hm(t).equals("00:00")) return MIDNIGHT;
-        return d == 1 ? "завтра " + hm(t) : hm(t);
+        return hm(t);
     }
 
     public static boolean quiet(long t) {
@@ -765,7 +765,7 @@ public final class Logic {
         if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
         // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
-        String when = at.startsWith(TOMORROW_WORD) ? " завтра о " + hm(change) : " о " + at;
+        String when = n.tomorrow ? " завтра о " + hm(change) : " о " + at;
         if (next == '0') n.hint = "Вимкнуть" + when;
         else if (next == '3') n.hint = "Можливо вимкнуть" + when;
         else if (c == '0') n.hint = "Увімкнуть" + when;

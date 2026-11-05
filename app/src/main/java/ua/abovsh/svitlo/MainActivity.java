@@ -131,6 +131,9 @@ public class MainActivity extends Base {
         TextView name = Ui.text(this, 18, Ui.display(this), pal.text);
         name.setText("Світлячок");
         name.setContentDescription(getString(R.string.app_name));
+        name.setSingleLine(true);
+        name.setHorizontallyScrolling(false);
+        name.setAutoSizeTextTypeUniformWithConfiguration(16, 18, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         t.addView(name);
         sub = Ui.text(this, 13, Ui.body(this), pal.muted);
         sub.setPadding(0, Ui.dp(this, 3), 0, 0);
@@ -145,7 +148,10 @@ public class MainActivity extends Base {
         r.addView(addWidget, wl);
         r.addView(iconButton(R.drawable.ic_gear, "Налаштування", v -> startActivity(new Intent(this, SettingsActivity.class))),
                 new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
-        if (getResources().getConfiguration().fontScale > 1.25f) {
+        android.graphics.Paint title = new android.graphics.Paint(name.getPaint());
+        title.setTextSize(Ui.sp(this, 16));
+        float titleRoom = Ui.px(this, getResources().getConfiguration().screenWidthDp - 32 - 38 - 20 - 2 * HERO_BUTTON - 8);
+        if (title.measureText(name.getText().toString()) > titleRoom) {
             // Give large text the full width instead of trapping it between three icons.
             r.removeView(t); t.removeView(name); t.removeView(sub);
             View space = new View(this);
@@ -361,10 +367,18 @@ public class MainActivity extends Base {
         return card;
     }
 
-    /** Reflow rather than shrink readable text on a small screen or a larger system font. */
+    /** Keep two readable columns while the actual system-scaled clock and end time fit. */
     private boolean stacked() {
-        return getResources().getConfiguration().screenWidthDp < 360
-                || getResources().getConfiguration().fontScale > 1.25f;
+        android.graphics.Paint clock = new android.graphics.Paint();
+        clock.setTypeface(Ui.display(this));
+        clock.setTextSize(Ui.sp(this, 18));
+        android.graphics.Paint small = new android.graphics.Paint();
+        small.setTypeface(Ui.bold(this));
+        small.setTextSize(Ui.sp(this, 13));
+        float needed = Math.max(clock.measureText("з 24:00"),
+                clock.measureText("24:00") + Ui.px(this, 6) + small.measureText("до 24:00"));
+        float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 54) / 2f - 14);
+        return needed > room;
     }
 
     private View tiles(List<Logic.Place> places, Logic.Place chosen, LocalDate base, long now) {
@@ -518,7 +532,7 @@ public class MainActivity extends Base {
         float fit = 1f;
         if (start[0].contains(":")) fit = Math.min(fit, (room - (start[1].isEmpty() ? 0 : small.measureText(start[1]) + gap)) / clock.measureText(start[0]));
         if (next[1].contains(":")) fit = Math.min(fit, (room - (next[2].isEmpty() ? 0 : small.measureText(next[2]) + gap)) / clock.measureText(next[1]));
-        return HERO_CLOCK * Math.max(.7f, stacked() ? 1f : fit);
+        return stacked() ? HERO_CLOCK : Math.max(18, HERO_CLOCK * fit);
     }
 
     private TextView word(String text, int ink) {
@@ -604,15 +618,17 @@ public class MainActivity extends Base {
             ink = chipInk(n.next);
             text = ink;
             side = ink;
-            half.setPadding(Ui.dp(this, 9), Ui.dp(this, 3), Ui.dp(this, 5), Ui.dp(this, 4));
             half.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 14)));
-        } else if (stacked()) {
-            half.setPadding(0, Ui.dp(this, 8), 0, 0);
-        } else {
-            half.setPadding(Ui.dp(this, 11), 0, 0, 0);
+        } else if (!stacked()) {
             half.setBackground(leftLine());
         }
-        if (!next[0].isEmpty()) half.addView(word(next[0], ink), fill());
+        half.setPadding(Ui.dp(this, 9), stacked() ? Ui.dp(this, 8) : 0, Ui.dp(this, 5), 0);
+        if (!next[0].isEmpty()) {
+            LinearLayout head = Ui.row(this);
+            head.setMinimumHeight(Ui.dp(this, 26));
+            head.addView(word(next[0], ink), weight());
+            half.addView(head, fill());
+        }
         half.addView(clockLine(next[1], next[2], clock, ink, side), fill());
         TextView left = Ui.text(this, 13.5f, Ui.bold(this), text);
         left.setText(Logic.heroCountdown(n));

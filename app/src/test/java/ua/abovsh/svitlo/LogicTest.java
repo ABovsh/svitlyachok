@@ -172,7 +172,7 @@ public class LogicTest {
         assertEquals("до 24:00", n.big);
         assertEquals("Вимкнуть о 24:00", n.hint);
         String later = DAY_11 + repeat('1', 12) + repeat('0', 36);
-        assertEquals("до завтра 06:00", Logic.now(later, OCT30, at(20, 0), false).big);
+        assertEquals("до 06:00", Logic.now(later, OCT30, at(20, 0), false).big);
     }
 
     @Test
@@ -964,8 +964,8 @@ public class LogicTest {
     @Test public void compactEventsKeepTomorrowMidnightAndPossibleOutagesExplicit() {
         String tl=repeat('1',60)+repeat('3',6)+repeat('1',30);
         Logic.Now n=Logic.now(tl,OCT30,at(22,0),false);
-        assertEquals("через 8 год 00 хв · можливе вимкнення до завтра 09:00",Logic.nextDetail(n));
-        assertEquals(Arrays.asList("Можливо вимкнуть завтра","06:00","до завтра 09:00"),Arrays.asList(Logic.widgetNext(n)));
+        assertEquals("через 8 год 00 хв · можливе вимкнення до 09:00",Logic.nextDetail(n));
+        assertEquals(Arrays.asList("Можливо вимкнуть завтра","06:00","до 09:00"),Arrays.asList(Logic.widgetNext(n)));
         n=Logic.now(repeat('0',48)+repeat('1',48),OCT30,at(23,30),false);
         assertEquals(Arrays.asList("Увімкнуть","24:00",""),Arrays.asList(Logic.widgetNext(n)));
         n.change=0;assertEquals(Arrays.asList("","",""),Arrays.asList(Logic.widgetNext(n)));
@@ -1965,11 +1965,11 @@ public class LogicTest {
         Logic.Now n = Logic.now(timeline, OCT30, at(21, 0), false);
         assertTrue(n.tomorrow);
         assertEquals(Arrays.asList("Вимкнуть завтра", "06:00", "до 10:00"), Arrays.asList(Logic.heroFuture(n, "")));
-        assertEquals("до завтра 10:00", Logic.widgetFuture(n)[2]);
-        // When the event starts today, its end tomorrow still needs the date.
+        assertEquals("до 10:00", Logic.widgetFuture(n)[2]);
+        // Endpoints stay compact across midnight; only a future start names its day.
         n = Logic.now(repeat('1', 44) + repeat('0', 16) + repeat('1', 36), OCT30, at(21, 0), false);
         assertFalse(n.tomorrow);
-        assertEquals("до завтра 06:00", Logic.heroFuture(n, "")[2]);
+        assertEquals("до 06:00", Logic.heroFuture(n, "")[2]);
     }
 
     @Test
@@ -2150,9 +2150,17 @@ public class LogicTest {
         assertEquals("00:30–04:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, D31 + 60).text);
         event = noticeEvent(Logic.Event.AT_OFF, at(22, 30), 0);
         timeline = repeat('1', 45) + repeat('0', 8) + repeat('1', 43);
-        assertEquals("22:30–завтра 02:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, at(22, 30)).text);
+        assertEquals("22:30–02:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, at(22, 30)).text);
         timeline = repeat('1', 45) + repeat('0', 3) + repeat('1', 48);
         assertEquals("22:30–24:00 · 1 год 30 хв без світла", Logic.eventText(event, timeline, OCT30, at(22, 30)).text);
+    }
+
+    @Test public void nightOnIntervalKeepsBothClocksWithoutRepeatingTheEndDay() {
+        String timeline = repeat('0', 43) + repeat('1', 6) + repeat('0', 47);
+        Logic.Event event = noticeEvent(Logic.Event.SOON_ON, at(21, 30), 15);
+        assertEquals("21:30–00:30 · 3 год світла", Logic.eventText(event, timeline, OCT30, at(21, 15)).text);
+        Logic.Now n = Logic.now(timeline, OCT30, at(21, 20), false);
+        assertEquals(Arrays.asList("Увімкнуть", "21:30", "до 00:30"), Arrays.asList(Logic.heroFuture(n, "")));
     }
 
     @Test public void possibleNoticeKeepsUncertaintyForKnownAndUnknownEnds() {

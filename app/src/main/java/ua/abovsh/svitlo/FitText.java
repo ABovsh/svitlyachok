@@ -59,7 +59,7 @@ class FitText extends TextView {
 
     @Override protected void onMeasure(int width, int height) {
         float largest = growth > 0 ? Ui.compactSp(getContext(), preferredSp, growth) : Ui.sp(getContext(), preferredSp);
-        float smallest = Math.min(largest, Ui.px(getContext(), minimumDp));
+        float smallest = Math.min(largest, Ui.compactSp(getContext(), minimumDp, 1));
         current[0] = getText();
         CharSequence[] choices = formats == null ? current : formats;
         int room = MeasureSpec.getMode(width) == MeasureSpec.UNSPECIFIED ? Integer.MAX_VALUE

@@ -42,7 +42,9 @@ public class StatsActivity extends Base {
 
     private boolean tableStacked() {
         float nameRoom = getResources().getConfiguration().screenWidthDp - 32f - 8 - 18 - WEEK_DP - MONTH_DP - CHANGE_DP;
-        return nameRoom < 80;
+        android.graphics.Paint value = new android.graphics.Paint();
+        value.setTypeface(Ui.bold(this)); value.setTextSize(Ui.compactSp(this, 13, 1));
+        return nameRoom < 80 || value.measureText("100 %") > Ui.px(this, MONTH_DP);
     }
 
     /** All places at once in percent: this week, four weeks, the change of the last week. */
@@ -101,7 +103,9 @@ public class StatsActivity extends Base {
         if (tableStacked()) {
             r.addView(name, fill());
             LinearLayout values = Ui.row(this);
-            values.addView(weekBox, weight()); values.addView(monthText, weight()); values.addView(changeText, weight());
+            values.addView(metric("тиждень", weekBox), weight());
+            values.addView(metric("4 тижні", monthText), weight());
+            values.addView(metric("зміна", changeText), weight());
             r.addView(values, gapTop(4));
         } else {
             r.addView(name, weight());
@@ -113,6 +117,13 @@ public class StatsActivity extends Base {
                 + ", за 4 тижні " + spoken(month) + ", зміна " + Logic.changeWords(change) + (chosen ? ", вибрано" : ", показати графік"));
         r.setOnClickListener(v -> { place = p.id; render(); });
         return r;
+    }
+
+    private View metric(String title, View value) {
+        LinearLayout column = Ui.column(this);
+        column.addView(head(title, android.view.Gravity.START), fill());
+        column.addView(value, fill());
+        return column;
     }
 
     private static String percent(int share) {

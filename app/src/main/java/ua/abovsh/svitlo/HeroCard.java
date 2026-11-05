@@ -7,7 +7,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.TypedValue;
-import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
@@ -18,15 +17,27 @@ final class HeroCard extends ViewGroup {
     private final Logic.Now initial;
     private final boolean highlighted;
     private final BulbView bulb;
-    private final TextView label, currentTitle, futureTitle, currentClock, futureClock;
-    private final TextView currentSide, futureSide, elapsed, remaining;
+    private final TextView label;
+    private final TextView currentTitle;
+    private final TextView futureTitle;
+    private final TextView currentClock;
+    private final TextView futureClock;
+    private final TextView currentSide;
+    private final TextView futureSide;
+    private final TextView elapsed;
+    private final TextView remaining;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint measuring = new Paint();
     private final Paint.FontMetrics titleMetrics = new Paint.FontMetrics();
     private final RectF futureBounds = new RectF();
     private boolean horizontal;
-    private int leftRoom, rightRoom, half, bodyTop;
-    private final Band[] shared, leftBands, rightBands;
+    private int leftRoom;
+    private int rightRoom;
+    private int half;
+    private int bodyTop;
+    private final Band[] shared;
+    private final Band[] leftBands;
+    private final Band[] rightBands;
 
     HeroCard(Context c, Ui.Pal colours, String name, Logic.Now now, String[] next, boolean lit) {
         super(c); pal = colours; location = name; initial = now; highlighted = lit;
@@ -92,12 +103,12 @@ final class HeroCard extends ViewGroup {
 
     private void optionalSide(TextView clock, TextView side, float pixels, int room) {
         float extra = (float) Math.ceil(width(side, side.getTextSize())) + 1 + Ui.px(getContext(), 6);
-        boolean visible = side.getText().length() > 0 && Math.ceil(width(clock, pixels)) + 1 + extra <= room;
+        boolean visible = !android.text.TextUtils.isEmpty(side.getText()) && Math.ceil(width(clock, pixels)) + 1 + extra <= room;
         side.setVisibility(visible ? VISIBLE : GONE);
     }
 
     private void measureText(TextView t, int room, boolean intrinsic) {
-        if (t.getText().length() == 0 || t.getVisibility() == GONE) {
+        if (android.text.TextUtils.isEmpty(t.getText()) || t.getVisibility() == GONE) {
             t.setVisibility(GONE); return;
         }
         int w = intrinsic ? Math.min(room, (int) Math.ceil(width(t, t.getTextSize())) + 1) : room;
@@ -105,7 +116,8 @@ final class HeroCard extends ViewGroup {
     }
 
     private float fitPair(TextView left, TextView right, float preferred, float minimum, int lw, int rw) {
-        float low = minimum, high = preferred;
+        float low = minimum;
+        float high = preferred;
         if (width(left, high) <= lw && width(right, high) <= rw) return high;
         for (int i = 0; i < 9; i++) {
             float mid = (low + high) / 2;
@@ -144,7 +156,8 @@ final class HeroCard extends ViewGroup {
         float preferredClock = Ui.compactSp(c, 27, 1.1f);
         optionalSide(currentClock, currentSide, preferredClock, leftRoom);
         optionalSide(futureClock, futureSide, preferredClock, rightRoom);
-        float low = minimumClock, high = preferredClock;
+        float low = minimumClock;
+        float high = preferredClock;
         for (int i = 0; i < 10; i++) {
             float mid = (low + high) / 2;
             if (clockFits(currentClock, currentSide, mid, leftRoom) && clockFits(futureClock, futureSide, mid, rightRoom)) low = mid;
@@ -159,11 +172,11 @@ final class HeroCard extends ViewGroup {
         int titleRoom = Math.max(1, leftRoom - Ui.dp(c, 30));
         float titleMax = Ui.compactSp(c, 20, 1.1f);
         Paint titlePaint = measuring; titlePaint.set(currentTitle.getPaint()); titlePaint.setTextSize(titleMax);
-        String title = Logic.fittedState(initial.title, titlePaint.measureText(initial.title), titleRoom);
+        String title = Logic.fittedState(initial.title, titlePaint.measureText(initial.title), (float) titleRoom);
         if (!android.text.TextUtils.equals(currentTitle.getText(), title)) currentTitle.setText(title);
-        float titleSize = fitPair(currentTitle, futureTitle, titleMax, Ui.px(c, 14), titleRoom, rightRoom);
+        float titleSize = fitPair(currentTitle, futureTitle, titleMax, Ui.compactSp(c, 14, 1), titleRoom, rightRoom);
         size(currentTitle, titleSize); size(futureTitle, titleSize);
-        float detail = fitPair(elapsed, remaining, Ui.sp(c, 13.5f), Ui.px(c, 12.5f), leftRoom, rightRoom);
+        float detail = fitPair(elapsed, remaining, Ui.sp(c, 13.5f), Ui.compactSp(c, 12.5f, 1), leftRoom, rightRoom);
         size(elapsed, detail); size(remaining, detail);
     }
 
@@ -192,7 +205,8 @@ final class HeroCard extends ViewGroup {
         int baseline;
         Band(int minimum, TextView... views) { minimumDp = minimum; texts = views; }
         void measure() {
-            int ascent = 0, descent = 0;
+            int ascent = 0;
+            int descent = 0;
             for (TextView t : texts) if (t.getVisibility() != GONE) {
                 ascent = Math.max(ascent, t.getBaseline()); descent = Math.max(descent, t.getMeasuredHeight() - t.getBaseline());
             }
@@ -214,7 +228,7 @@ final class HeroCard extends ViewGroup {
         place(title, x + (future ? 0 : Ui.dp(getContext(), 30)), y, bands[0]);
         if (!future) {
             Paint.FontMetrics fm = titleMetrics; currentTitle.getPaint().getFontMetrics(fm);
-            int top = Math.round(y + bands[0].baseline + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
+            int top = Math.round((float) y + bands[0].baseline + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
             bulb.layout(x, top, x + bulb.getMeasuredWidth(), top + bulb.getMeasuredHeight());
         }
         y += bands[0].height;
@@ -227,15 +241,16 @@ final class HeroCard extends ViewGroup {
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int x = getPaddingLeft();
         label.layout(x, getPaddingTop(), right - left - getPaddingRight(), getPaddingTop() + label.getMeasuredHeight());
+        float edge = (float) right - left - getPaddingRight();
         if (horizontal) {
             panel(false, x, bodyTop, shared);
             panel(true, x + half + Ui.dp(getContext(), 9), bodyTop, shared);
-            futureBounds.set(x + half, bodyTop, right - left - getPaddingRight(), bodyTop + total(shared));
+            futureBounds.set((float) x + half, (float) bodyTop, edge, (float) bodyTop + total(shared));
         } else {
             panel(false, x, bodyTop, leftBands);
             int next = bodyTop + total(leftBands) + Ui.dp(getContext(), 8);
             panel(true, x + Ui.dp(getContext(), 9), next, rightBands);
-            futureBounds.set(x, next, right - left - getPaddingRight(), next + total(rightBands));
+            futureBounds.set((float) x, (float) next, edge, (float) next + total(rightBands));
         }
     }
 

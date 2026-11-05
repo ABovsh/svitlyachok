@@ -18,7 +18,8 @@ final class AdaptiveGrid extends ViewGroup {
 
     @Override protected void onMeasure(int width, int height) {
         int available = Math.max(1, MeasureSpec.getSize(width) - getPaddingLeft() - getPaddingRight());
-        int visible = 0, minimum = 1;
+        int visible = 0;
+        int minimum = 1;
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
@@ -58,11 +59,13 @@ final class AdaptiveGrid extends ViewGroup {
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        int index = 0, y = getPaddingTop();
+        int index = 0;
+        int y = getPaddingTop();
         for (int i = 0; i < getChildCount(); i++) {
             View child = getChildAt(i);
             if (child.getVisibility() == GONE) continue;
-            int row = index / columns, col = index % columns;
+            int row = index / columns;
+            int col = index % columns;
             int x = getPaddingLeft() + col * (cellWidth + gap);
             child.layout(x, y, x + cellWidth, y + heights[row]);
             index++;

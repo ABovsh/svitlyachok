@@ -19,7 +19,7 @@ final class PlaceTile extends FrameLayout {
     private final android.graphics.Paint labelMeasure = new android.graphics.Paint();
 
     PlaceTile(Context c, Ui.Pal pal, Logic.Place place, Logic.Now now, boolean chosen,
-            boolean soon, String share, OnClickListener clicked) {
+            boolean soon, String share) {
         super(c);
         GradientDrawable bg = Ui.round(pal.soft(now.state), Ui.px(c, 15));
         bg.setStroke(Ui.dp(c, chosen ? 2 : 1), chosen ? pal.accentText : pal.line);
@@ -34,7 +34,7 @@ final class PlaceTile extends FrameLayout {
         bulbSize.gravity = android.view.Gravity.CENTER_VERTICAL;
         bulbSize.rightMargin = Ui.dp(c, 4); body.addView(bulb, bulbSize);
         LinearLayout words = Ui.column(c);
-        LinearLayout header = Ui.row(c); header.setBaselineAligned(false);
+        LinearLayout header = Ui.row(c); header.setBaselineAligned(true);
         header.setGravity(android.view.Gravity.TOP);
         name = new FitText(c, 14, 13, 2, Ui.heavy(c), pal.text).compact(1.1f);
         name.setText(place.name);
@@ -53,7 +53,8 @@ final class PlaceTile extends FrameLayout {
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         pp.leftMargin = Ui.dp(c, 4); header.addView(percent, pp);
         words.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-        int ink = soon ? (now.next == Logic.MAYBE ? pal.accentInk : pal.ink) : pal.status(now.state);
+        int ink = pal.status(now.state);
+        if (soon) ink = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         FitText status = new FitText(c, 14, 12.5f, now.state == Logic.MAYBE ? 2 : 1, Ui.bold(c), ink).compact(1.1f);
         status.formats(Logic.tileFormats(now).toArray(new CharSequence[0]));
         if (soon) {
@@ -71,7 +72,7 @@ final class PlaceTile extends FrameLayout {
                 + (now.big.isEmpty() ? "" : ", " + now.big) + ", очікується світла сьогодні " + share
                 + (chosen ? ", вибрано" : ", показати графік"));
         body.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        setFocusable(true); setOnClickListener(clicked);
+        setFocusable(true);
     }
 
     @Override protected void onMeasure(int width, int height) {
@@ -80,7 +81,7 @@ final class PlaceTile extends FrameLayout {
         ViewGroup.LayoutParams bp = bulb.getLayoutParams(); bp.width = icon; bp.height = icon;
         percent.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
         queue.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
-        float room = px - body.getPaddingLeft() - body.getPaddingRight() - icon - Ui.dp(getContext(), 8) - percent.getMeasuredWidth();
+        float room = (float) px - body.getPaddingLeft() - body.getPaddingRight() - icon - Ui.dp(getContext(), 8) - percent.getMeasuredWidth();
         android.graphics.Paint label = labelMeasure; label.set(name.getPaint());
         label.setTextSize(Ui.compactSp(getContext(), 14, 1.1f));
         boolean showQueue = namedQueue && label.measureText(name.getText().toString()) + queue.getMeasuredWidth() + Ui.px(getContext(), 4) <= room;

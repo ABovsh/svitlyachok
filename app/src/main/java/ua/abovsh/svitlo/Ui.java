@@ -168,7 +168,7 @@ final class Ui {
 
     /** Local compact typography: modest growth, with the normal large-font range still available. */
     static float compactSp(Context c, float value, float growth) {
-        float allowed = Math.max(growth, c.getResources().getConfiguration().fontScale - .2f);
+        float allowed = growth + Math.max(0, c.getResources().getConfiguration().fontScale - 1.3f);
         return Math.min(sp(c, value), px(c, value * allowed));
     }
 

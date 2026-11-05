@@ -371,10 +371,10 @@ public class MainActivity extends Base {
             Logic.Now state = Logic.now(Logic.timeline(data, place.group, base), base, now, data != null && data.none);
             if (data == null) { state.title = loading ? "Завантажую" : "Графіка немає"; state.big = ""; }
             boolean soon = Logic.highlight(state, Prefs.alerts(this, place.id), now);
-            String percent = Logic.dayPercent(Logic.day(data, place.group, base));
-            grid.addView(new PlaceTile(this, pal, place, state, place.id.equals(chosen.id), soon, percent, v -> {
-                Prefs.setCurrent(this, place.id); render(); scroll.smoothScrollTo(0, 0);
-            }));
+            String dayShare = Logic.dayPercent(Logic.day(data, place.group, base));
+            PlaceTile tile = new PlaceTile(this, pal, place, state, place.id.equals(chosen.id), soon, dayShare);
+            tile.setOnClickListener(v -> { Prefs.setCurrent(this, place.id); render(); scroll.smoothScrollTo(0, 0); });
+            grid.addView(tile);
         }
         return grid;
     }
@@ -519,11 +519,6 @@ public class MainActivity extends Base {
 
     private String notPublished(Logic.Place p) {
         return Logic.missingSchedule(Store.data(this, p.region), p.group);
-    }
-
-    /** Words on the fill of a state. */
-    private int chipInk(int state) {
-        return state == Logic.MAYBE ? pal.accentInk : pal.ink;
     }
 
     private View footer(Logic.Place p, Logic.Data d, long now) {

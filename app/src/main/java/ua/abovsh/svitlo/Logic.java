@@ -1273,7 +1273,9 @@ public final class Logic {
         String what = n.on ? "Увімкнуть світло" : "Вимкнуть світло";
         if (maybe) what = POSSIBLE_OUTAGE;
         n.title = headed(mark(state), what);
-        n.text = named(e.name, eventWhen(e, end, state, now));
+        int detailState = state;
+        if (state == OFF && end > 0 && tl.substring(i, index(base, end)).indexOf('3') >= 0) detailState = MAYBE;
+        n.text = named(e.name, eventWhen(e, end, detailState, now));
         if (e.at < e.change) n.until = e.change;
         else if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;

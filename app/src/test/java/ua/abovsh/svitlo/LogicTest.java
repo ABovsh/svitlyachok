@@ -2226,4 +2226,12 @@ public class LogicTest {
             }
         }
     }
+
+    @Test public void aMixedDefiniteAndPossibleWindowDoesNotPromiseTheWholeDurationWithoutPower() {
+        String timeline = repeat('1', 12) + repeat('0', 4) + repeat('3', 4) + repeat('1', 76);
+        Logic.Event event = noticeEvent(Logic.Event.SOON_OFF, at(6, 0), 15);
+        Logic.Notice note = Logic.eventText(event, timeline, OCT30, at(5, 45));
+        assertEquals("\uD83D\uDD34 Вимкнуть світло", note.title);
+        assertEquals("06:00–10:00 · до 4 год", note.text);
+    }
 }

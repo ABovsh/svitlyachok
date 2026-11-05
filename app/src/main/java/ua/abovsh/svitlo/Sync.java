@@ -37,6 +37,7 @@ final class Sync {
     private static final int SUMMARY_ID = 900;
     private static final String REMINDER_PLACE = "reminder_place";
     private static final String NOTICE_PLACE = "notice_place";
+    private static String lastGroupContent = "";
 
     private Sync() {}
 
@@ -238,7 +239,7 @@ final class Sync {
     }
 
     /** A silent native group when several places have messages; tests and expired children do not count. */
-    static void updateNotificationGroup(Context c) {
+    static synchronized void updateNotificationGroup(Context c) {
         NotificationManager manager = c.getSystemService(NotificationManager.class);
         List<android.service.notification.StatusBarNotification> children = new ArrayList<>();
         Set<String> places = new java.util.HashSet<>();
@@ -251,6 +252,7 @@ final class Sync {
         }
         if (Prefs.places(c).size() < 2 || children.size() < 2) {
             manager.cancel(SUMMARY_ID);
+            lastGroupContent = "";
             return;
         }
         ensureChannels(c);
@@ -268,7 +270,8 @@ final class Sync {
             if (timeout == 0) persistent = true;
             else until = Math.max(until, child.getPostTime() + timeout);
         }
-        if (sameGroup(manager, signature.toString())) return;
+        String current = signature.toString();
+        if (current.equals(lastGroupContent) || sameGroup(manager, current)) return;
         Bundle content = new Bundle();
         content.putString("group_content", signature.toString());
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -283,6 +286,7 @@ final class Sync {
         if (!persistent && until > 0) summary.setTimeoutAfter(Math.max(1, until - System.currentTimeMillis()));
         try {
             manager.notify(SUMMARY_ID, summary.build());
+            lastGroupContent = current;
         } catch (SecurityException ignored) {
             // Notifications are disabled; the app remains usable.
         }

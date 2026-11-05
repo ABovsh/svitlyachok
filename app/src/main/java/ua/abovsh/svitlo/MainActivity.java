@@ -546,7 +546,20 @@ public class MainActivity extends Base {
     /** A clock in the display face with its small words beside it; words that are no clock stand plainly. */
     private View clockLine(String value, String beside, float size, int ink, int sideInk) {
         boolean isClock = value.contains(":");
-        LinearLayout line = Ui.row(this);
+        LinearLayout line = new LinearLayout(this) {
+            @Override protected void onMeasure(int width, int height) {
+                int needed = 0;
+                for (int i = 0; i < getChildCount(); i++) {
+                    View child = getChildAt(i);
+                    child.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
+                    needed += child.getMeasuredWidth();
+                }
+                boolean wrap = MeasureSpec.getMode(width) != MeasureSpec.UNSPECIFIED
+                        && needed > MeasureSpec.getSize(width);
+                setOrientation(wrap ? VERTICAL : HORIZONTAL);
+                super.onMeasure(width, height);
+            }
+        };
         line.setGravity(Gravity.BOTTOM);
         TextView big = Ui.text(this, isClock ? size : 15, isClock ? Ui.display(this) : Ui.bold(this), ink);
         big.setText(value);

@@ -2050,7 +2050,7 @@ public class LogicTest {
     @Test public void twoRowsCoverEveryHalfHourIncludingBothEdges() {
         for (int slot = 0; slot < 48; slot++) {
             float x = ((float) (slot / 2 % 12) + (slot % 2 == 0 ? .25f : .75f)) * 25;
-            float y = slot < 24 ? 12 : 42;
+            float y = slot < 24 ? 12f : 42f;
             assertEquals(slot, Logic.hourGridSlot(x, y, 300, 55));
         }
         assertEquals(0, Logic.hourGridSlot(-1, 0, 300, 55));

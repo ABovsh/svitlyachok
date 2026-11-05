@@ -246,7 +246,7 @@ final class WidgetArt {
         header(c, b, m, new float[] {pad, pad, width, 13 * s});
         new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).draw();
         float first = (layout[0] + layout[1]) * s;
-        dayGrid(c, b, new GridDay(dayOf(m.tl, 0), false, split, hourSlot),
+        dayGrid(c, b, new GridDay(dayOf(m.tl, 0), false, split, (float) hourSlot),
                 new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
         if (split) {
             dayGrid(c, b, new GridDay(dayOf(m.tl, 48), true, true, -1),
@@ -461,41 +461,6 @@ final class WidgetArt {
             return y + p.descent() - p.ascent();
         }
 
-    }
-
-    /** Today 00–24, ordinary past dimming and a marker at now. */
-    private static void bar(Brush b, LocalDate base, String tl, long now, RectF area, float s) {
-        // runs() uses r2 for possible outages; keep a separate stable bounds object.
-        RectF bounds = new RectF(area);
-        BarView.runs(b, tl, 0, 48, 0, bounds, 1.5f * s);
-        float at = Math.max(0, Math.min(48f, (float) Logic.index(base, now)));
-        float marker = bounds.left + bounds.width() * at / 48f;
-        b.path.reset();
-        b.path.addRoundRect(bounds, bounds.height() / 2, bounds.height() / 2, android.graphics.Path.Direction.CW);
-        b.cv.save();
-        b.cv.clipPath(b.path);
-        b.p.setColor(Ui.fade(b.pal.card, b.pal.veil));
-        b.cv.drawRect(bounds.left, bounds.top, marker, bounds.bottom, b.p);
-        b.cv.restore();
-        hourLines(b, bounds, s);
-        b.p.setColor(Ui.Pal.MARKER_EDGE);
-        b.cv.drawRect(marker - 1.7f*s, bounds.top - 2.7f*s, marker + 1.7f*s, bounds.bottom + 2.7f*s, b.p);
-        b.p.setColor(Ui.Pal.MARKER);
-        b.cv.drawRect(marker - s, bounds.top - 2*s, marker + s, bounds.bottom + 2*s, b.p);
-    }
-
-    private static void hourLines(Brush b, RectF bounds, float s) {
-        b.path.reset();
-        b.path.addRoundRect(bounds, bounds.height() / 2, bounds.height() / 2, android.graphics.Path.Direction.CW);
-        b.cv.save();
-        b.cv.clipPath(b.path);
-        b.p.setColor(Ui.fade(b.pal.text, .14f));
-        b.p.setStrokeWidth(Math.max(1, s * .7f));
-        for (int hour = 1; hour < 24; hour++) {
-            float x = bounds.left + bounds.width() * hour / 24;
-            b.cv.drawLine(x, bounds.top, x, bounds.bottom, b.p);
-        }
-        b.cv.restore();
     }
 
     private static Paint text(Typeface tf, float size, int colour, Paint.Align a) {

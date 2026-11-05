@@ -33,6 +33,7 @@ public final class Logic {
         catch (java.time.DateTimeException e) { return find.apply("Europe/Kiev"); }
     }
     public static final int OFF = 0;
+    private static final String TOMORROW = "Завтра";
     private static final String POSSIBLE_OUTAGE = "Можливе вимкнення";
     public static final int ON = 1;
     public static final int UNKNOWN = 2;
@@ -972,16 +973,17 @@ public final class Logic {
 
     /** A range label belongs only to a partial day, never to the ordinary full-day view. */
     public static String widgetDayTitle(boolean tomorrow, boolean split) {
-        String day = tomorrow ? "Завтра" : "Сьогодні";
-        return split ? day + (tomorrow ? " · 00–11" : " · 12–23") : day;
+        String day = tomorrow ? TOMORROW : "Сьогодні";
+        if (!split) return day;
+        return day + (tomorrow ? " · 00–11" : " · 12–23");
     }
 
     /** Name, two state panes, and either one full day or two half-day rows. */
     public static float[] widgetGridLayout(int height, boolean split) {
         float top = 27;
         float sections = split ? 2 : 1;
-        float section = Math.min(split ? 34 : 59, (height - 8 - top - 40) / sections);
-        float panes = height - 8 - top - sections * section;
+        float section = Math.min(split ? 34 : 59, ((float) height - 8 - top - 40) / sections);
+        float panes = (float) height - 8 - top - sections * section;
         return new float[] {top, panes, split ? 1 : 0, section};
     }
 
@@ -1337,7 +1339,7 @@ public final class Logic {
         n.kind = b == null ? Note.PUBLISHED : Note.CHANGED;
         n.title = headed(SCHEDULE_MARK, "графік оновлено");
         n.key = a;
-        String when = today ? "Сьогодні" : "Завтра";
+        String when = today ? "Сьогодні" : TOMORROW;
         String summary = daySummaries(a).get(0);
         if (count(a, '2') > 0) summary = "Графік неповний";
         if (count(a, '3') > 0) summary += " · Можливі вимкнення";
@@ -2030,7 +2032,7 @@ public final class Logic {
         if (!next[0].isEmpty()) return next;
         if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), NO_SCHEDULE, ""};
         if (n.state == UNKNOWN) return new String[] {"Далі", NO_SCHEDULE, ""};
-        if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {"Завтра", "Графіка ще немає", ""};
+        if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {TOMORROW, "Графіка ще немає", ""};
         if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", NO_OUTAGES_WIDGET, ""};
         return new String[] {"Далі", NO_CHANGE, "до кінця графіка"};
     }

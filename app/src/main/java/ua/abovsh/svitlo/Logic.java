@@ -965,15 +965,24 @@ public final class Logic {
         return hour * 2 + (x - column * (cell + gap) >= cell / 2 ? 1 : 0);
     }
 
-    /** Geometry of a full widget: preserve at least 52 dp for its two state panes; tomorrow fits only as a full section. */
-    public static float[] widgetGridLayout(int height) {
-        float pad = 8;
-        float header = 19;
-        float section = Math.min(59, height - 16 - header - 40);
-        float panes = height - 2 * pad - header - section;
-        boolean tomorrow = panes >= 52 + section;
-        if (tomorrow) panes -= section;
-        return new float[] {pad + header, panes, tomorrow ? 1 : 0, section};
+    /** At noon the visible 24 hours can cross midnight; undersized legacy cells keep the full day. */
+    public static boolean widgetSplitTomorrow(int height, String tomorrow, int nowSlot) {
+        return height >= 140 && nowSlot >= 24 && nowSlot < 48 && !widgetTomorrowMissing(tomorrow);
+    }
+
+    /** A range label belongs only to a partial day, never to the ordinary full-day view. */
+    public static String widgetDayTitle(boolean tomorrow, boolean split) {
+        String day = tomorrow ? "Завтра" : "Сьогодні";
+        return split ? day + (tomorrow ? " · 00–11" : " · 12–23") : day;
+    }
+
+    /** Name, two state panes, and either one full day or two half-day rows. */
+    public static float[] widgetGridLayout(int height, boolean split) {
+        float top = 27;
+        float sections = split ? 2 : 1;
+        float section = Math.min(split ? 34 : 59, (height - 8 - top - 40) / sections);
+        float panes = height - 8 - top - sections * section;
+        return new float[] {top, panes, split ? 1 : 0, section};
     }
 
     /** Exact positive summaries, from full wording to the narrowest single-line form. */
@@ -1525,7 +1534,6 @@ public final class Logic {
     /** One row (2 x 1 and wider), or with today's schedule when there is room. */
     public static final int W_ROW = 0;
     public static final int W_FULL = 1;
-    public static final int W_WIDE = 2;
 
     /**
      * The place a widget shows: the one chosen for it, the first place when none was chosen, or
@@ -1544,17 +1552,12 @@ public final class Logic {
 
     public static int widgetForm(int wDp, int hDp) {
         if (wDp >= 200 && hDp >= 110) return W_FULL;
-        return wDp >= 250 ? W_WIDE : W_ROW;
+        return W_ROW;
     }
 
     /** The cell until the launcher reports the real one; a large widget must not start as a row. */
     public static int[] widgetDefaultSize(boolean large) {
         return large ? new int[] {250, 150} : new int[] {180, 70};
-    }
-
-    /** A wide widget before the launcher reports its cell. */
-    public static int[] widgetDefaultWide() {
-        return new int[] {300, 70};
     }
 
     /** Layout in dp: every full widget keeps both current and future information visible. */
@@ -1576,31 +1579,6 @@ public final class Logic {
         /** Tall enough for both days as on the card: a title, a bar and the times of its changes each. */
         public boolean sections;
         public float tomorrowTitleTop;
-    }
-
-    /** Layout in dp of a widget one row high: the name, both halves, the day as a thin bar. */
-    public static final class WideLayout {
-        public float side;
-        public float pad;
-        public float headerSize;
-        public float columnWidth;
-        public float rowTop;
-        public float rowHeight;
-        public float barTop;
-        public float barHeight;
-    }
-
-    public static WideLayout wideLayout(int width, int height) {
-        WideLayout w = new WideLayout();
-        w.side = 12;
-        w.pad = Math.max(5, Math.min(8, height * .08f));
-        w.headerSize = Math.max(10.5f, Math.min(13, height * .17f));
-        w.columnWidth = (width - 2 * w.side - 8) / 2;
-        w.rowTop = w.pad + w.headerSize * 1.3f;
-        w.barHeight = Math.max(5, Math.min(8, height * .09f));
-        w.barTop = height - w.pad - w.barHeight;
-        w.rowHeight = w.barTop - 2 - w.rowTop;
-        return w;
     }
 
     private static final float CAP = .74f;  // the height of a capital against the font size

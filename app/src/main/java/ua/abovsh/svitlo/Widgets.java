@@ -18,10 +18,8 @@ final class Widgets {
         AppWidgetManager m = AppWidgetManager.getInstance(c);
         int[] small = m.getAppWidgetIds(new ComponentName(c, LightWidget.class));
         int[] large = m.getAppWidgetIds(new ComponentName(c, LargeLightWidget.class));
-        int[] wide = m.getAppWidgetIds(new ComponentName(c, WideLightWidget.class));
-        int[] all = java.util.Arrays.copyOf(small, small.length + large.length + wide.length);
+        int[] all = java.util.Arrays.copyOf(small, small.length + large.length);
         System.arraycopy(large, 0, all, small.length, large.length);
-        System.arraycopy(wide, 0, all, small.length + large.length, wide.length);
         return all;
     }
 
@@ -63,12 +61,12 @@ final class Widgets {
     /** Nothing may open a screen after this: it would cover the launcher's window, and no widget would be placed. */
     static void offer(Context c, Logic.Place p, String decline) {
         Ui.dialog(c).setTitle("Віджет для «" + p.name + "»")
-                .setItems(new String[] {"Малий · 2×1", "Широкий · 4×1 · зі смугою дня", "Великий · 4×2 · з графіком"},
+                .setItems(new String[] {"Малий · 2×1", "Великий · 4×2 · з графіком"},
                         (dialog, which) -> pin(c, p, which))
                 .setNegativeButton(decline, null).show();
     }
 
-    private static final Class<?>[] SIZES = {LightWidget.class, WideLightWidget.class, LargeLightWidget.class};
+    private static final Class<?>[] SIZES = {LightWidget.class, LargeLightWidget.class};
 
     private static void pin(Context c, Logic.Place p, int size) {
         Intent placed = new Intent(c, PinReceiver.class).putExtra(PinReceiver.PLACE, p.id);

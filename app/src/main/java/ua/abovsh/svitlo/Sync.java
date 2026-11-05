@@ -360,8 +360,7 @@ final class Sync {
             // Portrait: the real cell is MIN_WIDTH x MAX_HEIGHT.
             android.appwidget.AppWidgetProviderInfo info = m.getAppWidgetInfo(id);
             String provider = info == null ? "" : info.provider.getClassName();
-            int[] cell = WideLightWidget.class.getName().equals(provider) ? Logic.widgetDefaultWide()
-                    : Logic.widgetDefaultSize(LargeLightWidget.class.getName().equals(provider));
+            int[] cell = Logic.widgetDefaultSize(LargeLightWidget.class.getName().equals(provider));
             int wDp = Math.max(110, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, cell[0]));
             int hDp = Math.min(260, Math.max(40, o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, cell[1])));
             String key = BuildConfig.VERSION_CODE + "|" + c.getResources().getConfiguration().fontScale + "|" + WidgetArt.key(c, model, now, wDp, hDp);

@@ -66,37 +66,71 @@ final class BarView extends View {
 
     /** Shared app/widget grid: exact halves, readable hour numbers, possible hatching and unknown cells. */
     static void grid(Brush b, String slots, float nowRel, RectF bounds, Paint text, int from, int to) {
+        grid(b, slots, nowRel, bounds, text, new Range(0, 24, from, to));
+    }
+
+    /** A twelve-hour widget row still preserves the real hour numbers and half-hour states. */
+    static void row(Brush b, String slots, float nowRel, RectF bounds, Paint text, int firstHour) {
+        grid(b, slots, nowRel, bounds, text, new Range(firstHour, 12, -1, -1));
+    }
+
+    private static final class Range {
+        final int first;
+        final int count;
+        final int from;
+        final int to;
+
+        Range(int first, int count, int from, int to) {
+            this.first = first;
+            this.count = count;
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+    private static void grid(Brush b, String slots, float nowRel, RectF bounds, Paint text, Range range) {
         float size = text.getTextSize();
-        float gap = bounds.height() * 3 / 55;
+        int rows = range.count / 12;
+        float gap = bounds.height() * 3 / (rows == 1 ? 24 : 55);
         text.setTextAlign(Paint.Align.CENTER);
         float cellW = (bounds.width() - gap * 11) / 12;
-        float cellH = (bounds.height() - gap) / 2;
+        float cellH = (bounds.height() - gap * (rows - 1)) / rows;
         float widest = 0;
         for (String hour : HOURS) widest = Math.max(widest, text.measureText(hour));
-        text.setTextSize(Math.min(size, Math.min((cellW - gap) / widest * size, cellH * .63f)));
-        for (int hour = 0; hour < 24; hour++) {
+        text.setTextSize(Math.min(size, Math.min((cellW - gap) / widest * size, cellH * (rows == 1 ? .74f : .63f))));
+        for (int hour = range.first; hour < range.first + range.count; hour++) {
             float left = bounds.left + hour % 12 * (cellW + gap);
-            int row = hour / 12;
+            int row = (hour - range.first) / 12;
             float top = bounds.top + (float) row * (cellH + gap);
             RectF cell = b.r;
             cell.set(left, top, left + cellW, top + cellH);
-            float radius = Math.min(cellW, cellH) * .22f;
-            b.path.reset(); b.path.addRoundRect(cell, radius, radius, android.graphics.Path.Direction.CW);
-            b.cv.save(); b.cv.clipPath(b.path);
-            fillHour(b, slots, hour, cell);
-            b.cv.restore();
-            text.setColor(at(slots, hour * 2) == '2' && at(slots, hour * 2 + 1) == '2' ? b.pal.muted : 0xFFFFFFFF);
-            float baseline = cell.centerY() - (text.ascent() + text.descent()) / 2;
-            b.cv.drawText(HOURS[hour], cell.centerX(), baseline, text);
-            boolean current = nowRel >= hour * 2 && nowRel < hour * 2 + 2;
-            boolean selected = from >= 0 && hour * 2 < to && hour * 2 + 2 > from;
-            if (current || selected) {
-                b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(Math.max(1, gap * .55f));
-                b.p.setColor(selected ? b.pal.text : Ui.Pal.MARKER);
-                cell.inset(b.p.getStrokeWidth() / 2, b.p.getStrokeWidth() / 2);
-                b.cv.drawRoundRect(cell, radius, radius, b.p);
-                b.p.setStyle(Paint.Style.FILL);
-            }
+            drawHour(b, slots, nowRel, text, range, hour, Math.min(cellW, cellH) * .22f);
+        }
+    }
+
+    private static void drawHour(Brush b, String slots, float nowRel, Paint text, Range range, int hour, float radius) {
+        RectF cell = b.r;
+        b.path.reset(); b.path.addRoundRect(cell, radius, radius, android.graphics.Path.Direction.CW);
+        b.cv.save(); b.cv.clipPath(b.path);
+        fillHour(b, slots, hour, cell);
+        boolean past = nowRel >= (hour + 1) * 2;
+        if (past) {
+            b.p.setColor(Ui.fade(0xFF172428, .65f));
+            b.cv.drawRect(cell, b.p);
+        }
+        b.cv.restore();
+        int ink = at(slots, hour * 2) == '2' && at(slots, hour * 2 + 1) == '2' ? b.pal.muted : 0xFFFFFFFF;
+        text.setColor(past ? 0xFFB9C0BA : ink);
+        float baseline = cell.centerY() - (text.ascent() + text.descent()) / 2;
+        b.cv.drawText(HOURS[hour], cell.centerX(), baseline, text);
+        boolean current = nowRel >= hour * 2 && nowRel < hour * 2 + 2;
+        boolean selected = range.from >= 0 && hour * 2 < range.to && hour * 2 + 2 > range.from;
+        if (current || selected) {
+            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(Math.max(1, current ? text.getTextSize() * .17f : cell.height() * .05f));
+            b.p.setColor(selected ? b.pal.text : Ui.Pal.MARKER);
+            cell.inset(b.p.getStrokeWidth() / 2, b.p.getStrokeWidth() / 2);
+            b.cv.drawRoundRect(cell, radius, radius, b.p);
+            b.p.setStyle(Paint.Style.FILL);
         }
     }
 

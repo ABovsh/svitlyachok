@@ -755,7 +755,7 @@ public class LogicTest {
     @Test
     public void widgetFormFollowsItsSize() {
         assertEquals(Logic.W_ROW, Logic.widgetForm(130, 60));    // 2 x 1
-        assertEquals(Logic.W_WIDE, Logic.widgetForm(300, 70));   // 4 x 1: both halves and the day
+        assertEquals(Logic.W_ROW, Logic.widgetForm(300, 70));    // stretching the small widget never brings back 4 x 1
         assertEquals(Logic.W_FULL, Logic.widgetForm(300, 130));  // 4 x 2: with the next 24 hours
         assertEquals(Logic.W_ROW, Logic.widgetForm(130, 130));   // 2 x 2: too narrow for the bar
     }
@@ -1936,16 +1936,10 @@ public class LogicTest {
     }
 
     @Test
-    public void aWideWidgetHasBothHalvesAndTheDayInOneRow() {
-        Logic.WidgetLayout w = Logic.widgetLayout(360, 72, true);
-        assertFalse(w.twoParts);
-        assertTrue(Logic.widgetForm(250, 56) == Logic.W_WIDE);
-        assertTrue(Logic.widgetForm(240, 80) == Logic.W_ROW);
-        Logic.WideLayout l = Logic.wideLayout(360, 72);
-        assertTrue(l.rowTop + l.rowHeight <= l.barTop);
-        assertTrue(l.barTop + l.barHeight <= 72 - 4 + .01f);
-        assertTrue(l.rowHeight >= 30);
-        assertTrue(l.columnWidth >= 150);
+    public void stretchingTheSmallWidgetKeepsTheSmallLayout() {
+        assertEquals(Logic.W_ROW, Logic.widgetForm(250, 56));
+        assertEquals(Logic.W_ROW, Logic.widgetForm(360, 72));
+        assertEquals(Logic.W_FULL, Logic.widgetForm(300, 130));
     }
 
     @Test
@@ -2059,15 +2053,42 @@ public class LogicTest {
         assertTrue(Logic.hourGridSlot(0, 0, 0, 0) >= 0);
     }
 
-    @Test public void fullWidgetReservesReadablePanesAndHidesTomorrowWhenItDoesNotFit() {
-        for (int h : new int[] {110, 120, 150, 176, 190, 220, 260}) {
-            float[] box = Logic.widgetGridLayout(h);
-            assertTrue(box[1] >= 40);
-            assertEquals(h - 8, box[0] + box[1] + box[3] * (box[2] > 0 ? 2 : 1), .01f);
-            if (box[2] > 0) assertTrue(box[1] >= 52);
+    @Test public void widgetChangesDaysOnlyAfterNoonWithPublishedTomorrow() {
+        String published = repeat('1', 48);
+        for (int height : new int[] {140, 150, 190, 260}) {
+            assertFalse(Logic.widgetSplitTomorrow(height, published, 23));
+            assertTrue(Logic.widgetSplitTomorrow(height, published, 24));
+            assertTrue(Logic.widgetSplitTomorrow(height, published, 47));
+            assertFalse(Logic.widgetSplitTomorrow(height, published, 48));
+            assertFalse(Logic.widgetSplitTomorrow(height, published, 0));
+            assertFalse(Logic.widgetSplitTomorrow(height, null, 42));
+            assertFalse(Logic.widgetSplitTomorrow(height, repeat('2', 48), 42));
+            assertTrue(Logic.widgetSplitTomorrow(height, repeat('0', 48), 42));
+            assertTrue(Logic.widgetSplitTomorrow(height, repeat('3', 48), 42));
+            assertTrue(Logic.widgetSplitTomorrow(height, repeat('2', 24) + repeat('1', 24), 42));
         }
-        assertEquals(0, Logic.widgetGridLayout(150)[2], 0);
-        assertEquals(1, Logic.widgetGridLayout(220)[2], 0);
+        assertFalse(Logic.widgetSplitTomorrow(120, published, 42));
+    }
+
+    @Test public void fullDayTitlesNeverShowRedundantHourRanges() {
+        assertEquals("Сьогодні", Logic.widgetDayTitle(false, false));
+        assertEquals("Завтра", Logic.widgetDayTitle(true, false));
+        assertEquals("Сьогодні · 12–23", Logic.widgetDayTitle(false, true));
+        assertEquals("Завтра · 00–11", Logic.widgetDayTitle(true, true));
+    }
+
+    @Test public void widgetDayRowsKeepPanesAndHourNumbersReadable() {
+        for (int height : new int[] {110, 120, 140, 150, 176, 190, 220, 260}) {
+            for (boolean split : new boolean[] {false, true}) {
+                if (split && height < 140) continue;
+                float[] box = Logic.widgetGridLayout(height, split);
+                assertTrue(box[1] >= 40);
+                assertEquals(height - 8, box[0] + box[1] + box[3] * (split ? 2 : 1), .01f);
+                if (split) assertTrue(box[3] >= 32);
+            }
+        }
+        assertEquals(47, Logic.widgetGridLayout(150, true)[1], .01f);
+        assertEquals(34, Logic.widgetGridLayout(150, true)[3], .01f);
     }
 
     @Test public void aMovedScheduleWithTheSameSummaryKeepsItsOwnIdentity() throws Exception {

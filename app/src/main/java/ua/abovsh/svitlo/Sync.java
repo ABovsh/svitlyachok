@@ -267,9 +267,7 @@ final class Sync {
             if (timeout == 0) persistent = true;
             else until = Math.max(until, child.getPostTime() + timeout);
         }
-        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
-            if (active.getId() == SUMMARY_ID && signature.toString().equals(active.getNotification().extras.getString("group_content"))) return;
-        }
+        if (sameGroup(manager, signature.toString())) return;
         Bundle content = new Bundle();
         content.putString("group_content", signature.toString());
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -293,6 +291,13 @@ final class Sync {
         int id = active.getId();
         return id != SUMMARY_ID && id != 998 && id != 999
                 && !active.getNotification().extras.getString("notice_place", "").isEmpty();
+    }
+
+    private static boolean sameGroup(NotificationManager manager, String signature) {
+        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
+            if (active.getId() == SUMMARY_ID && signature.equals(active.getNotification().extras.getString("group_content"))) return true;
+        }
+        return false;
     }
 
     private static int reminderColour(Logic.Notice n) {

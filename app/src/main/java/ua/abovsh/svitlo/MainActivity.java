@@ -34,6 +34,7 @@ public class MainActivity extends Base {
 
     private static final int HERO_BUTTON = 48;
     private static final float HERO_CLOCK = 27;
+    private static final float HERO_MIN_CLOCK = 16;
     private TextView sub;
     private String shown = "";
     private View addWidget;
@@ -371,7 +372,7 @@ public class MainActivity extends Base {
     private boolean stacked() {
         android.graphics.Paint clock = new android.graphics.Paint();
         clock.setTypeface(Ui.display(this));
-        clock.setTextSize(Ui.sp(this, 18));
+        clock.setTextSize(Ui.sp(this, HERO_MIN_CLOCK));
         android.graphics.Paint small = new android.graphics.Paint();
         small.setTypeface(Ui.bold(this));
         small.setTextSize(Ui.sp(this, 13));
@@ -493,10 +494,11 @@ public class MainActivity extends Base {
         card.addView(place, fill());
         boolean lit = Logic.highlight(n, Prefs.alerts(this, p.id), now);
         float clock = clockSize(start, next);
+        float heading = headingSize(n.title, next[0]);
         LinearLayout halves = stacked() ? Ui.column(this) : Ui.row(this);
         halves.setBaselineAligned(false);
-        halves.addView(nowHalf(n, start, clock), halfParams());
-        halves.addView(nextHalf(n, next, clock, lit), halfParams());
+        halves.addView(nowHalf(n, start, clock, heading), halfParams());
+        halves.addView(nextHalf(n, next, clock, heading, lit), halfParams());
         card.addView(halves, fill());
         String detail = Logic.hintIsEvent(n) ? Logic.nextDetail(n) : "";
         card.setContentDescription(Logic.describeNow(n, detail));
@@ -524,18 +526,37 @@ public class MainActivity extends Base {
         float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 2 * 16 - 2 * 11) / 2f - 14);
         android.graphics.Paint clock = new android.graphics.Paint();
         clock.setTypeface(Ui.display(this));
-        clock.setTextSize(Ui.sp(this, HERO_CLOCK));
         android.graphics.Paint small = new android.graphics.Paint();
         small.setTypeface(Ui.bold(this));
         small.setTextSize(Ui.sp(this, 13));
         float gap = Ui.px(this, 6);
-        float fit = 1f;
-        if (start[0].contains(":")) fit = Math.min(fit, (room - (start[1].isEmpty() ? 0 : small.measureText(start[1]) + gap)) / clock.measureText(start[0]));
-        if (next[1].contains(":")) fit = Math.min(fit, (room - (next[2].isEmpty() ? 0 : small.measureText(next[2]) + gap)) / clock.measureText(next[1]));
-        return stacked() ? HERO_CLOCK : Math.max(18, HERO_CLOCK * fit);
+        if (stacked()) return HERO_CLOCK;
+        for (float size = HERO_CLOCK; size >= HERO_MIN_CLOCK; size -= .25f) {
+            clock.setTextSize(Ui.sp(this, size));
+            float left = clock.measureText(start[0]) + (start[1].isEmpty() ? 0 : small.measureText(start[1]) + gap);
+            float right = clock.measureText(next[1]) + (next[2].isEmpty() ? 0 : small.measureText(next[2]) + gap);
+            if (Math.max(left, right) <= room - 1) return size;
+        }
+        return HERO_MIN_CLOCK;
     }
 
-    private TextView word(String text, int ink) {
+    /** Both headings use the same real, nonlinearly scaled size and therefore the same baseline. */
+    private float headingSize(String current, String next) {
+        if (stacked()) return 20;
+        float half = (getResources().getConfiguration().screenWidthDp - 54) / 2f;
+        float left = Ui.px(this, half - 38);
+        float right = Ui.px(this, half - 14);
+        android.graphics.Paint paint = new android.graphics.Paint();
+        paint.setTypeface(Ui.heavy(this));
+        for (float size = 20; size >= 11; size -= .5f) {
+            paint.setTextSize(Ui.sp(this, size));
+            String fitted = Logic.fittedState(current, paint.measureText(current), left);
+            if (paint.measureText(fitted) <= left && paint.measureText(next) <= right) return size;
+        }
+        return 11;
+    }
+
+    private TextView word(String text, int ink, float size) {
         TextView t = new TextView(this) {
             @Override protected void onMeasure(int width, int height) {
                 float room = MeasureSpec.getMode(width) == MeasureSpec.UNSPECIFIED ? Float.MAX_VALUE
@@ -545,7 +566,7 @@ public class MainActivity extends Base {
                 super.onMeasure(width, height);
             }
         };
-        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 20);
+        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, size);
         t.setTypeface(Ui.heavy(this));
         t.setTextColor(ink);
         t.setIncludeFontPadding(false);
@@ -553,7 +574,6 @@ public class MainActivity extends Base {
         if (stacked()) return t;  // a whole row to itself: a long word wraps rather than shrinks
         t.setSingleLine(true);
         t.setHorizontallyScrolling(false);  // autosize must use the column width, not an unlimited scroll area
-        if (!text.equals("Світла немає")) t.setAutoSizeTextTypeUniformWithConfiguration(11, 20, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         return t;
     }
 
@@ -588,7 +608,7 @@ public class MainActivity extends Base {
         return line;
     }
 
-    private View nowHalf(Logic.Now n, String[] start, float clock) {
+    private View nowHalf(Logic.Now n, String[] start, float clock, float heading) {
         LinearLayout half = Ui.column(this);
         half.setPadding(0, 0, Ui.dp(this, 8), 0);
         LinearLayout head = Ui.row(this);
@@ -598,7 +618,7 @@ public class MainActivity extends Base {
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 25), Ui.dp(this, 25));
         bl.rightMargin = Ui.dp(this, 5);
         head.addView(bulb, bl);
-        head.addView(word(n.title, pal.status(n.state)), weight());
+        head.addView(word(n.title, pal.status(n.state), heading), weight());
         half.addView(head, fill());
         half.addView(clockLine(start[0], start[1], clock, pal.text, pal.muted), fill());
         TextView ago = Ui.text(this, 13.5f, Ui.body(this), pal.muted);
@@ -609,7 +629,7 @@ public class MainActivity extends Base {
         return half;
     }
 
-    private View nextHalf(Logic.Now n, String[] next, float clock, boolean lit) {
+    private View nextHalf(Logic.Now n, String[] next, float clock, float heading, boolean lit) {
         LinearLayout half = Ui.column(this);
         int ink = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
         int text = pal.text;
@@ -626,7 +646,7 @@ public class MainActivity extends Base {
         if (!next[0].isEmpty()) {
             LinearLayout head = Ui.row(this);
             head.setMinimumHeight(Ui.dp(this, 26));
-            head.addView(word(next[0], ink), weight());
+            head.addView(word(next[0], ink, heading), weight());
             half.addView(head, fill());
         }
         half.addView(clockLine(next[1], next[2], clock, ink, side), fill());

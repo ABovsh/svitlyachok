@@ -35,6 +35,7 @@ final class Sync {
     static final String ACTION_DISMISS = BuildConfig.APPLICATION_ID + ".DISMISS_NOTICE";
     private static final String NOTICE_GROUP = "places";
     private static final int SUMMARY_ID = 900;
+    private static final String REMINDER_PLACE = "reminder_place";
 
     private Sync() {}
 
@@ -180,7 +181,7 @@ final class Sync {
     private static void clearLegacySchedule(Context c, String place) {
         NotificationManager manager = c.getSystemService(NotificationManager.class);
         for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
-            if (active.getId() == Logic.slot(place) && !active.getNotification().extras.containsKey("reminder_place")) {
+            if (active.getId() == Logic.slot(place) && !active.getNotification().extras.containsKey(REMINDER_PLACE)) {
                 manager.cancel(active.getId());
             }
         }
@@ -242,7 +243,7 @@ final class Sync {
         Set<String> places = new java.util.HashSet<>();
         for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
             String place = active.getNotification().extras.getString("notice_place", "");
-            if (active.getId() != SUMMARY_ID && !place.isEmpty() && active.getId() != 998 && active.getId() != 999) {
+            if (isGroupChild(active)) {
                 children.add(active);
                 places.add(place);
             }
@@ -288,6 +289,12 @@ final class Sync {
         }
     }
 
+    private static boolean isGroupChild(android.service.notification.StatusBarNotification active) {
+        int id = active.getId();
+        return id != SUMMARY_ID && id != 998 && id != 999
+                && !active.getNotification().extras.getString("notice_place", "").isEmpty();
+    }
+
     private static int reminderColour(Logic.Notice n) {
         if (n.state == Logic.MAYBE) return GOLD;
         return n.on ? GREEN : RED;
@@ -296,7 +303,7 @@ final class Sync {
     private static void decorateReminder(Notification.Builder b, String place, Logic.Notice n) {
         if (n.change <= 0) return;
         Bundle extras = new Bundle();
-        extras.putString("reminder_place", place); extras.putLong("reminder_change", n.change);
+        extras.putString(REMINDER_PLACE, place); extras.putLong("reminder_change", n.change);
         extras.putLong("reminder_planned", n.planned); extras.putInt("reminder_kind", n.kind);
         b.addExtras(extras);
         if (n.planned < n.change) b.setWhen(n.change * 1000).setUsesChronometer(true).setChronometerCountDown(true);
@@ -312,7 +319,7 @@ final class Sync {
 
     private static void reconcileOne(Context c, String region, android.service.notification.StatusBarNotification posted, NotificationManager nm) {
         Bundle extras = posted.getNotification().extras;
-        String id = extras.getString("reminder_place", "");
+        String id = extras.getString(REMINDER_PLACE, "");
         Logic.Place p = Prefs.place(c, id);
         if (p == null || !p.region.equals(region)) return;
         LocalDate base = Logic.today(now()).minusDays(1);

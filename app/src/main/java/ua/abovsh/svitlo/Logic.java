@@ -34,6 +34,7 @@ public final class Logic {
     }
     public static final int OFF = 0;
     private static final String TOMORROW = "Завтра";
+    private static final String TOMORROW_LABEL = "Завтра: ";
     private static final String UNTIL_TOMORROW = "до завтра ";
     private static final String POSSIBLE_OUTAGE = "Можливе вимкнення";
     public static final int ON = 1;
@@ -1269,7 +1270,9 @@ public final class Logic {
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
         n.state = state; n.change = e.change; n.planned = e.at; n.kind = e.kind;
-        n.title = headed(mark(state), maybe ? POSSIBLE_OUTAGE : n.on ? "Увімкнуть світло" : "Вимкнуть світло");
+        String what = n.on ? "Увімкнуть світло" : "Вимкнуть світло";
+        if (maybe) what = POSSIBLE_OUTAGE;
+        n.title = headed(mark(state), what);
         n.text = named(e.name, eventWhen(e, end, state, now));
         if (e.at < e.change) n.until = e.change;
         else if (n.on) n.until = e.change + 3600;
@@ -1295,13 +1298,15 @@ public final class Logic {
     private static String eventWhen(Event e, long end, int state, long now) {
         String start = noticeClock(e.change, now);
         if (end <= e.change) {
-            String unknown = state == ON ? "час вимкнення невідомий"
-                    : state == MAYBE ? "кінець поки невідомий" : "час увімкнення невідомий";
+            String unknown = "час увімкнення невідомий";
+            if (state == ON) unknown = "час вимкнення невідомий";
+            else if (state == MAYBE) unknown = "кінець поки невідомий";
             return "з " + start + " · " + unknown;
         }
         String stop = dayDiff(e.change, end) > 1 ? noticeClock(end, e.change) : until(end, e.change);
         String duration = hoursMinutes((int) ((end - e.change) / 60));
-        String detail = state == MAYBE ? "до " + duration : duration + (state == ON ? " світла" : " без світла");
+        String suffix = state == ON ? " світла" : " без світла";
+        String detail = state == MAYBE ? "до " + duration : duration + suffix;
         return start + "–" + stop + " · " + detail;
     }
 
@@ -1399,7 +1404,7 @@ public final class Logic {
         }
         n.title = "Графік оновлено";
         List<String> days = new ArrayList<>();
-        for (Note note : notes) days.add((note.today ? "Сьогодні: " : "Завтра: ") + note.summary);
+        for (Note note : notes) days.add((note.today ? "Сьогодні: " : TOMORROW_LABEL) + note.summary);
         n.text = named(p.name, String.join("\n", days));
         return n;
     }
@@ -1694,7 +1699,7 @@ public final class Logic {
         if (certain == 0) {
             return new String[] {"Завтра можливо: " + String.join(", ", labels), "Завтра можливо: " + length(count(day, '3'))};
         }
-        return new String[] {"Завтра: " + String.join(", ", labels), "Завтра: " + outagesWord(certain) + " · " + length(count(day, '0'))};
+        return new String[] {TOMORROW_LABEL + String.join(", ", labels), TOMORROW_LABEL + outagesWord(certain) + " · " + length(count(day, '0'))};
     }
 
     /** "без світла 10 год" for a day with an outage, otherwise nothing: the bar says the rest. */

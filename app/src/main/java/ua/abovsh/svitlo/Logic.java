@@ -34,6 +34,7 @@ public final class Logic {
     }
     public static final int OFF = 0;
     private static final String TOMORROW = "Завтра";
+    private static final String UNTIL_TOMORROW = "до завтра ";
     private static final String POSSIBLE_OUTAGE = "Можливе вимкнення";
     public static final int ON = 1;
     public static final int UNKNOWN = 2;
@@ -1908,7 +1909,10 @@ public final class Logic {
     /** What the right half says: the widget's words, and a day with no schedule names the last one known. */
     public static String[] heroFuture(Now n, String lastDay) {
         if (n.state == UNKNOWN && !lastDay.isEmpty()) return new String[] {"Останній графік", lastDay, ""};
-        return widgetFuture(n);
+        String[] next = widgetFuture(n);
+        // The event heading already says tomorrow; its end clock belongs to that same day.
+        if (n.tomorrow) next[2] = next[2].replace(UNTIL_TOMORROW, "до ");
+        return next;
     }
 
     /** The next notification still to come, from a sorted list; one already late is on its way. */
@@ -1980,7 +1984,7 @@ public final class Logic {
     /** Compact tiles keep a literal state; an unpublished day is never treated as power. */
     public static String tileLine(Now n) {
         if (!n.big.startsWith("до ") || (n.state != ON && n.state != OFF)) return n.title;
-        String until = n.big.equals(TO_DAY_END) ? "до " + MIDNIGHT : n.big.replace("до завтра ", "до ");
+        String until = n.big.equals(TO_DAY_END) ? "до " + MIDNIGHT : n.big.replace(UNTIL_TOMORROW, "до ");
         return (n.state == ON ? "Є " : "Немає ") + until;
     }
 

@@ -1960,6 +1960,19 @@ public class LogicTest {
     }
 
     @Test
+    public void tomorrowEventNamesItsDayOnceWithoutLosingTheEndClock() {
+        String timeline = repeat('1', 48) + repeat('1', 12) + repeat('0', 8) + repeat('1', 28);
+        Logic.Now n = Logic.now(timeline, OCT30, at(21, 0), false);
+        assertTrue(n.tomorrow);
+        assertEquals(Arrays.asList("Вимкнуть завтра", "06:00", "до 10:00"), Arrays.asList(Logic.heroFuture(n, "")));
+        assertEquals("до завтра 10:00", Logic.widgetFuture(n)[2]);
+        // When the event starts today, its end tomorrow still needs the date.
+        n = Logic.now(repeat('1', 44) + repeat('0', 16) + repeat('1', 36), OCT30, at(21, 0), false);
+        assertFalse(n.tomorrow);
+        assertEquals("до завтра 06:00", Logic.heroFuture(n, "")[2]);
+    }
+
+    @Test
     public void countdownWordsLoseOnlyACompletePairOfBrackets() {
         Logic.Now n = new Logic.Now();
         n.hintIn = "(менш ніж за хвилину)";

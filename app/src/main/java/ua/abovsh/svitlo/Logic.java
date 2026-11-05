@@ -8,6 +8,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -2051,6 +2053,17 @@ public final class Logic {
         return (n.state == ON ? "Є " : "Немає ") + until;
     }
 
+    /** Secondary formats may omit a repeated state word; the bulb and spoken text retain it. */
+    public static List<String> tileFormats(Now n) {
+        if (n.state == MAYBE && n.big.startsWith("до ")) return Collections.singletonList("Можливо\n" + n.big);
+        String full = tileLine(n);
+        if ((n.state == ON || n.state == OFF) && n.big.startsWith("до ")) {
+            String compact = n.big.equals(TO_DAY_END) ? "до " + MIDNIGHT : n.big.replace(UNTIL_TOMORROW, "до ");
+            return Arrays.asList(full, compact);
+        }
+        return Collections.singletonList(full);
+    }
+
     /** The state card for a screen reader, without pauses for the parts it does not have. */
     public static String describeNow(Now n, String detail) {
         StringBuilder b = new StringBuilder("Зараз за графіком: ").append(n.title);
@@ -2059,6 +2072,13 @@ public final class Logic {
         if (!n.hint.isEmpty()) b.append(". ").append(n.hint);
         if (!detail.isEmpty()) b.append(". ").append(detail);
         return b.append('.').toString();
+    }
+
+    /** Optional visual details remain available to a screen reader at every font size. */
+    public static String heroDescription(Now n) {
+        String detail = nextDetail(n);
+        if (n.next == ON && !n.endDetail.isEmpty()) detail += (detail.isEmpty() ? "" : ". ") + "Світло " + n.endDetail;
+        return describeNow(n, detail);
     }
 
     /** A coming change with its clock; anything else is a statement about the schedule. */

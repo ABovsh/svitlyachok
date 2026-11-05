@@ -2125,6 +2125,30 @@ public class LogicTest {
         assertEquals("Світло є", Logic.fittedState("Світло є", 150, 130));
     }
 
+    @Test public void narrowTilesKeepTheExactKnownEndForBothPowerStates() {
+        Logic.Now on = Logic.now(repeat('1', 28) + repeat('0', 68), OCT30, at(13, 0), false);
+        Logic.Now off = Logic.now(repeat('0', 28) + repeat('1', 68), OCT30, at(13, 0), false);
+        assertEquals(Arrays.asList("Є до 14:00", "до 14:00"), Logic.tileFormats(on));
+        assertEquals(Arrays.asList("Немає до 14:00", "до 14:00"), Logic.tileFormats(off));
+    }
+
+    @Test public void possibleTileKeepsUncertaintyAndItsEndWhenSpaceIsLimited() {
+        Logic.Now possible = Logic.now(repeat('1', 26) + repeat('3', 8) + repeat('1', 62), OCT30, at(13, 0), false);
+        assertEquals(Arrays.asList("Можливо\nдо 17:00"), Logic.tileFormats(possible));
+        assertTrue(Logic.heroDescription(possible).contains("Можливе вимкнення"));
+        Logic.Now unknown = Logic.now(repeat('2', 96), OCT30, at(13, 0), false);
+        assertEquals(Arrays.asList("Графіка немає"), Logic.tileFormats(unknown));
+    }
+
+    @Test public void screenReaderRetainsTheOptionalEndOfTheNextLightInterval() {
+        Logic.Now n = Logic.now(repeat('0', 28) + repeat('1', 24) + repeat('0', 44), OCT30, at(13, 0), false);
+        String spoken = Logic.heroDescription(n);
+        assertTrue(spoken, spoken.contains("Увімкнуть о 14:00"));
+        assertTrue(spoken, spoken.contains("Світло до 02:00"));
+        n = Logic.now(repeat('0', 28) + repeat('1', 20), OCT30, at(13, 0), false);
+        assertFalse(Logic.heroDescription(n).contains("Світло до"));
+    }
+
     private static Logic.Event noticeEvent(int kind, long change, int lead) {
         Logic.Event event = new Logic.Event();
         event.kind = kind; event.change = change; event.at = change - lead * 60L;

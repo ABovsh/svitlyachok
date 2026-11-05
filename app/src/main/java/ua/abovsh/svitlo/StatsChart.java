@@ -35,8 +35,8 @@ final class StatsChart extends View {
         super(c); this.pal = pal;
         brush = new Brush(pal, pal.card);
         chartH = Ui.px(c, 112);
-        value.setTypeface(Ui.heavy(c)); value.setTextSize(Ui.sp(c, 13)); value.setTextAlign(Paint.Align.CENTER);
-        label.setTypeface(Ui.bold(c)); label.setTextSize(Ui.sp(c, 11)); label.setTextAlign(Paint.Align.CENTER);
+        value.setTypeface(Ui.heavy(c)); value.setTextSize(Ui.compactSp(c, 13, 1.1f)); value.setTextAlign(Paint.Align.CENTER);
+        label.setTypeface(Ui.bold(c)); label.setTextSize(Ui.compactSp(c, 11, 1.1f)); label.setTextAlign(Paint.Align.CENTER);
         top = value.getFontSpacing() + Ui.px(c, 2);
         axis = 0;
         averageDash = new DashPathEffect(new float[] {Ui.px(c,5), Ui.px(c,4)}, 0);

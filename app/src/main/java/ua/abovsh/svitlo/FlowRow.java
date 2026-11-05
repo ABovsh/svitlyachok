@@ -30,41 +30,47 @@ final class FlowRow extends ViewGroup {
 
     @Override
     protected void onMeasure(int ws, int hs) {
-        int max = MeasureSpec.getSize(ws);
+        boolean unlimited = MeasureSpec.getMode(ws) == MeasureSpec.UNSPECIFIED;
+        int max = unlimited ? Integer.MAX_VALUE / 4 : Math.max(1, MeasureSpec.getSize(ws) - getPaddingLeft() - getPaddingRight());
         java.util.Arrays.fill(lines, 0);
         int x = 0;
         int y = 0;
         int row = 0;
+        int used = 0;
         for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
-            v.measure(MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
+            if (v.getVisibility() == GONE) continue;
+            v.measure(unlimited ? MeasureSpec.UNSPECIFIED : MeasureSpec.makeMeasureSpec(max, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
             if (x > 0 && x + v.getMeasuredWidth() > max) {
                 x = 0;
                 y += lines[row] + rowGap;
                 row++;
             }
             x += v.getMeasuredWidth() + gap;
+            used = Math.max(used, x - gap);
             lines[row] = Math.max(lines[row], v.getMeasuredHeight());
         }
-        setMeasuredDimension(max, y + lines[row]);
+        setMeasuredDimension(resolveSize(used + getPaddingLeft() + getPaddingRight(), ws),
+                resolveSize(y + lines[row] + getPaddingTop() + getPaddingBottom(), hs));
     }
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        int max = r - l;
+        int max = Math.max(1, r - l - getPaddingLeft() - getPaddingRight());
         int x = 0;
         int y = 0;
         int row = 0;
         for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
+            if (v.getVisibility() == GONE) continue;
             int w = v.getMeasuredWidth();
             if (x > 0 && x + w > max) {
                 x = 0;
                 y += lines[row] + rowGap;
                 row++;
             }
-            int left = x;
-            int top = y + (lines[row] - v.getMeasuredHeight()) / 2;
+            int left = getPaddingLeft() + x;
+            int top = getPaddingTop() + y + (lines[row] - v.getMeasuredHeight()) / 2;
             v.layout(left, top, left + w, top + v.getMeasuredHeight());
             x += w + gap;
         }

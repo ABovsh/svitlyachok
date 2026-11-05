@@ -170,24 +170,18 @@ abstract class Base extends Activity {
 
     /** How early: "Одразу" and minutes as a row of equal pills, wrapped when a large font needs it. */
     View leads(int[] leads, int lead, java.util.function.IntConsumer chosen) {
-        boolean large = getResources().getConfiguration().fontScale > 1.25f;
-        android.view.ViewGroup row = large ? new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 6)) : Ui.row(this);
-        for (int i = 0; i < leads.length; i++) {
-            int v = leads[i];
-            TextView t = Ui.pill(this, pal, v == 0 ? "Одразу" : v + " хв", v == lead, 13.5f);
-            t.setContentDescription(v == 0 ? "у момент зміни" : "за " + v + " хвилин до зміни");
-            t.setOnClickListener(c -> chosen.accept(v));
-            if (large) { row.addView(t); continue; }
-            t.setPadding(0, Ui.dp(this, 9), 0, Ui.dp(this, 9));
-            t.setSingleLine(true);
-            LinearLayout.LayoutParams lp = weight();
-            if (i > 0) lp.leftMargin = Ui.dp(this, 5);
-            row.addView(t, lp);
+        AdaptiveGrid row = new AdaptiveGrid(this, leads.length, 5);
+        for (int value : leads) {
+            FitText pill = new FitText(this, 13.5f, 13, 1, value == lead ? Ui.heavy(this) : Ui.bold(this), value == lead ? pal.accentInk : pal.text);
+            pill.formats(value == 0 ? new CharSequence[] {"Одразу", "0 хв"} : new CharSequence[] {value + " хв"});
+            pill.setContentDescription(value == 0 ? "у момент зміни" : "за " + value + " хвилин до зміни");
+            pill.setGravity(Gravity.CENTER); pill.setMinHeight(Ui.dp(this, 48)); pill.setMinimumWidth(Ui.dp(this, 48));
+            pill.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+            pill.setBackground(Ui.round(value == lead ? pal.accent : pal.raised, Ui.px(this, 13)));
+            pill.setOnClickListener(c -> chosen.accept(value)); row.addView(pill);
         }
         LinearLayout box = Ui.column(this);
-        box.setPadding(0, 0, 0, Ui.dp(this, 10));
-        box.addView(row, fill());
-        return box;
+        box.setPadding(0, 0, 0, Ui.dp(this, 10)); box.addView(row, fill()); return box;
     }
 
     /** Back button + title for the inner pages. */
@@ -195,10 +189,12 @@ abstract class Base extends Activity {
         LinearLayout r = Ui.row(this);
         r.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 6));
         r.addView(iconButton(R.drawable.ic_back, "Назад", v -> finish()));
-        TextView t = Ui.text(this, 21, Ui.display(this), pal.text);
+        FitText t = new FitText(this, 21, 17, 1, Ui.display(this), pal.text).compact(1.1f);
         t.setText(title);
         t.setGravity(Gravity.CENTER_VERTICAL);
-        boolean separate = t.getPaint().measureText(title) > Ui.px(this,
+        android.graphics.Paint minimum = new android.graphics.Paint(t.getPaint());
+        minimum.setTextSize(Ui.compactSp(this, 17, 1.1f));
+        boolean separate = minimum.measureText(title) > Ui.px(this,
                 getResources().getConfiguration().screenWidthDp - 94f);
         if (separate) r.setOrientation(LinearLayout.VERTICAL);
         t.setPadding(separate ? 0 : Ui.dp(this, 14), 0, 0, 0);

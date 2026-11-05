@@ -5,12 +5,12 @@ import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.text.Layout;
 import android.view.Gravity;
-import android.widget.TextView;
 
 /** A button whose icon stands right before its words, the two centred together, however wide it is. */
-final class ActionButton extends TextView {
+final class ActionButton extends FitText {
     ActionButton(Context c) {
-        super(c);
+        super(c, 14, 12.5f, 2, Ui.heavy(c), 0);
+        compact(1.1f);
         setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
     }
 

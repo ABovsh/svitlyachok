@@ -40,8 +40,9 @@ public class StatsActivity extends Base {
         page.addView(note, fill());
     }
 
-    private boolean large() {
-        return getResources().getConfiguration().fontScale > 1.25f;
+    private boolean tableStacked() {
+        float nameRoom = getResources().getConfiguration().screenWidthDp - 32f - 8 - 18 - WEEK_DP - MONTH_DP - CHANGE_DP;
+        return nameRoom < 80;
     }
 
     /** All places at once in percent: this week, four weeks, the change of the last week. */
@@ -49,7 +50,7 @@ public class StatsActivity extends Base {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 4), Ui.dp(this, 7), Ui.dp(this, 4), Ui.dp(this, 5));
         box.setBackground(Ui.card(this, pal, 0));
-        if (!large()) box.addView(columns(), fill());
+        if (!tableStacked()) box.addView(columns(), fill());
         for (Logic.Place p : places) box.addView(row(p), fill());
         return box;
     }
@@ -72,7 +73,7 @@ public class StatsActivity extends Base {
     }
 
     private TextView head(String words, int gravity) {
-        TextView t = Ui.text(this, 12, Ui.bold(this), pal.muted);
+        FitText t = new FitText(this, 12, 11, 1, Ui.bold(this), pal.muted).compact(1.1f);
         t.setText(words); t.setSingleLine(true); t.setGravity(gravity);
         return t;
     }
@@ -89,15 +90,15 @@ public class StatsActivity extends Base {
         boolean chosen = p.id.equals(place);
         View name = rowName(p);
         View weekBox = weekCell(week);
-        TextView monthText = Ui.text(this, 15, Ui.bold(this), pal.muted);
+        FitText monthText = new FitText(this, 15, 13, 1, Ui.bold(this), pal.muted).compact(1.1f);
         monthText.setText(percent(month));
-        TextView changeText = Ui.text(this, 13, Ui.heavy(this), changeInk(change));
+        FitText changeText = new FitText(this, 13, 12, 2, Ui.heavy(this), changeInk(change)).compact(1.1f);
         changeText.setText(Logic.changeWords(change));
         changeText.setGravity(android.view.Gravity.END);
-        LinearLayout r = large() ? Ui.column(this) : Ui.row(this);
+        LinearLayout r = tableStacked() ? Ui.column(this) : Ui.row(this);
         r.setPadding(Ui.dp(this, 9), Ui.dp(this, 7), Ui.dp(this, 9), Ui.dp(this, 7));
         if (chosen) r.setBackground(Ui.outline(pal.accentText, Ui.px(this, 12), Ui.dp(this, 2)));
-        if (large()) {
+        if (tableStacked()) {
             r.addView(name, fill());
             LinearLayout values = Ui.row(this);
             values.addView(weekBox, weight()); values.addView(monthText, weight()); values.addView(changeText, weight());
@@ -130,7 +131,7 @@ public class StatsActivity extends Base {
     /** A long name wraps: it is never cut. */
     private View rowName(Logic.Place p) {
         FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
-        TextView title = Ui.text(this, 15, Ui.heavy(this), pal.text);
+        FitText title = new FitText(this, 15, 13, 2, Ui.heavy(this), pal.text).compact(1.1f);
         title.setText(p.name);
         name.addView(title);
         if (!Logic.autoNamed(p)) {
@@ -144,7 +145,7 @@ public class StatsActivity extends Base {
     private View weekCell(int week) {
         LinearLayout box = Ui.column(this);
         box.setPadding(0, 0, Ui.dp(this, 12), 0);
-        TextView text = Ui.text(this, 16, Ui.heavy(this), pal.onText);
+        FitText text = new FitText(this, 16, 14, 1, Ui.heavy(this), pal.onText).compact(1.1f);
         text.setText(percent(week));
         box.addView(text, fill());
         if (week < 0) return box;
@@ -169,15 +170,18 @@ public class StatsActivity extends Base {
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 12), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 10));
         card.setBackground(Ui.card(this, pal, 0));
-        LinearLayout top = large() ? Ui.column(this) : Ui.row(this);
+        LinearLayout top = Ui.row(this); top.setBaselineAligned(false);
         LinearLayout words = Ui.column(this);
-        TextView head = Ui.text(this, 16, Ui.heavy(this), pal.text);
+        FitText head = new FitText(this, 16, 14, 2, Ui.heavy(this), pal.text).compact(1.1f);
         head.setText(p.name); words.addView(head, fill());
-        TextView range = Ui.text(this, 12.5f, Ui.body(this), pal.muted);
+        FitText range = new FitText(this, 12.5f, 12, 2, Ui.body(this), pal.muted);
         range.setText(days == 7 ? date(daily.get(0)) + " — " + date(daily.get(6)) + " · годин на добу"
                 : shortDate(weeks.get(0).from) + " — " + shortDate(weeks.get(3).to) + " · у середньому за добу");
+        CharSequence fullRange = range.getText();
+        range.formats(fullRange, fullRange.toString().replace(" — ", "–").replace(" · годин на добу", " · год/добу").replace(" · у середньому за добу", " · год/добу"));
+        range.setContentDescription(fullRange);
         words.addView(range, fill());
-        top.addView(words, large() ? fill() : weight());
+        top.addView(words, weight());
         top.addView(period(), wrap());
         card.addView(top, gap(7));
         StatsChart chart = new StatsChart(this, pal);

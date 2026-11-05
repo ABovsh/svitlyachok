@@ -33,8 +33,6 @@ public class MainActivity extends Base {
     private TextView getButton;
 
     private static final int HERO_BUTTON = 48;
-    private static final float HERO_CLOCK = 27;
-    private static final float HERO_MIN_CLOCK = 16;
     private TextView sub;
     private String shown = "";
     private View addWidget;
@@ -129,12 +127,9 @@ public class MainActivity extends Base {
         r.addView(logo, new LinearLayout.LayoutParams(Ui.dp(this, 38), Ui.dp(this, 38)));
         LinearLayout t = Ui.column(this);
         t.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 8), 0);
-        TextView name = Ui.text(this, 18, Ui.display(this), pal.text);
+        FitText name = new FitText(this, 18, 16, 1, Ui.display(this), pal.text).compact(1.05f);
         name.setText("Світлячок");
         name.setContentDescription(getString(R.string.app_name));
-        name.setSingleLine(true);
-        name.setHorizontallyScrolling(false);
-        name.setAutoSizeTextTypeUniformWithConfiguration(16, 18, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
         t.addView(name);
         sub = Ui.text(this, 13, Ui.body(this), pal.muted);
         sub.setPadding(0, Ui.dp(this, 3), 0, 0);
@@ -150,7 +145,7 @@ public class MainActivity extends Base {
         r.addView(iconButton(R.drawable.ic_gear, "Налаштування", v -> startActivity(new Intent(this, SettingsActivity.class))),
                 new LinearLayout.LayoutParams(Ui.dp(this, HERO_BUTTON), Ui.dp(this, HERO_BUTTON)));
         android.graphics.Paint title = new android.graphics.Paint(name.getPaint());
-        title.setTextSize(Ui.sp(this, 16));
+        title.setTextSize(Ui.compactSp(this, 16, 1.05f));
         float titleRoom = Ui.px(this, getResources().getConfiguration().screenWidthDp - 32f - 38 - 20 - 2 * HERO_BUTTON - 8);
         if (title.measureText(name.getText().toString()) > titleRoom) {
             // Give large text the full width instead of trapping it between three icons.
@@ -368,308 +363,37 @@ public class MainActivity extends Base {
         return card;
     }
 
-    /** Keep two readable columns while the actual system-scaled clock and end time fit. */
-    private boolean stacked() {
-        android.graphics.Paint clock = new android.graphics.Paint();
-        clock.setTypeface(Ui.display(this));
-        clock.setTextSize(Ui.sp(this, HERO_MIN_CLOCK));
-        android.graphics.Paint small = new android.graphics.Paint();
-        small.setTypeface(Ui.bold(this));
-        small.setTextSize(Ui.sp(this, 13));
-        float needed = Math.max(clock.measureText("з 24:00"),
-                clock.measureText("24:00") + Ui.px(this, 6) + small.measureText("до 24:00"));
-        float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 54) / 2f - 14);
-        return needed > room;
-    }
-
+    /** The place grid measures its own cards; optional details in the hero never affect it. */
     private View tiles(List<Logic.Place> places, Logic.Place chosen, LocalDate base, long now) {
-        LinearLayout grid = Ui.column(this);
-        int columns = stacked() ? 1 : 2;
-        LinearLayout row = null;
-        for (int i = 0; i < places.size(); i++) {
-            if (i % columns == 0) {
-                row = Ui.row(this);
-                row.setBaselineAligned(false);
-                LinearLayout.LayoutParams rl = fill();
-                if (i > 0) rl.topMargin = Ui.dp(this, 6);
-                grid.addView(row, rl);
-            }
-            LinearLayout.LayoutParams tl = columns == 2 ? new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f) : weight();  // one height in a row
-            if (i % columns != 0) tl.leftMargin = Ui.dp(this, 6);
-            row.addView(tile(places.get(i), places.get(i).id.equals(chosen.id), base, now), tl);
-        }
-        if (columns == 2 && places.size() % 2 == 1) {
-            // MATCH_PARENT too: one wrap-content child makes a row of match-parent tiles measure as zero high
-            LinearLayout.LayoutParams empty = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
-            empty.leftMargin = Ui.dp(this, 6);  // so the lone tile is as wide as the others
-            row.addView(new View(this), empty);
+        AdaptiveGrid grid = new AdaptiveGrid(this, 2, 6);
+        for (Logic.Place place : places) {
+            Logic.Data data = Store.data(this, place.region);
+            Logic.Now state = Logic.now(Logic.timeline(data, place.group, base), base, now, data != null && data.none);
+            if (data == null) { state.title = loading ? "Завантажую" : "Графіка немає"; state.big = ""; }
+            boolean soon = Logic.highlight(state, Prefs.alerts(this, place.id), now);
+            String percent = Logic.dayPercent(Logic.day(data, place.group, base));
+            grid.addView(new PlaceTile(this, pal, place, state, place.id.equals(chosen.id), soon, percent, v -> {
+                Prefs.setCurrent(this, place.id); render(); scroll.smoothScrollTo(0, 0);
+            }));
         }
         return grid;
     }
 
-    private View tile(Logic.Place p, boolean chosen, LocalDate base, long now) {
-        Logic.Data d = Store.data(this, p.region);
-        Logic.Now n = Logic.now(Logic.timeline(d, p.group, base), base, now, d != null && d.none);
-        if (d == null) { n.title = loading ? "Завантажую" : "Графіка немає"; n.big = ""; }
-        LinearLayout t = Ui.row(this);
-        t.setMinimumHeight(Ui.dp(this, 56));
-        int pad = Ui.dp(this, chosen ? 5 : 6);
-        t.setPadding(pad, pad, Ui.dp(this, 3), pad);  // the lit line of a coming change needs the room
-        BulbView bulb = new BulbView(this, pal);
-        bulb.still(); bulb.set(n.state);
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 30));
-        bl.rightMargin = Ui.dp(this, 4);
-        t.addView(bulb, bl);
-        LinearLayout words = Ui.column(this);
-        boolean named = !Logic.autoNamed(p);
-        String day = Logic.day(d, p.group, base);
-        words.addView(tileName(p, chosen && named, Logic.dayPercent(day)), fill());
-        // the same rule as the big card: lit as soon as the notifications of this place would speak
-        boolean soon = Logic.highlight(n, Prefs.alerts(this, p.id), now);
-        TextView status = Ui.text(this, 14, Ui.bold(this), soon ? chipInk(n.next) : pal.status(n.state));
-        status.setText(Logic.tileLine(n));
-        LinearLayout.LayoutParams sl = wrap();
-        sl.topMargin = Ui.dp(this, 2);
-        if (soon) {
-            status.setPadding(Ui.dp(this, 4), Ui.dp(this, 1), Ui.dp(this, 4), Ui.dp(this, 1));
-            status.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 7)));
-        }
-        words.addView(status, sl);
-        t.addView(words, weight());
-        android.widget.FrameLayout card = new android.widget.FrameLayout(this);
-        android.graphics.drawable.GradientDrawable bg = Ui.round(pal.soft(n.state), Ui.px(this, 15));
-        int edge = Ui.dp(this, chosen ? 2 : 1);
-        bg.setStroke(edge, chosen ? pal.accentText : pal.line);
-        card.setBackground(bg);
-        card.addView(t, new android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        card.setContentDescription((named ? p.name + ", черга " + Logic.queue(p.group) : p.name) + ": " + n.title
-                + (n.big.isEmpty() ? "" : ", " + n.big) + (soon ? ", скоро зміна" : "") + (chosen ? ", вибрано" : ", показати графік"));
-        card.setOnClickListener(v -> { Prefs.setCurrent(this, p.id); render(); scroll.smoothScrollTo(0, 0); });
-        return card;
-    }
-
-    /** The large widget's two halves: what is now and since when, what comes and when; and how long each. */
-    private View tileName(Logic.Place p, boolean withQueue, String percent) {
-        FlowRow name = new FlowRow(this, Ui.dp(this, 5), Ui.dp(this, 2));
-        TextView label = Ui.text(this, 14, Ui.heavy(this), pal.text);
-        label.setText(p.name);
-        name.addView(label);
-        if (withQueue) {
-            TextView queue = Ui.text(this, 13, Ui.heavy(this), pal.accentText);
-            queue.setText(Logic.queue(p.group));
-            queue.setPadding(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
-            queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
-            name.addView(queue);
-        }
-        LinearLayout row = Ui.row(this);
-        row.addView(name, weight());
-        TextView share = Ui.text(this, 11, Ui.heavy(this), pal.muted);
-        share.setText(percent);
-        share.setSingleLine(true);
-        share.setPadding(Ui.dp(this, 3), 0, 0, 0);
-        share.setContentDescription("Очікується світла сьогодні: " + percent);
-        row.addView(share, wrap());
-        return row;
-    }
-
     private View hero(Logic.Place p, Logic.Data d, String tl, LocalDate base, long now) {
-        Logic.Now n = Logic.nowWithHistory(tl, base, now, d != null && d.none, Prefs.knownHistory(this, p, d));
-        boolean known = d != null;
-        if (!known) {
-            n.title = loading ? "Завантажую графік" : "Графіка немає"; n.big = "";
-            n.hint = "Інтернет потрібен для першого завантаження"; n.hintIn = "";
+        Logic.Now state = Logic.nowWithHistory(tl, base, now, d != null && d.none, Prefs.knownHistory(this, p, d));
+        if (d == null) {
+            state.title = loading ? "Завантажую графік" : "Графіка немає"; state.big = "";
+            state.hint = "Інтернет потрібен для першого завантаження"; state.hintIn = "";
         }
-        String[] start = Logic.widgetStart(n);
-        String[] next = known ? Logic.heroFuture(n, Logic.lastScheduleDay(d)) : new String[] {"", n.hint, ""};
-        int right = Logic.widgetRightState(n, next[1]);
-        LinearLayout card = Ui.column(this);
-        android.graphics.drawable.GradientDrawable glow = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, glowColours(pal.soft(n.state), pal.soft(right)));
-        glow.setCornerRadius(Ui.px(this, 18));
-        card.setBackground(glow);
-        card.setPadding(Ui.dp(this, 11), Ui.dp(this, 7), Ui.dp(this, 11), Ui.dp(this, 9));
-        TextView place = Ui.text(this, 13, Ui.heavy(this), pal.text);
-        place.setText(Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p));
-        place.setPadding(0, 0, 0, Ui.dp(this, 4));
-        card.addView(place, fill());
-        boolean lit = Logic.highlight(n, Prefs.alerts(this, p.id), now);
-        float clock = clockSize(start, next);
-        float heading = headingSize(n.title, next[0]);
-        LinearLayout halves = stacked() ? Ui.column(this) : Ui.row(this);
-        halves.setBaselineAligned(false);
-        halves.addView(nowHalf(n, start, clock, heading), halfParams());
-        halves.addView(nextHalf(n, next, clock, heading, lit), halfParams());
-        card.addView(halves, fill());
-        String detail = Logic.hintIsEvent(n) ? Logic.nextDetail(n) : "";
-        card.setContentDescription(Logic.describeNow(n, detail));
-        clockUpdates.add(() -> {
-            Logic.Now live = currentNow();
-            card.setContentDescription(Logic.describeNow(live, Logic.hintIsEvent(live) ? Logic.nextDetail(live) : ""));
-        });
+        String[] next = d == null ? new String[] {"", state.hint, ""} : Logic.heroFuture(state, Logic.lastScheduleDay(d));
+        String label = Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p);
+        HeroCard card = new HeroCard(this, pal, label, state, next, Logic.highlight(state, Prefs.alerts(this, p.id), now));
+        clockUpdates.add(() -> card.update(currentNow()));
         return card;
-    }
-
-    private LinearLayout.LayoutParams halfParams() {
-        return stacked() ? fill() : new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
-    }
-
-    /** The same colours across the same width as on the widget. */
-    private int[] glowColours(int left, int right) {
-        int[] colours = new int[17];
-        for (int i = 0; i < colours.length; i++) colours[i] = Logic.widgetGlow(left, right, pal.card, .5f, i / 16f);
-        return colours;
-    }
-
-    /** Both clocks of the card stand at one size: the one at which the fuller half still fits. */
-    private float clockSize(String[] start, String[] next) {
-        // 14 dp: the padding of the lit half, the widest one, so the clock keeps its size when the half lights up
-        float room = Ui.px(this, (getResources().getConfiguration().screenWidthDp - 2 * 16 - 2 * 11) / 2f - 14);
-        android.graphics.Paint clock = new android.graphics.Paint();
-        clock.setTypeface(Ui.display(this));
-        android.graphics.Paint small = new android.graphics.Paint();
-        small.setTypeface(Ui.bold(this));
-        small.setTextSize(Ui.sp(this, 13));
-        float gap = Ui.px(this, 6);
-        if (stacked()) return HERO_CLOCK;
-        for (float size = HERO_CLOCK; size >= HERO_MIN_CLOCK; size -= .25f) {
-            clock.setTextSize(Ui.sp(this, size));
-            float left = clock.measureText(start[0]) + (start[1].isEmpty() ? 0 : small.measureText(start[1]) + gap);
-            float right = clock.measureText(next[1]) + (next[2].isEmpty() ? 0 : small.measureText(next[2]) + gap);
-            if (Math.max(left, right) <= room - 1) return size;
-        }
-        return HERO_MIN_CLOCK;
-    }
-
-    /** Both headings use the same real, nonlinearly scaled size and therefore the same baseline. */
-    private float headingSize(String current, String next) {
-        if (stacked()) return 20;
-        float half = (getResources().getConfiguration().screenWidthDp - 54) / 2f;
-        float left = Ui.px(this, half - 38);
-        float right = Ui.px(this, half - 14);
-        android.graphics.Paint paint = new android.graphics.Paint();
-        paint.setTypeface(Ui.heavy(this));
-        for (float size = 20; size >= 11; size -= .5f) {
-            paint.setTextSize(Ui.sp(this, size));
-            String fitted = Logic.fittedState(current, paint.measureText(current), left);
-            if (paint.measureText(fitted) <= left && paint.measureText(next) <= right) return size;
-        }
-        return 11;
-    }
-
-    private TextView word(String text, int ink, float size) {
-        TextView t = new TextView(this) {
-            @Override protected void onMeasure(int width, int height) {
-                float room = MeasureSpec.getMode(width) == MeasureSpec.UNSPECIFIED ? Float.MAX_VALUE
-                        : MeasureSpec.getSize(width) - getCompoundPaddingLeft() - getCompoundPaddingRight();
-                String fitted = Logic.fittedState(text, getPaint().measureText(text), room);
-                if (!fitted.contentEquals(getText())) setText(fitted);
-                super.onMeasure(width, height);
-            }
-        };
-        t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, size);
-        t.setTypeface(Ui.heavy(this));
-        t.setTextColor(ink);
-        t.setIncludeFontPadding(false);
-        t.setText(text);
-        if (stacked()) return t;  // a whole row to itself: a long word wraps rather than shrinks
-        t.setSingleLine(true);
-        t.setHorizontallyScrolling(false);  // autosize must use the column width, not an unlimited scroll area
-        return t;
-    }
-
-    /** A clock in the display face with its small words beside it; words that are no clock stand plainly. */
-    private View clockLine(String value, String beside, float size, int ink, int sideInk) {
-        boolean isClock = value.contains(":");
-        LinearLayout line = new LinearLayout(this) {
-            @Override protected void onMeasure(int width, int height) {
-                int needed = 0;
-                for (int i = 0; i < getChildCount(); i++) {
-                    View child = getChildAt(i);
-                    child.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
-                    needed += child.getMeasuredWidth();
-                }
-                boolean wrap = MeasureSpec.getMode(width) != MeasureSpec.UNSPECIFIED
-                        && needed > MeasureSpec.getSize(width);
-                setOrientation(wrap ? VERTICAL : HORIZONTAL);
-                super.onMeasure(width, height);
-            }
-        };
-        line.setGravity(Gravity.BOTTOM);
-        TextView big = Ui.text(this, isClock ? size : 15, isClock ? Ui.display(this) : Ui.bold(this), ink);
-        big.setText(value);
-        line.addView(big, isClock ? wrap() : weight());
-        if (!beside.isEmpty()) {
-            TextView side = Ui.text(this, 13, Ui.bold(this), sideInk);
-            side.setText(beside);
-            side.setSingleLine(true);
-            side.setPadding(Ui.dp(this, 6), 0, 0, Ui.dp(this, 3));
-            line.addView(side, wrap());
-        }
-        return line;
-    }
-
-    private View nowHalf(Logic.Now n, String[] start, float clock, float heading) {
-        LinearLayout half = Ui.column(this);
-        half.setPadding(0, 0, Ui.dp(this, 8), 0);
-        LinearLayout head = Ui.row(this);
-        head.setMinimumHeight(Ui.dp(this, 26));
-        BulbView bulb = new BulbView(this, pal);
-        bulb.bare(); bulb.still(); bulb.set(n.state);
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 25), Ui.dp(this, 25));
-        bl.rightMargin = Ui.dp(this, 5);
-        head.addView(bulb, bl);
-        head.addView(word(n.title, pal.status(n.state), heading), weight());
-        half.addView(head, fill());
-        half.addView(clockLine(start[0], start[1], clock, pal.text, pal.muted), fill());
-        TextView ago = Ui.text(this, 13.5f, Ui.body(this), pal.muted);
-        ago.setText(n.already);
-        ago.setPadding(0, Ui.dp(this, 2), 0, 0);
-        clockUpdates.add(() -> ago.setText(currentNow().already));
-        half.addView(ago, fill());
-        return half;
-    }
-
-    private View nextHalf(Logic.Now n, String[] next, float clock, float heading, boolean lit) {
-        LinearLayout half = Ui.column(this);
-        int ink = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
-        int text = pal.text;
-        int side = pal.muted;
-        if (lit) {
-            ink = chipInk(n.next);
-            text = ink;
-            side = ink;
-            half.setBackground(Ui.round(pal.fill(n.next), Ui.px(this, 14)));
-        } else if (!stacked()) {
-            half.setBackground(leftLine());
-        }
-        half.setPadding(Ui.dp(this, 9), stacked() ? Ui.dp(this, 8) : 0, Ui.dp(this, 5), 0);
-        if (!next[0].isEmpty()) {
-            LinearLayout head = Ui.row(this);
-            head.setMinimumHeight(Ui.dp(this, 26));
-            head.addView(word(next[0], ink, heading), weight());
-            half.addView(head, fill());
-        }
-        half.addView(clockLine(next[1], next[2], clock, ink, side), fill());
-        TextView left = Ui.text(this, 13.5f, Ui.bold(this), text);
-        left.setText(Logic.heroCountdown(n));
-        left.setPadding(0, Ui.dp(this, 2), 0, 0);
-        clockUpdates.add(() -> left.setText(Logic.heroCountdown(currentNow())));
-        half.addView(left, fill());
-        return half;
-    }
-
-    /** The line between the halves, as on the widget. */
-    private android.graphics.drawable.Drawable leftLine() {
-        android.graphics.drawable.GradientDrawable line = new android.graphics.drawable.GradientDrawable();
-        line.setColor(Ui.fade(pal.text, .16f));
-        line.setSize(Ui.dp(this, 1), 1);
-        android.graphics.drawable.LayerDrawable layer = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {line});
-        layer.setLayerGravity(0, Gravity.START | Gravity.FILL_VERTICAL);
-        return layer;
     }
 
     private View actions(Logic.Place p) {
-        LinearLayout row = stacked() ? Ui.column(this) : Ui.row(this);
+        AdaptiveGrid row = new AdaptiveGrid(this, 2, 6);
         Logic.Alerts wanted = Prefs.alerts(this, p.id);
         long now = Sync.now();
         TextView alerts = action(Logic.alertsLabel(wanted), alertsAnswer(p, wanted, now), wanted.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off, v -> AlertsSheet.show(this, p, this::render));
@@ -677,10 +401,8 @@ public class MainActivity extends Base {
         alerts.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(wanted));
         int share = Logic.statShare(Logic.window(Prefs.history(this, p.id), Logic.today(now), 7), Logic.ON);
         TextView stats = action("Статистика", share < 0 ? "" : share + " % за тиждень", R.drawable.ic_stats, v -> startActivity(new Intent(this, StatsActivity.class)));
-        row.addView(alerts, stacked() ? fill() : weight());
-        LinearLayout.LayoutParams lp = stacked() ? fill() : weight();
-        if (stacked()) lp.topMargin = Ui.dp(this, 6); else lp.leftMargin = Ui.dp(this, 6);
-        row.addView(stats, lp);
+        alerts.setMinimumWidth(Ui.dp(this, 128)); stats.setMinimumWidth(Ui.dp(this, 128));
+        row.addView(alerts); row.addView(stats);
         return row;
     }
 
@@ -808,7 +530,7 @@ public class MainActivity extends Base {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
         String line = Logic.checkedLine(Store.checkedAt(this, p.region), d != null ? d.updated : 0, now);
-        if (stacked()) line = line.replace("Розклад оновлено:", "Оновлено:");
+        line = line.replace("Розклад оновлено:", "Оновлено:");
         if (!line.isEmpty()) {
             TextView t = Ui.text(this, 13, Ui.body(this), pal.muted);
             t.setText(line);

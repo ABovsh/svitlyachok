@@ -246,9 +246,8 @@ public class SettingsActivity extends Base {
     }
 
     private View placeRow(Logic.Place p) {
-        boolean large = getResources().getConfiguration().fontScale > 1.25f;
-        LinearLayout r = large ? Ui.column(this) : Ui.row(this);
-        r.setGravity(large ? android.view.Gravity.START : android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout r = Ui.row(this);
+        r.setBaselineAligned(false);
         r.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
         LinearLayout t = Ui.column(this);
         t.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
@@ -260,7 +259,7 @@ public class SettingsActivity extends Base {
         w.setPadding(0, Ui.dp(this, 2), 0, 0);
         t.addView(w);
         t.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
-        r.addView(t, large ? fill() : weight());
+        r.addView(t, weight());
         r.addView(bell(p), wrap());
         return r;
     }

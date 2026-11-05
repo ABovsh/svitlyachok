@@ -28,6 +28,8 @@ final class DayHeader extends ViewGroup {
         formats = summaries;
         title = Ui.text(c, 16, Ui.heavy(c), pal.text); title.setText(day);
         total = Ui.text(c, 13, Ui.heavy(c), ink); total.setSingleLine(true);
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 16, 1.1f));
+        total.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 13, 1.1f));
         total.setContentDescription(formats.get(0));
         // The vector's visible bounds end at 21 of 24. Keep the 48 dp touch target while
         // placing that visible edge exactly at the timeline edge, rather than centring it.

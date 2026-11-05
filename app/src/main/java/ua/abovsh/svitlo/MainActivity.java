@@ -264,7 +264,7 @@ public class MainActivity extends Base {
         Logic.Release update = Updates.offered(this);
         if (update != null) body.addView(updateCard(update), gap(8));
         boolean many = places.size() > 1;
-        if (many) body.addView(tiles(places, p, base, now), gap(6));
+        if (many) body.addView(tiles(places, p, base, now), gap(16));
         body.addView(hero(p, d, tl, base, now), gap(6));
         View stale = stale(p, d, now);
         if (stale != null) body.addView(stale, gap(8));

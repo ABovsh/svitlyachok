@@ -29,8 +29,12 @@ final class Sync {
     static final String CH_REMIND = "remind";
     static final String CH_SCHEDULE = "schedule";
     static final String CH_QUIET = "quiet";
+    private static final String CH_GROUP = "group";
     static final String ACTION_REFRESH = BuildConfig.APPLICATION_ID + ".REFRESH";
     static final String ACTION_NOTIFY = BuildConfig.APPLICATION_ID + ".NOTIFY";
+    static final String ACTION_DISMISS = BuildConfig.APPLICATION_ID + ".DISMISS_NOTICE";
+    private static final String NOTICE_GROUP = "places";
+    private static final int SUMMARY_ID = 900;
 
     private Sync() {}
 
@@ -105,6 +109,8 @@ final class Sync {
         armRefresh(c, now);
         armNotify(c, now);
         schedulePeriodic(c);
+        for (String region : Prefs.regions(c)) reconcile(c, region);
+        updateNotificationGroup(c);
         Runnable screen = openScreen.get();
         if (screen != null) screen.run();
     }
@@ -137,6 +143,8 @@ final class Sync {
                 NotificationManager.IMPORTANCE_DEFAULT));
         nm.createNotificationChannel(new NotificationChannel(CH_QUIET, "Уночі без звуку",
                 NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel(CH_GROUP, "Групування сповіщень",
+                NotificationManager.IMPORTANCE_LOW));
     }
 
     static final int RED = 0xFFE5484D;
@@ -153,15 +161,29 @@ final class Sync {
 
     /** A removed place takes its notification with it. */
     static void forget(Context c, String place) {
-        c.getSystemService(NotificationManager.class).cancel(Logic.slot(place));
+        NotificationManager manager = c.getSystemService(NotificationManager.class);
+        manager.cancel(Logic.noticeSlot(place, true));
+        manager.cancel(Logic.noticeSlot(place, false));
+        updateNotificationGroup(c);
     }
 
     /**
-     * One notification per place (Logic.slot): a new one replaces the last of that place, so a
-     * phone holds at most one per place. A tap opens that place.
+     * A reminder and a schedule summary have independent slots for each place.
+     * A new schedule must never hide an active countdown. A tap opens that place.
      */
     static void post(Context c, String place, String channel, Logic.Notice n, boolean reminder) {
-        show(c, Logic.slot(place), place, channel, n, reminder);
+        if (!reminder) clearLegacySchedule(c, place);
+        show(c, Logic.noticeSlot(place, reminder), place, channel, n, reminder);
+    }
+
+    /** Previous versions used the reminder slot for schedules; keep actual reminders. */
+    private static void clearLegacySchedule(Context c, String place) {
+        NotificationManager manager = c.getSystemService(NotificationManager.class);
+        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
+            if (active.getId() == Logic.slot(place) && !active.getNotification().extras.containsKey("reminder_place")) {
+                manager.cancel(active.getId());
+            }
+        }
     }
 
     /**
@@ -173,7 +195,7 @@ final class Sync {
     }
 
     private static void show(Context c, int id, String place, String channel, Logic.Notice n, boolean reminder, boolean silent) {
-        int icon = R.drawable.ic_notify;
+        int icon = R.drawable.ic_notify_calendar;
         int colour = GOLD;
         if (reminder) {
             icon = n.on ? R.drawable.ic_notify_on : R.drawable.ic_notify_off;
@@ -185,6 +207,9 @@ final class Sync {
         if (Prefs.quietNights(c) && Logic.quiet(now)) channel = CH_QUIET;
         Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(MainActivity.EXTRA_PLACE, place);
+        Intent dismissed = new Intent(c, AlarmReceiver.class).setAction(ACTION_DISMISS);
+        Bundle identity = new Bundle();
+        identity.putString("notice_place", place);
         Notification.Builder b = new Notification.Builder(c, channel)
                 .setSmallIcon(icon)
                 .setColor(colour)
@@ -193,16 +218,73 @@ final class Sync {
                 .setWhen(now * 1000)
                 .setShowWhen(true)
                 .setAutoCancel(true)
+                .addExtras(identity)
+                .setDeleteIntent(PendingIntent.getBroadcast(c, id, dismissed, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
                 .setContentIntent(PendingIntent.getActivity(c, id, open,
                         PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        if (Prefs.places(c).size() > 1) b.setGroup(NOTICE_GROUP).setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN);
         if (silent) b.setOnlyAlertOnce(true);
         if (reminder) decorateReminder(b, place, n);
-        if (n.text.length() > 40) b.setStyle(new Notification.BigTextStyle().bigText(n.text));
+        b.setStyle(new Notification.BigTextStyle().bigText(n.text));
         if (n.until > now) b.setTimeoutAfter((n.until - now) * 1000);
         try {
             c.getSystemService(NotificationManager.class).notify(id, b.build());
+            updateNotificationGroup(c);
         } catch (SecurityException ignored) {
             // notifications not allowed: the app still works
+        }
+    }
+
+    /** A silent native group when several places have messages; tests and expired children do not count. */
+    static void updateNotificationGroup(Context c) {
+        NotificationManager manager = c.getSystemService(NotificationManager.class);
+        List<android.service.notification.StatusBarNotification> children = new ArrayList<>();
+        Set<String> places = new java.util.HashSet<>();
+        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
+            String place = active.getNotification().extras.getString("notice_place", "");
+            if (active.getId() != SUMMARY_ID && !place.isEmpty() && active.getId() != 998 && active.getId() != 999) {
+                children.add(active);
+                places.add(place);
+            }
+        }
+        if (Prefs.places(c).size() < 2 || children.size() < 2) {
+            manager.cancel(SUMMARY_ID);
+            return;
+        }
+        ensureChannels(c);
+        children.sort(java.util.Comparator.comparingInt(android.service.notification.StatusBarNotification::getId));
+        StringBuilder signature = new StringBuilder();
+        long until = 0;
+        boolean persistent = false;
+        Notification.InboxStyle style = new Notification.InboxStyle();
+        for (android.service.notification.StatusBarNotification child : children) {
+            Bundle extras = child.getNotification().extras;
+            style.addLine(extras.getCharSequence(Notification.EXTRA_TEXT, ""));
+            signature.append(child.getId()).append(extras.getCharSequence(Notification.EXTRA_TITLE, ""))
+                    .append(extras.getCharSequence(Notification.EXTRA_TEXT, "")).append('\n');
+            long timeout = child.getNotification().getTimeoutAfter();
+            if (timeout == 0) persistent = true;
+            else until = Math.max(until, child.getPostTime() + timeout);
+        }
+        for (android.service.notification.StatusBarNotification active : manager.getActiveNotifications()) {
+            if (active.getId() == SUMMARY_ID && signature.toString().equals(active.getNotification().extras.getString("group_content"))) return;
+        }
+        Bundle content = new Bundle();
+        content.putString("group_content", signature.toString());
+        Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Notification.Builder summary = new Notification.Builder(c, CH_GROUP)
+                .setSmallIcon(R.drawable.ic_notify).setColor(GOLD)
+                .setContentTitle("Сповіщення місць").setContentText("Місць: " + places.size())
+                .setStyle(style).setGroup(NOTICE_GROUP).setGroupSummary(true)
+                .setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN).setOnlyAlertOnce(true)
+                .addExtras(content)
+                .setAutoCancel(true).setContentIntent(PendingIntent.getActivity(c, SUMMARY_ID, open,
+                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        if (!persistent && until > 0) summary.setTimeoutAfter(Math.max(1, until - System.currentTimeMillis()));
+        try {
+            manager.notify(SUMMARY_ID, summary.build());
+        } catch (SecurityException ignored) {
+            // Notifications are disabled; the app remains usable.
         }
     }
 
@@ -240,7 +322,7 @@ final class Sync {
         Logic.Event match = Logic.shownEvent(Logic.inNotices(p, Prefs.places(c).size()),tl,base,Prefs.alerts(c,p.id),
                 extras.getLong("reminder_change"),extras.getInt("reminder_kind"),extras.getLong("reminder_planned"));
         if (match == null) { nm.cancel(posted.getId()); return; }
-        Logic.Notice note = Logic.eventText(match,tl,base);
+        Logic.Notice note = Logic.eventText(match,tl,base,now());
         CharSequence previous = extras.getCharSequence(Notification.EXTRA_TITLE, "");
         CharSequence previousText = extras.getCharSequence(Notification.EXTRA_TEXT, "");
         boolean changed = !note.title.contentEquals(previous) || !note.text.contentEquals(previousText);
@@ -267,13 +349,16 @@ final class Sync {
         for (Logic.Place p : places) {
             if (!p.region.equals(region)) continue;
             Logic.Alerts a = Prefs.alerts(c, p.id);
+            List<Logic.Note> changed = new ArrayList<>();
             for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
                 boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
                 // the source may drop a day and bring it back unchanged: that is nothing new to the person
                 if (!wanted || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
                 Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.key));
-                post(c, p.id, CH_SCHEDULE, n.title, n.text);
+                changed.add(n);
             }
+            Logic.Notice notice = Logic.scheduleNotice(Logic.inNotices(p, places.size()), changed);
+            if (notice != null) post(c, p.id, CH_SCHEDULE, notice, false);
         }
     }
 
@@ -315,7 +400,7 @@ final class Sync {
         for (Object[] x : upcoming(c, now)) {
             Logic.Event e = (Logic.Event) x[0];
             if (e.at > now) break;
-            Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1));
+            Logic.Notice n = Logic.eventText(e, (String) x[1], base.minusDays(1), now);
             post(c, e.place, CH_REMIND, n, true);
             Prefs.addFired(c, e.key(), now);
             Prefs.reminderTiming(c,e.at,now);
@@ -327,20 +412,11 @@ final class Sync {
         List<Logic.Place> ps = Prefs.places(c);
         Logic.Place at = ps.isEmpty() ? null : ps.get(0);
         for (Logic.Place p : ps) if (p.id.equals(Prefs.current(c))) at = p;
-        String name = at == null || ps.size() < 2 ? "" : at.name + " · ";
+        String name = at == null || ps.size() < 2 ? "" : at.name;
         String id = at == null ? "" : at.id;
         long gone = now() + 600;
-        show(c, 998, id, CH_REMIND, sample(Logic.mark(Logic.OFF) + "Вимкнуть світло", name, false, gone), true);
-        show(c, 999, id, CH_REMIND, sample(Logic.mark(Logic.ON) + "Увімкнуть світло", name, true, gone), true);
-    }
-
-    private static Logic.Notice sample(String title, String name, boolean on, long until) {
-        Logic.Notice n = new Logic.Notice();
-        n.title = title;
-        n.text = name + "о 18:00, через 15 хв (пробне)";
-        n.on = on;
-        n.until = until; n.state = on ? Logic.ON : Logic.OFF;
-        return n;
+        show(c, 998, id, CH_REMIND, Logic.probeNotice(name, false, gone), true);
+        show(c, 999, id, CH_REMIND, Logic.probeNotice(name, true, gone), true);
     }
 
     // ---- widget --------------------------------------------------------------------

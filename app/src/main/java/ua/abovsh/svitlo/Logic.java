@@ -1118,6 +1118,11 @@ public final class Logic {
         return 1000 + (placeId.hashCode() & 0x3FFF);
     }
 
+    /** The old id stays with reminders; schedule notices use a disjoint range. */
+    static int noticeSlot(String placeId, boolean reminder) {
+        return slot(placeId) + (reminder ? 0 : 0x4000);
+    }
+
     /** Opening the app goes to the network unless the source answered in the last 2 minutes. */
     static boolean dueOnOpen(long checkedAt, long now) {
         return checkedAt <= 0 || now < checkedAt || now - checkedAt >= 120;
@@ -1251,39 +1256,63 @@ public final class Logic {
      * longer true once the outage ends (or 4 hours on, end unknown), an hour after power.
      */
     public static Notice eventText(Event e, String tl, LocalDate base) {
+        return eventText(e, tl, base, e.at);
+    }
+
+    public static Notice eventText(Event e, String tl, LocalDate base, long now) {
         Notice n = new Notice();
         n.on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
         int i = index(base, e.change);
         boolean maybe = !n.on && i >= 0 && i < tl.length() && tl.charAt(i) == '3';
-        long end = n.on ? 0 : outageEnd(tl, base, e.change);
+        long end = n.on ? lightEnd(tl, base, e.change) : outageEnd(tl, base, e.change);
         int state = OFF;
         if (n.on) state = ON;
         else if (maybe) state = MAYBE;
         n.state = state; n.change = e.change; n.planned = e.at; n.kind = e.kind;
-        n.title = headed(mark(state), eventWhat(e.kind, maybe));
-        n.text = named(e.name, eventWhen(e, end));
+        n.title = headed(mark(state), maybe ? POSSIBLE_OUTAGE : n.on ? "Увімкнуть світло" : "Вимкнуть світло");
+        n.text = named(e.name, eventWhen(e, end, state, now));
         if (e.at < e.change) n.until = e.change;
         else if (n.on) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
     }
 
-    private static String eventWhat(int kind, boolean maybe) {
-        switch (kind) {
-            case Event.SOON_OFF: return maybe ? POSSIBLE_OUTAGE : "Вимкнуть світло";
-            case Event.SOON_ON: return "Увімкнуть світло";
-            case Event.AT_OFF: return maybe ? POSSIBLE_OUTAGE : "За графіком: немає";
-            default: return "За графіком: є";
+    /** Guaranteed light ends at the first definite or possible outage, never beyond a gap. */
+    private static long lightEnd(String tl, LocalDate base, long change) {
+        for (int[] c : clockChanges(tl, base, index(base, change))) {
+            if (c[1] == '0' || c[1] == '3') return slotStart(base, c[0]);
         }
+        return 0;
     }
 
-    /** "о 18:30, через 15 хв" ahead; at the moment, until when it lasts or since when. */
-    private static String eventWhen(Event e, long end) {
-        if (e.kind == Event.SOON_OFF || e.kind == Event.SOON_ON) {
-            return "о " + hm(e.change);
+    private static String noticeClock(long at, long now) {
+        long days = dayDiff(now, at);
+        if (days == 0) return hm(at);
+        return (days == 1 ? TOMORROW_WORD : dayWord(at, now)) + " " + hm(at);
+    }
+
+    /** Both on and off carry their full known interval; missing data is never a guessed end. */
+    private static String eventWhen(Event e, long end, int state, long now) {
+        String start = noticeClock(e.change, now);
+        if (end <= e.change) {
+            String unknown = state == ON ? "час вимкнення невідомий"
+                    : state == MAYBE ? "кінець поки невідомий" : "час увімкнення невідомий";
+            return "з " + start + " · " + unknown;
         }
-        if (e.kind == Event.AT_ON) return "за графіком з " + hm(e.change);
-        return end > 0 ? "до " + until(end, e.change) : "за графіком";
+        String stop = dayDiff(e.change, end) > 1 ? noticeClock(end, e.change) : until(end, e.change);
+        String duration = hoursMinutes((int) ((end - e.change) / 60));
+        String detail = state == MAYBE ? "до " + duration : duration + (state == ON ? " світла" : " без світла");
+        return start + "–" + stop + " · " + detail;
+    }
+
+    static Notice probeNotice(String name, boolean on, long until) {
+        Notice n = new Notice();
+        n.state = on ? ON : OFF;
+        n.title = headed(mark(n.state), on ? "Пробне: ввімкнення" : "Пробне: вимкнення");
+        n.text = named(name, "Приклад: подія о 18:00");
+        n.on = on;
+        n.until = until;
+        return n;
     }
 
     /** A calendar first: a schedule, not a change of power. */
@@ -1297,6 +1326,8 @@ public final class Logic {
         public String day = "";
         public String key = "";  // schedule content, independent of its short visible summary
         public String text = "";
+        public String summary = "";
+        public boolean today;
     }
 
     static String list(String day) {
@@ -1338,13 +1369,38 @@ public final class Logic {
         Note n = new Note();
         if (b != null && !outagesChanged(b, a, from)) return null;
         n.kind = b == null ? Note.PUBLISHED : Note.CHANGED;
-        n.title = headed(SCHEDULE_MARK, "графік оновлено");
+        n.title = (n.kind == Note.PUBLISHED ? "Графік на " : "Зміни на ") + (today ? TODAY_WORD : TOMORROW_WORD);
         n.key = a;
-        String when = today ? "Сьогодні" : TOMORROW;
-        String summary = daySummaries(a).get(0);
-        if (count(a, '2') > 0) summary = "Графік неповний";
-        if (count(a, '3') > 0) summary += " · Можливі вимкнення";
-        n.text = named(p.name, when + " · " + summary);
+        n.today = today;
+        n.summary = noticeSummary(a);
+        n.text = named(p.name, n.summary);
+        return n;
+    }
+
+    static String noticeSummary(String day) {
+        boolean maybe = count(day, '3') > 0;
+        if (count(day, '2') > 0) return "Графік неповний" + (maybe ? " · можливі вимкнення" : "");
+        int on = count(day, '1');
+        if (maybe && on == 0) return count(day, '3') == 48 ? "Можливі вимкнення протягом доби" : "Є можливі вимкнення";
+        if (maybe) return "Від " + hoursMinutes(on * 30) + " світла · можливі вимкнення";
+        if (on == 0) return "Без світла усю добу";
+        if (on == 48) return "Без планових вимкнень · 24 год світла";
+        return daySummaries(day).get(0);
+    }
+
+    /** Merge only the days that passed the place's preferences and duplicate checks. */
+    static Notice scheduleNotice(Place p, List<Note> notes) {
+        if (notes.isEmpty()) return null;
+        Notice n = new Notice();
+        if (notes.size() == 1) {
+            n.title = notes.get(0).title;
+            n.text = named(p.name, notes.get(0).summary);
+            return n;
+        }
+        n.title = "Графік оновлено";
+        List<String> days = new ArrayList<>();
+        for (Note note : notes) days.add((note.today ? "Сьогодні: " : "Завтра: ") + note.summary);
+        n.text = named(p.name, String.join("\n", days));
         return n;
     }
 

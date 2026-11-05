@@ -8,6 +8,10 @@ import android.content.Intent;
 public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent i) {
+        if (Sync.ACTION_DISMISS.equals(i.getAction())) {
+            Sync.updateNotificationGroup(c);
+            return;
+        }
         Sync.fireDue(c);
         Sync.apply(c);
         Sync.fetchNow(c, goAsync());

@@ -244,13 +244,13 @@ public class LogicTest {
         Logic.Notice s = Logic.eventText(e, t, OCT30);
         // the place opens the second line: the title stays short enough for one line
         assertEquals("\uD83D\uDD34 Вимкнуть світло", s.title);
-        assertEquals("Дім · о 14:30", s.text);
+        assertEquals("Дім · 14:30–18:30 · 4 год без світла", s.text);
         assertFalse(s.on);
         assertEquals(at(14, 30), s.until);  // gone by itself once the power is back
         Logic.Event on = Logic.events(home(), t, OCT30, at(15, 0), new Logic.Alerts()).get(0);
         Logic.Notice n = Logic.eventText(on, t, OCT30);
         assertEquals("\uD83D\uDFE2 Увімкнуть світло", n.title);
-        assertEquals("Дім · о 18:30", n.text);
+        assertEquals("Дім · з 18:30 · час вимкнення невідомий", n.text);
         assertTrue(n.on);
         assertEquals(at(18, 30), n.until);
         String maybe = repeat('1', 20) + repeat('3', 8) + repeat('1', 20) + repeat('2', 48);
@@ -269,12 +269,12 @@ public class LogicTest {
         assertEquals(Logic.Event.AT_OFF, ev.get(0).kind);
         assertEquals(at(14, 30), ev.get(0).at);
         Logic.Notice off = Logic.eventText(ev.get(0), t, OCT30);
-        assertEquals("\uD83D\uDD34 За графіком: немає", off.title);
-        assertEquals("Дім · до 18:30", off.text);
+        assertEquals("\uD83D\uDD34 Вимкнуть світло", off.title);
+        assertEquals("Дім · 14:30–18:30 · 4 год без світла", off.text);
         assertEquals(Logic.Event.AT_ON, ev.get(1).kind);
         Logic.Notice on = Logic.eventText(ev.get(1), t, OCT30);
-        assertEquals("\uD83D\uDFE2 За графіком: є", on.title);
-        assertEquals("Дім · за графіком з 18:30", on.text);
+        assertEquals("\uD83D\uDFE2 Увімкнуть світло", on.title);
+        assertEquals("Дім · з 18:30 · час вимкнення невідомий", on.text);
     }
 
     @Test
@@ -284,7 +284,7 @@ public class LogicTest {
         a.leadOff = 0;
         Logic.Event e = Logic.events(home(), open, OCT30, at(3, 0), a).get(0);
         Logic.Notice s = Logic.eventText(e, open, OCT30);
-        assertEquals("Дім · за графіком", s.text);
+        assertEquals("Дім · з 06:00 · час увімкнення невідомий", s.text);
         assertEquals(at(10, 0), s.until);
     }
 
@@ -647,8 +647,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Графік оновлено", n.get(0).title);
-        assertEquals("Дім · Завтра · 20 год світла · 83 %", n.get(0).text);
+        assertEquals("Графік на завтра", n.get(0).title);
+        assertEquals("Дім · 20 год світла · 83 %", n.get(0).text);
     }
 
     @Test
@@ -658,8 +658,8 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), after, at(12, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.CHANGED, n.get(0).kind);
-        assertEquals("\uD83D\uDCC5 Графік оновлено", n.get(0).title);
-        assertEquals("Дім · Сьогодні · 17 год світла · 71 %", n.get(0).text);
+        assertEquals("Зміни на сьогодні", n.get(0).title);
+        assertEquals("Дім · 17 год світла · 71 %", n.get(0).text);
     }
 
     @Test
@@ -678,7 +678,7 @@ public class LogicTest {
         String clean = HOURS_11_TOMORROW.replace("\"no\"", "\"yes\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31
                 + "\":{\"GPV1.1\":" + clean + "}}"));
-        assertEquals("Дім · Завтра · 24 год світла · 100 %", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
+        assertEquals("Дім · Без планових вимкнень · 24 год світла", Logic.notes(home(), data(TODAY_ONLY), after, at(19, 0)).get(0).text);
     }
 
     @Test
@@ -810,12 +810,12 @@ public class LogicTest {
         assertEquals("p1", e.place);
         Logic.Notice n = Logic.eventText(e, t, OCT30);
         assertEquals("\uD83D\uDD34 Вимкнуть світло", n.title);
-        assertEquals("о 14:30", n.text);
+        assertEquals("14:30–18:30 · 4 год без світла", n.text);
         List<Logic.Note> tomorrow = Logic.notes(only, data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0));
-        assertEquals("\uD83D\uDCC5 Графік оновлено", tomorrow.get(0).title);
+        assertEquals("Графік на завтра", tomorrow.get(0).title);
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}"));
-        assertEquals("\uD83D\uDCC5 Графік оновлено", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
+        assertEquals("Зміни на сьогодні", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
     }
 
     // ---- 1.3.1: the update downloads inside the app ----------------------------------
@@ -1374,7 +1374,7 @@ public class LogicTest {
     }
     @Test public void possibleOnlyPublicationKeepsUncertainty() throws Exception {
         String raw=feed("{\""+D31+"\":{\"GPV1.1\":{\"1\":\"maybe\"}}}");
-        assertTrue(Logic.notes(home(),data(TODAY_ONLY),data(raw),at(19,0)).get(0).text.contains("Можлив"));
+        assertTrue(Logic.notes(home(),data(TODAY_ONLY),data(raw),at(19,0)).get(0).text.toLowerCase(java.util.Locale.ROOT).contains("можлив"));
     }
     @Test public void advanceReminderExpiresAtItsChange() throws Exception {
         Logic.Event e=Logic.events(home(),tl(TODAY_ONLY),OCT30,at(12,0),new Logic.Alerts()).get(0);
@@ -2027,8 +2027,8 @@ public class LogicTest {
     }
     @Test public void scheduleNoticeIsShortAndNamesTheDay() throws Exception {
         Logic.Note n = Logic.notes(home(), data(TODAY_ONLY), data(WITH_TOMORROW), at(19, 0)).get(0);
-        assertEquals("\uD83D\uDCC5 Графік оновлено", n.title);
-        assertTrue(n.text, n.text.startsWith("Дім · Завтра · "));
+        assertEquals("Графік на завтра", n.title);
+        assertTrue(n.text, n.text.startsWith("Дім · "));
         assertTrue(n.text, n.text.contains("світла · "));
         assertTrue(n.text, n.text.endsWith("%"));
         assertFalse(n.text, n.text.contains(" – "));
@@ -2123,5 +2123,107 @@ public class LogicTest {
         assertEquals("Немає", Logic.fittedState("Світла немає", 150, 130));
         assertEquals("Світла немає", Logic.fittedState("Світла немає", 150, 150));
         assertEquals("Світло є", Logic.fittedState("Світло є", 150, 130));
+    }
+
+    private static Logic.Event noticeEvent(int kind, long change, int lead) {
+        Logic.Event event = new Logic.Event();
+        event.kind = kind; event.change = change; event.at = change - lead * 60L;
+        return event;
+    }
+
+    @Test public void onNoticeShowsOnlyTheContinuousKnownLightInterval() {
+        String day = repeat('0', 12) + repeat('1', 8) + repeat('3', 4) + repeat('0', 72);
+        Logic.Notice n = Logic.eventText(noticeEvent(Logic.Event.SOON_ON, at(6, 0), 15), day, OCT30, at(5, 45));
+        assertEquals("\uD83D\uDFE2 Увімкнуть світло", n.title);
+        assertEquals("06:00–10:00 · 4 год світла", n.text);
+        // A missing interval breaks certainty; later known power must not bridge it.
+        day = repeat('0', 12) + repeat('1', 8) + repeat('2', 4) + repeat('1', 8) + repeat('0', 64);
+        n = Logic.eventText(noticeEvent(Logic.Event.AT_ON, at(6, 0), 0), day, OCT30, at(6, 0));
+        assertEquals("з 06:00 · час вимкнення невідомий", n.text);
+    }
+
+    @Test public void noticeDatesFollowDeliveryAcrossMidnight() {
+        String timeline = repeat('1', 49) + repeat('0', 8) + repeat('1', 39);
+        Logic.Event event = noticeEvent(Logic.Event.SOON_OFF, D31 + 1800, 60);
+        assertEquals("завтра 00:30–04:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, at(23, 30)).text);
+        // Delayed delivery after midnight must no longer call today's event "tomorrow".
+        assertEquals("00:30–04:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, D31 + 60).text);
+        event = noticeEvent(Logic.Event.AT_OFF, at(22, 30), 0);
+        timeline = repeat('1', 45) + repeat('0', 8) + repeat('1', 43);
+        assertEquals("22:30–завтра 02:30 · 4 год без світла", Logic.eventText(event, timeline, OCT30, at(22, 30)).text);
+        timeline = repeat('1', 45) + repeat('0', 3) + repeat('1', 48);
+        assertEquals("22:30–24:00 · 1 год 30 хв без світла", Logic.eventText(event, timeline, OCT30, at(22, 30)).text);
+    }
+
+    @Test public void possibleNoticeKeepsUncertaintyForKnownAndUnknownEnds() {
+        Logic.Event event = noticeEvent(Logic.Event.AT_OFF, at(6, 0), 0);
+        String timeline = repeat('1', 12) + repeat('3', 8) + repeat('1', 76);
+        Logic.Notice n = Logic.eventText(event, timeline, OCT30, at(6, 0));
+        assertEquals("\uD83D\uDFE0 Можливе вимкнення", n.title);
+        assertEquals("06:00–10:00 · до 4 год", n.text);
+        timeline = repeat('1', 12) + repeat('3', 8) + repeat('2', 76);
+        assertEquals("з 06:00 · кінець поки невідомий", Logic.eventText(event, timeline, OCT30, at(6, 0)).text);
+    }
+
+    @Test public void immediateAndAdvanceUseTheSameClearHeadingsAndKeepPlaceRules() {
+        String timeline = repeat('1', 12) + repeat('0', 8) + repeat('1', 8) + repeat('0', 68);
+        for (int kind : new int[] {Logic.Event.SOON_OFF, Logic.Event.AT_OFF}) {
+            Logic.Event event = noticeEvent(kind, at(6, 0), kind == Logic.Event.SOON_OFF ? 15 : 0);
+            event.name = Logic.inNotices(home(), 1).name;
+            Logic.Notice single = Logic.eventText(event, timeline, OCT30, at(5, 45));
+            assertEquals("\uD83D\uDD34 Вимкнуть світло", single.title);
+            assertEquals("06:00–10:00 · 4 год без світла", single.text);
+            event.name = Logic.inNotices(home(), 2).name;
+            assertEquals("Дім · " + single.text, Logic.eventText(event, timeline, OCT30, at(5, 45)).text);
+        }
+    }
+
+    @Test public void scheduleSummariesDoNotInventPowerForMissingOrPossibleHours() {
+        assertEquals("Без планових вимкнень · 24 год світла", Logic.noticeSummary(repeat('1', 48)));
+        assertEquals("Без світла усю добу", Logic.noticeSummary(repeat('0', 48)));
+        assertEquals("Графік неповний", Logic.noticeSummary(repeat('1', 24) + repeat('2', 24)));
+        assertEquals("Графік неповний · можливі вимкнення", Logic.noticeSummary(repeat('3', 24) + repeat('2', 24)));
+        assertEquals("Можливі вимкнення протягом доби", Logic.noticeSummary(repeat('3', 48)));
+        assertEquals("Є можливі вимкнення", Logic.noticeSummary(repeat('0', 24) + repeat('3', 24)));
+        assertEquals("Від 12 год 30 хв світла · можливі вимкнення", Logic.noticeSummary(repeat('1', 25) + repeat('3', 23)));
+        assertEquals("17 год 30 хв світла · 73 %", Logic.noticeSummary(repeat('1', 35) + repeat('0', 13)));
+    }
+
+    @Test public void combinedDayNoticeDoesNotRepeatThePlaceAndKeepsBothDays() throws Exception {
+        Logic.Data before = data(WITH_TOMORROW);
+        Logic.Data after = data(WITH_TOMORROW);
+        after.days.get(OCT30).put(home().group, repeat('0', 48));
+        after.days.get(OCT30.plusDays(1)).put(home().group, repeat('1', 48));
+        List<Logic.Note> notes = Logic.notes(home(), before, after, at(10, 0));
+        assertEquals(2, notes.size());
+        assertEquals("Зміни на сьогодні", notes.get(0).title);
+        assertEquals("Зміни на завтра", notes.get(1).title);
+        Logic.Notice combined = Logic.scheduleNotice(home(), notes);
+        assertEquals("Графік оновлено", combined.title);
+        assertEquals("Дім · Сьогодні: Без світла усю добу\nЗавтра: Без планових вимкнень · 24 год світла", combined.text);
+        assertEquals(notes.get(1).title, Logic.scheduleNotice(home(), notes.subList(1, 2)).title);
+        assertNull(Logic.scheduleNotice(home(), java.util.Collections.emptyList()));
+        Logic.Place single = Logic.inNotices(home(), 1);
+        assertFalse(Logic.scheduleNotice(single, notes).text.contains("Дім"));
+    }
+
+    @Test public void probeNoticeIsClearlyAProbeWithoutAFakeCountdown() {
+        Logic.Notice off = Logic.probeNotice("", false, at(19, 0));
+        assertEquals("\uD83D\uDD34 Пробне: вимкнення", off.title);
+        assertEquals("Приклад: подія о 18:00", off.text);
+        assertEquals(0, off.change);
+        Logic.Notice on = Logic.probeNotice("Дім", true, at(19, 0));
+        assertEquals("\uD83D\uDFE2 Пробне: ввімкнення", on.title);
+        assertEquals("Дім · Приклад: подія о 18:00", on.text);
+        assertEquals(at(19, 0), on.until);
+    }
+
+    @Test public void scheduleIdsCannotReplaceAnyReminderId() {
+        for (String a : new String[] {"p1", "p2", "probe", "long-place-id"}) {
+            assertEquals(Logic.slot(a), Logic.noticeSlot(a, true));
+            for (String b : new String[] {"p1", "p2", "probe", "long-place-id"}) {
+                assertTrue(Logic.noticeSlot(a, true) != Logic.noticeSlot(b, false));
+            }
+        }
     }
 }

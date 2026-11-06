@@ -13,6 +13,7 @@ public class StatsActivity extends Base {
     private int days = 7;
     private String place = "";
     private int built;
+    private static final String WEEK_LABEL = "тиждень";
     private static final String FOUR_WEEKS_LABEL = "4 тижні";
     private static final int WEEK_DP = 80;
     private static final int MONTH_DP = 48;
@@ -70,7 +71,7 @@ public class StatsActivity extends Base {
         title.setText("Світла за графіком");
         title.setPadding(0, 0, Ui.dp(this, 8), 0);
         r.addView(title, weight());
-        r.addView(head("тиждень", android.view.Gravity.START), cell(WEEK_DP));
+        r.addView(head(WEEK_LABEL, android.view.Gravity.START), cell(WEEK_DP));
         r.addView(head(FOUR_WEEKS_LABEL, android.view.Gravity.START), cell(MONTH_DP));
         r.addView(head("зміна", android.view.Gravity.END), cell(CHANGE_DP));
         return r;
@@ -78,7 +79,7 @@ public class StatsActivity extends Base {
 
     private TextView head(String words, int gravity) {
         FitText t = new FitText(this, 12, 11, 1, Ui.bold(this), pal.muted).compact(1.1f);
-        t.formats(words, words.equals("тиждень") ? "7 днів" : words);
+        t.formats(words, words.equals(WEEK_LABEL) ? "7 днів" : words);
         t.setContentDescription(words); t.setGravity(gravity);
         return t;
     }
@@ -106,7 +107,7 @@ public class StatsActivity extends Base {
         if (tableStacked()) {
             r.addView(name, fill());
             LinearLayout values = Ui.row(this);
-            values.addView(metric("тиждень", weekBox), weight());
+            values.addView(metric(WEEK_LABEL, weekBox), weight());
             values.addView(metric(FOUR_WEEKS_LABEL, monthText), weight());
             values.addView(metric("зміна", changeText), weight());
             r.addView(values, gapTop(4));

@@ -131,7 +131,7 @@ public class MainActivity extends Base {
         name.setText("Світлячок");
         name.setContentDescription(getString(R.string.app_name));
         t.addView(name);
-        sub = Ui.text(this, 13, Ui.body(this), pal.muted);
+        sub = new FitText(this, 13, 12.5f, 2, Ui.body(this), pal.muted).compact(1.1f);
         sub.setPadding(0, Ui.dp(this, 3), 0, 0);
         t.addView(sub);
         r.addView(t, weight());

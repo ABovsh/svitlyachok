@@ -63,11 +63,12 @@ public class StatsActivity extends Base {
     }
 
     private View columns() {
-        LinearLayout r = Ui.row(this);
+        LinearLayout r = Ui.row(this); r.setBaselineAligned(false);
         r.setPadding(Ui.dp(this, 9), 0, Ui.dp(this, 9), Ui.dp(this, 3));
         r.setGravity(android.view.Gravity.BOTTOM);
-        TextView title = head("Світла за графіком", android.view.Gravity.START);
-        title.setSingleLine(false);  // beside three fixed columns on a narrow screen it takes two lines
+        FitText title = new FitText(this, 12, 11, 2, Ui.bold(this), pal.muted).compact(1.1f);
+        title.setText("Світла за графіком");
+        title.setPadding(0, 0, Ui.dp(this, 8), 0);
         r.addView(title, weight());
         r.addView(head("тиждень", android.view.Gravity.START), cell(WEEK_DP));
         r.addView(head(FOUR_WEEKS_LABEL, android.view.Gravity.START), cell(MONTH_DP));
@@ -77,7 +78,8 @@ public class StatsActivity extends Base {
 
     private TextView head(String words, int gravity) {
         FitText t = new FitText(this, 12, 11, 1, Ui.bold(this), pal.muted).compact(1.1f);
-        t.setText(words); t.setSingleLine(true); t.setGravity(gravity);
+        t.formats(words, words.equals("тиждень") ? "7 днів" : words);
+        t.setContentDescription(words); t.setGravity(gravity);
         return t;
     }
 
@@ -122,6 +124,7 @@ public class StatsActivity extends Base {
 
     private View metric(String title, View value) {
         LinearLayout column = Ui.column(this);
+        column.setPadding(0, 0, Ui.dp(this, 6), 0);
         column.addView(head(title, android.view.Gravity.START), fill());
         column.addView(value, fill());
         return column;
@@ -182,7 +185,6 @@ public class StatsActivity extends Base {
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 12), Ui.dp(this, 9), Ui.dp(this, 12), Ui.dp(this, 10));
         card.setBackground(Ui.card(this, pal, 0));
-        LinearLayout top = Ui.row(this); top.setBaselineAligned(false);
         LinearLayout words = Ui.column(this);
         FitText head = new FitText(this, 16, 14, 2, Ui.heavy(this), pal.text).compact(1.1f);
         head.setText(p.name); words.addView(head, fill());
@@ -190,12 +192,10 @@ public class StatsActivity extends Base {
         range.setText(days == 7 ? date(daily.get(0)) + " — " + date(daily.get(6)) + " · годин на добу"
                 : shortDate(weeks.get(0).from) + " — " + shortDate(weeks.get(3).to) + " · у середньому за добу");
         CharSequence fullRange = range.getText();
-        range.formats(fullRange, fullRange.toString().replace(" — ", "–").replace(" · годин на добу", " · год/добу").replace(" · у середньому за добу", " · год/добу"));
+        range.formats(fullRange, fullRange.toString().replace(" — ", "–").replace(" · годин на добу", "\nгод/добу").replace(" · у середньому за добу", "\nгод/добу"));
         range.setContentDescription(fullRange);
         words.addView(range, fill());
-        top.addView(words, weight());
-        top.addView(period(), wrap());
-        card.addView(top, gap(7));
+        card.addView(cardHeader(words), gap(7));
         StatsChart chart = new StatsChart(this, pal);
         if (days == 7) chart.set(daily); else chart.setWeeks(weeks);
         // At very large system fonts, allow room for every week rather than clip its labels.
@@ -218,6 +218,29 @@ public class StatsActivity extends Base {
             card.addView(coverage, gapTop(5));
         }
         return card;
+    }
+
+    /** Keep words and controls side by side only while both have a readable width. */
+    private View cardHeader(LinearLayout words) {
+        View controls = period();
+        android.graphics.Paint label = new android.graphics.Paint();
+        label.setTypeface(Ui.heavy(this)); label.setTextSize(Ui.compactSp(this, 14, 1.1f));
+        int minimumWords = (int) Math.ceil(label.measureText("Місце")) + Ui.dp(this, 16);
+        LinearLayout top = new LinearLayout(this) {
+            @Override protected void onMeasure(int width, int height) {
+                int room = Math.max(1, MeasureSpec.getSize(width) - getPaddingLeft() - getPaddingRight());
+                controls.measure(MeasureSpec.makeMeasureSpec(room, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
+                int direction = controls.getMeasuredWidth() + minimumWords <= room ? HORIZONTAL : VERTICAL;
+                if (getOrientation() != direction) {
+                    setOrientation(direction);
+                    words.setLayoutParams(direction == HORIZONTAL ? weight() : fill());
+                    controls.setLayoutParams(direction == HORIZONTAL ? wrap() : gapTop(6));
+                }
+                super.onMeasure(width, height);
+            }
+        };
+        top.setBaselineAligned(false); top.addView(words, weight()); top.addView(controls, wrap());
+        return top;
     }
 
     /** Said only when something is missing: seven full days of seven need no line. */
@@ -248,7 +271,11 @@ public class StatsActivity extends Base {
     private View period() {
         LinearLayout row = Ui.row(this); row.setBaselineAligned(false);
         for (int n : new int[] {7, 28}) {
-            TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : FOUR_WEEKS_LABEL, n == days, 13);
+            boolean chosen = n == days;
+            FitText b = new FitText(this, 13, 12, 1, chosen ? Ui.heavy(this) : Ui.bold(this), chosen ? pal.accentInk : pal.text).compact(1.1f);
+            b.setText(n == 7 ? "Тиждень" : FOUR_WEEKS_LABEL);
+            b.setGravity(android.view.Gravity.CENTER);
+            b.setBackground(Ui.round(chosen ? pal.accent : pal.raised, Ui.px(this, 13)));
             b.setMinHeight(Ui.dp(this, 36));
             b.setPadding(Ui.dp(this, 11), Ui.dp(this, 4), Ui.dp(this, 11), Ui.dp(this, 4));
             b.setContentDescription(n == 7 ? "Графік за тиждень" : "Графік за 4 тижні");

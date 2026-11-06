@@ -24,6 +24,8 @@ final class PlaceTile extends FrameLayout {
         GradientDrawable bg = Ui.round(pal.soft(now.state), Ui.px(c, 15));
         bg.setStroke(Ui.dp(c, chosen ? 2 : 1), chosen ? pal.accentText : pal.line);
         setBackground(bg);
+        // The selection stroke must not alter the content width.
+        setPadding(0, 0, 0, 0);
         body = Ui.row(c); body.setBaselineAligned(false);
         body.setGravity(android.view.Gravity.TOP);
         body.setMinimumHeight(Ui.dp(c, 56));
@@ -52,7 +54,7 @@ final class PlaceTile extends FrameLayout {
         percent.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 11, 1));
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         pp.leftMargin = Ui.dp(c, 4); header.addView(percent, pp);
-        words.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        words.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         int ink = pal.status(now.state);
         if (soon) ink = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         FitText status = new FitText(c, 14, 12.5f, now.state == Logic.MAYBE ? 2 : 1, Ui.bold(c), ink).compact(1.1f);

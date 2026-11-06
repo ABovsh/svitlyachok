@@ -154,8 +154,9 @@ final class HeroCard extends ViewGroup {
         size(currentSide, Ui.sp(c, 13)); size(futureSide, Ui.sp(c, 13));
         float minimumClock = Ui.compactSp(c, 17, 1.1f);
         float preferredClock = Ui.compactSp(c, 27, 1.1f);
-        optionalSide(currentClock, currentSide, preferredClock, leftRoom);
-        optionalSide(futureClock, futureSide, preferredClock, rightRoom);
+        // Keep useful detail if it needs only a small adjustment of the large clock.
+        optionalSide(currentClock, currentSide, preferredClock * .9f, leftRoom);
+        optionalSide(futureClock, futureSide, preferredClock * .9f, rightRoom);
         float low = minimumClock;
         float high = preferredClock;
         for (int i = 0; i < 10; i++) {

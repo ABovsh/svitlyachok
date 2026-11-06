@@ -13,6 +13,7 @@ public class StatsActivity extends Base {
     private int days = 7;
     private String place = "";
     private int built;
+    private static final String FOUR_WEEKS_LABEL = "4 тижні";
     private static final int WEEK_DP = 80;
     private static final int MONTH_DP = 48;
     private static final int CHANGE_DP = 88;
@@ -69,7 +70,7 @@ public class StatsActivity extends Base {
         title.setSingleLine(false);  // beside three fixed columns on a narrow screen it takes two lines
         r.addView(title, weight());
         r.addView(head("тиждень", android.view.Gravity.START), cell(WEEK_DP));
-        r.addView(head("4 тижні", android.view.Gravity.START), cell(MONTH_DP));
+        r.addView(head(FOUR_WEEKS_LABEL, android.view.Gravity.START), cell(MONTH_DP));
         r.addView(head("зміна", android.view.Gravity.END), cell(CHANGE_DP));
         return r;
     }
@@ -104,7 +105,7 @@ public class StatsActivity extends Base {
             r.addView(name, fill());
             LinearLayout values = Ui.row(this);
             values.addView(metric("тиждень", weekBox), weight());
-            values.addView(metric("4 тижні", monthText), weight());
+            values.addView(metric(FOUR_WEEKS_LABEL, monthText), weight());
             values.addView(metric("зміна", changeText), weight());
             r.addView(values, gapTop(4));
         } else {
@@ -247,7 +248,7 @@ public class StatsActivity extends Base {
     private View period() {
         LinearLayout row = Ui.row(this); row.setBaselineAligned(false);
         for (int n : new int[] {7, 28}) {
-            TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : "4 тижні", n == days, 13);
+            TextView b = Ui.pill(this, pal, n == 7 ? "Тиждень" : FOUR_WEEKS_LABEL, n == days, 13);
             b.setMinHeight(Ui.dp(this, 36));
             b.setPadding(Ui.dp(this, 11), Ui.dp(this, 4), Ui.dp(this, 11), Ui.dp(this, 4));
             b.setContentDescription(n == 7 ? "Графік за тиждень" : "Графік за 4 тижні");

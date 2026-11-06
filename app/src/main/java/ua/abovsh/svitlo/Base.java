@@ -170,7 +170,7 @@ abstract class Base extends Activity {
 
     /** How early: "Одразу" and minutes as a row of equal pills, wrapped when a large font needs it. */
     View leads(int[] leads, int lead, java.util.function.IntConsumer chosen) {
-        AdaptiveGrid row = new AdaptiveGrid(this, leads.length, 5);
+        AdaptiveGrid row = new AdaptiveGrid(this, leads.length, 3);
         for (int value : leads) {
             FitText pill = new FitText(this, 13.5f, 13, 1, value == lead ? Ui.heavy(this) : Ui.bold(this), value == lead ? pal.accentInk : pal.text);
             pill.formats(value == 0 ? new CharSequence[] {"Одразу", "0 хв"} : new CharSequence[] {value + " хв"});

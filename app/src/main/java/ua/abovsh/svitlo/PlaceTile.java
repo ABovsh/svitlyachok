@@ -36,20 +36,20 @@ final class PlaceTile extends FrameLayout {
         LinearLayout words = Ui.column(c);
         LinearLayout header = Ui.row(c); header.setBaselineAligned(true);
         header.setGravity(android.view.Gravity.TOP);
-        name = new FitText(c, 14, 13, 2, Ui.heavy(c), pal.text).compact(1.1f);
+        name = new FitText(c, 14, 14, 2, Ui.heavy(c), pal.text).compact(1);
         name.setText(place.name);
         header.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         namedQueue = chosen && !Logic.autoNamed(place);
         queue = Ui.text(c, 12.5f, Ui.heavy(c), pal.accentText);
         queue.setText(Logic.queue(place.group));
-        queue.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 12.5f, 1.1f));
+        queue.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 12.5f, 1));
         queue.setPadding(Ui.dp(c, 4), 0, Ui.dp(c, 4), 0);
         queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(c, 6)));
         LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         qp.leftMargin = Ui.dp(c, 4); header.addView(queue, qp);
         percent = Ui.text(c, 11, Ui.heavy(c), pal.muted);
         percent.setText(share); percent.setSingleLine(true);
-        percent.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 11, 1.1f));
+        percent.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 11, 1));
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         pp.leftMargin = Ui.dp(c, 4); header.addView(percent, pp);
         words.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
@@ -57,8 +57,8 @@ final class PlaceTile extends FrameLayout {
         if (soon) ink = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         FitText status = new FitText(c, 14, 12.5f, now.state == Logic.MAYBE ? 2 : 1, Ui.bold(c), ink).compact(1.1f);
         status.formats(Logic.tileFormats(now).toArray(new CharSequence[0]));
+        status.setPadding(Ui.dp(c, 4), Ui.dp(c, 1), Ui.dp(c, 4), Ui.dp(c, 1));
         if (soon) {
-            status.setPadding(Ui.dp(c, 4), Ui.dp(c, 1), Ui.dp(c, 4), Ui.dp(c, 1));
             status.setBackground(Ui.round(pal.fill(now.next), Ui.px(c, 7)));
         }
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -68,8 +68,10 @@ final class PlaceTile extends FrameLayout {
         android.graphics.Paint essential = new android.graphics.Paint(status.getPaint());
         essential.setTextSize(Ui.compactSp(c, 14, 1.1f));
         setMinimumWidth(Math.max(Ui.dp(c, 128), Math.round(essential.measureText("до 24:00")) + Ui.dp(c, 40)));
-        setContentDescription(place.name + ", " + Base.where(place) + ": за графіком " + now.title
-                + (now.big.isEmpty() ? "" : ", " + now.big) + ", очікується світла сьогодні " + share
+        String location = Logic.autoNamed(place) ? Base.where(place) : place.name + ", " + Base.where(place);
+        String dayInfo = share.equals("—") ? "частка часу зі світлом поки невідома" : "очікується світла сьогодні " + share;
+        setContentDescription(location + ": за графіком " + now.title
+                + (now.big.isEmpty() ? "" : ", " + now.big) + ", " + dayInfo
                 + (chosen ? ", вибрано" : ", показати графік"));
         body.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         setFocusable(true);
@@ -83,7 +85,7 @@ final class PlaceTile extends FrameLayout {
         queue.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED);
         float room = (float) px - body.getPaddingLeft() - body.getPaddingRight() - icon - Ui.dp(getContext(), 8) - percent.getMeasuredWidth();
         android.graphics.Paint label = labelMeasure; label.set(name.getPaint());
-        label.setTextSize(Ui.compactSp(getContext(), 14, 1.1f));
+        label.setTextSize(Ui.compactSp(getContext(), 14, 1));
         boolean showQueue = namedQueue && label.measureText(name.getText().toString()) + queue.getMeasuredWidth() + Ui.px(getContext(), 4) <= room;
         queue.setVisibility(showQueue ? VISIBLE : GONE);
         super.onMeasure(width, height);

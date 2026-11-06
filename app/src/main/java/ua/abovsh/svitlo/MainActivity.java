@@ -429,7 +429,7 @@ public class MainActivity extends Base {
         android.app.NotificationChannel schedule = nm.getNotificationChannel(Sync.CH_SCHEDULE);
         boolean scheduleBlocked = (wanted.tomorrow || wanted.changes) && schedule != null && schedule.getImportance()==0;
         if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked && !scheduleBlocked)) return null;
-        TextView warning = Ui.text(this,14,Ui.heavy(this),pal.offText);
+        FitText warning = new FitText(this, 14, 13, 1, Ui.heavy(this), pal.offText).compact(1.1f);
         warning.setText("Сповіщення не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));
         warning.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName())));
@@ -527,7 +527,7 @@ public class MainActivity extends Base {
         String line = Logic.checkedLine(Store.checkedAt(this, p.region), d != null ? d.updated : 0, now);
         line = line.replace("Розклад оновлено:", "Оновлено:");
         if (!line.isEmpty()) {
-            TextView t = Ui.text(this, 13, Ui.body(this), pal.muted);
+            FitText t = new FitText(this, 13, 12.5f, 1, Ui.body(this), pal.muted).compact(1.1f);
             t.setText(line);
             t.setLineSpacing(0, 1.1f);
             android.graphics.drawable.Drawable mark = getDrawable(R.drawable.ic_check);
@@ -538,7 +538,7 @@ public class MainActivity extends Base {
             }
             box.addView(t, fill());
         }
-        TextView help = Ui.text(this, 14, Ui.heavy(this), pal.accentText);
+        FitText help = new FitText(this, 14, 13, 1, Ui.heavy(this), pal.accentText).compact(1.1f);
         help.setText("Світла немає, хоча за графіком є? ›");
         help.setGravity(Gravity.CENTER_VERTICAL);
         help.setMinHeight(Ui.dp(this, 44));

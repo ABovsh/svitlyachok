@@ -171,12 +171,13 @@ final class HeroCard extends ViewGroup {
         int[] extra = metrics[1];
         int[] before = metrics[2];
         for (int i = 0; i < rows.length; i++) {
-            caps[i] = 0; extra[i] = 0;
+            caps[i] = 0; extra[i] = 0; before[i] = 0;
             for (TextView t : rows[i]) if (t.getVisibility() != GONE) {
                 caps[i] = Math.max(caps[i], cap(t)); extra[i] = Math.max(extra[i], lastLine(t));
             }
         }
         if (!horizontal) before[4] = Ui.dp(c, 8);  // the second panel of a narrow card stands apart
+        for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gap;  // a row with nothing in it takes no room
         baselines = Logic.rhythm(gap, caps, extra, before);
         setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(baselines[rows.length], height));
     }

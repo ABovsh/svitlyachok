@@ -2431,5 +2431,8 @@ public class LogicTest {
         // extra room before a row (the second panel of a narrow card)
         int[] v = Logic.rhythm(10, new int[] {8, 20}, new int[] {0, 0}, new int[] {0, 6});
         assertEquals("[18, 54, 64]", Arrays.toString(v));
+        // a row with nothing in it takes no room: the card gives it minus one gap
+        int[] e = Logic.rhythm(10, new int[] {8, 0, 12}, new int[] {0, 0, 0}, new int[] {0, -10, 0});
+        assertEquals("[18, 18, 40, 50]", Arrays.toString(e));
     }
 }

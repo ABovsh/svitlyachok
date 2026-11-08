@@ -128,6 +128,8 @@ public final class Logic {
         public long sourceTime;
         public boolean sourceOk = true;
         private Data expiredView;
+        private Data draftView;
+        private String draftKey = "";
         public long updated;          // when the oblenergo last changed it, 0 unknown
         public String hash = "";      // the source's own hash of its schedule, empty when it has none
         public List<String> groups = new ArrayList<>();
@@ -308,6 +310,47 @@ public final class Logic {
             out.sourceOk = d.sourceOk; out.groups = d.groups; out.hash = d.hash; d.expiredView = out;
         }
         return d.expiredView;
+    }
+
+    /** A draft stands no longer than this after the source's last change; then it is taken as published. */
+    static final long DRAFT_S = 3 * 3600L;
+    /** Slot 12 = 06:00: a draft of tomorrow knows only the night. */
+    private static final int DRAFT_FROM = 12;
+
+    /**
+     * DTEK of Kyiv region first posts tomorrow as a draft: only the night outage, light for the rest of
+     * the day; the schedule follows 20–80 minutes later. A day is a draft when no queue has an outage
+     * from 06:00 on while today has daytime outages. It is left out (not published yet) for at most
+     * DRAFT_S after the source's last change.
+     */
+    static synchronized Data withoutDraft(Data d, long now) {
+        if (d == null || d.none || d.days.isEmpty()) return d;
+        LocalDate today = today(now);
+        Map<String, String> current = d.days.get(today);
+        if (current == null || !daytimeOutages(current) || (d.updated > 0 && now - d.updated >= DRAFT_S)) return d;
+        List<LocalDate> drafts = new ArrayList<>();
+        for (Map.Entry<LocalDate, Map<String, String>> e : d.days.entrySet()) {
+            if (e.getKey().isAfter(today) && !e.getValue().isEmpty() && !daytimeOutages(e.getValue())) drafts.add(e.getKey());
+        }
+        if (drafts.isEmpty()) return d;
+        String key = drafts + "|" + d.sourceTime;
+        if (d.draftView == null || !key.equals(d.draftKey)) {
+            Data out = new Data();
+            out.days = new HashMap<>(d.days);
+            for (LocalDate day : drafts) out.days.remove(day);
+            out.updated = d.updated; out.sourceTime = d.sourceTime; out.sourceOk = d.sourceOk;
+            out.groups = d.groups; out.hash = d.hash;
+            d.draftView = out; d.draftKey = key;
+        }
+        return d.draftView;
+    }
+
+    private static boolean daytimeOutages(Map<String, String> groups) {
+        for (String slots : groups.values()) {
+            String day = slots.substring(Math.min(DRAFT_FROM, slots.length()));
+            if (day.indexOf('0') >= 0 || day.indexOf('3') >= 0) return true;
+        }
+        return false;
     }
 
     static LocalDate latestDay(Data d) {
@@ -1131,8 +1174,10 @@ public final class Logic {
         return checkedAt <= 0 || now < checkedAt || now - checkedAt >= 120;
     }
 
-    /** The words under a shared picture: where to get the app; the picture says the rest. */
-    static final String SHARE_TEXT = "Завантажити застосунок: https://abovsh.github.io/svitlyachok/";
+    /** An outage on the shared picture: its time; "зараз" is told by the filled chip. */
+    static String shareChip(Outage o) {
+        return (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–");
+    }
 
     /**
      * The place as notifications name it: with one place a name tells nothing, so it is left out;
@@ -1378,7 +1423,8 @@ public final class Logic {
         Note n = new Note();
         if (b != null && !outagesChanged(b, a, from)) return null;
         n.kind = b == null ? Note.PUBLISHED : Note.CHANGED;
-        n.title = (n.kind == Note.PUBLISHED ? "Графік на " : "Зміни на ") + (today ? TODAY_WORD : TOMORROW_WORD);
+        if (n.kind == Note.PUBLISHED) n.title = "Графік на " + (today ? TODAY_WORD : TOMORROW_WORD);
+        else n.title = today ? "Зміни на " + TODAY_WORD : "Графік на " + TOMORROW_WORD + " оновлено";
         n.key = a;
         n.today = today;
         n.summary = noticeSummary(a);
@@ -1395,6 +1441,15 @@ public final class Logic {
         if (on == 0) return "Без світла усю добу";
         if (on == 48) return "Без планових вимкнень · 24 год світла";
         return daySummaries(day).get(0);
+    }
+
+    /**
+     * Whether a person asked for this note: "Графік на завтра" covers tomorrow's first schedule and its
+     * revisions until midnight; "Зміни графіка" covers changes of the day already going on.
+     */
+    static boolean wanted(Note n, Alerts a) {
+        if (n.kind == Note.PUBLISHED) return a.tomorrow;
+        return n.today ? a.changes : a.tomorrow || a.changes;
     }
 
     /** Merge only the days that passed the place's preferences and duplicate checks. */
@@ -2028,10 +2083,9 @@ public final class Logic {
     /** One line under the card: when the schedule was checked and, when known, published. */
     public static String checkedLine(long checked, long updated, long now) {
         if (checked <= 0) return "";
-        String line = "Перевірено: " + hm(checked);
-        if (updated <= 0) return line;
+        if (updated <= 0) return "Графік перевірено: " + hm(checked);
         String day = dayDiff(updated, now) == 0 ? "" : dayWord(updated, now) + " ";
-        return "Розклад оновлено: " + day + hm(updated) + " · " + line;
+        return "Графік оновлено: " + day + hm(updated) + " · перевірено: " + hm(checked);
     }
 
     /** The button of the help on a power cut the schedule does not show. */
@@ -2128,6 +2182,18 @@ public final class Logic {
         if (state == ON) return d.on;
         if (state == OFF) return d.off;
         return state == MAYBE ? d.maybe : 0;
+    }
+
+    /** A number on a bar: a zero has no segment and no number. */
+    public static String statLabel(DayStat d, int state) {
+        return statKnown(d) && statValue(d, state) == 0 ? "" : statNumber(d, state);
+    }
+
+    /** The last line of the main screen; `latest` is null until the release was checked. */
+    public static String versionLine(String current, String latest) {
+        String line = "Версія " + current;
+        if (latest == null) return line;
+        return newer(latest, current) ? line + " · є нова " + latest + ", оновити ›" : line + " · остання";
     }
 
     static boolean statKnown(DayStat d) {

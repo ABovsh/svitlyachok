@@ -38,6 +38,11 @@ final class HeroCard extends ViewGroup {
     private final Band[] shared;
     private final Band[] leftBands;
     private final Band[] rightBands;
+    private final String currentEnd;
+    private final String futureEnd;
+    private boolean currentMoved;
+    private boolean futureMoved;
+    private Logic.Now last;
 
     HeroCard(Context c, Ui.Pal colours, String name, Logic.Now now, String[] next, boolean lit) {
         super(c); pal = colours; location = name; initial = now; highlighted = lit;
@@ -45,6 +50,7 @@ final class HeroCard extends ViewGroup {
         setWillNotDraw(false); setFocusable(true);
         if (Build.VERSION.SDK_INT >= 28) setScreenReaderFocusable(true);
         String[] start = Logic.widgetStart(now);
+        currentEnd = start[1]; futureEnd = next[2]; last = now;
         int nextInk = now.next == Logic.UNKNOWN ? pal.muted : pal.status(now.next);
         if (lit) nextInk = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         FitText place = new FitText(c, 13, 12, 1, Ui.heavy(c), pal.text).compact(1.1f);
@@ -78,15 +84,31 @@ final class HeroCard extends ViewGroup {
     }
 
     void update(Logic.Now now) {
-        elapsed.setText(now.already); remaining.setText(Logic.heroCountdown(now));
+        last = now;
+        details();
         setContentDescription(location + ". " + Logic.heroDescription(now));
+    }
+
+    /** The duration rows; an end that has no room beside its clock goes under the duration instead. */
+    private void details() {
+        String left = under(last.already, currentMoved ? currentEnd : "");
+        String right = under(Logic.heroCountdown(last), futureMoved ? futureEnd : "");
+        if (!android.text.TextUtils.equals(elapsed.getText(), left)) elapsed.setText(left);
+        if (!android.text.TextUtils.equals(remaining.getText(), right)) remaining.setText(right);
+    }
+
+    private static String under(String first, String second) {
+        if (android.text.TextUtils.isEmpty(second)) return first;
+        return android.text.TextUtils.isEmpty(first) ? second : first + "\n" + second;
     }
 
     private void size(TextView t, float pixels) { t.setTextSize(TypedValue.COMPLEX_UNIT_PX, pixels); }
 
     private float width(TextView t, float pixels) {
         Paint p = measuring; p.set(t.getPaint()); p.setTextSize(pixels);
-        return p.measureText(t.getText().toString());
+        float widest = 0;
+        for (String line : t.getText().toString().split("\n")) widest = Math.max(widest, p.measureText(line));
+        return widest;
     }
 
     private float sideWidth(TextView side) {
@@ -154,9 +176,12 @@ final class HeroCard extends ViewGroup {
         size(currentSide, Ui.sp(c, 13)); size(futureSide, Ui.sp(c, 13));
         float minimumClock = Ui.compactSp(c, 17, 1.1f);
         float preferredClock = Ui.compactSp(c, 27, 1.1f);
-        // Keep useful detail if it needs only a small adjustment of the large clock.
-        optionalSide(currentClock, currentSide, preferredClock * .9f, leftRoom);
-        optionalSide(futureClock, futureSide, preferredClock * .9f, rightRoom);
+        // The end of a window always shows: beside its clock while the clock may shrink to 80 %, else under the duration.
+        optionalSide(currentClock, currentSide, preferredClock * .8f, leftRoom);
+        optionalSide(futureClock, futureSide, preferredClock * .8f, rightRoom);
+        currentMoved = !android.text.TextUtils.isEmpty(currentEnd) && currentSide.getVisibility() == GONE;
+        futureMoved = !android.text.TextUtils.isEmpty(futureEnd) && futureSide.getVisibility() == GONE;
+        details();
         float low = minimumClock;
         float high = preferredClock;
         for (int i = 0; i < 10; i++) {

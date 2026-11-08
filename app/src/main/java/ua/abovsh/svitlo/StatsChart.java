@@ -29,7 +29,6 @@ final class StatsChart extends View {
     private List<Logic.DayStat> days = new ArrayList<>();
     private List<Logic.WeekStat> weeks = new ArrayList<>();
     private float average = -1;
-    private float offEnd;  // where the red of the bar being labelled ends
 
     StatsChart(Context c, Ui.Pal pal) {
         super(c); this.pal = pal;
@@ -130,26 +129,19 @@ final class StatsChart extends View {
     private void dayText(Canvas cv, Logic.DayStat d) {
         float x = bar.centerX();
         if (Logic.statKnown(d)) {
-            offEnd = bar.top + chartH * d.off / 48f;
-            number(cv, Logic.statNumber(d,Logic.OFF),x,bar.top-value.ascent()+Ui.px(getContext(),3),chartH*d.off/48f,pal.offText,true);
-            number(cv, Logic.statNumber(d,Logic.ON),x,bar.bottom-Ui.px(getContext(),5),chartH*d.on/48f,pal.onText,false);
+            // always inside their own bar: off at its top, on at its bottom, however short the segment
+            number(cv, Logic.statLabel(d, Logic.OFF), x, bar.top - value.ascent() + Ui.px(getContext(), 3));
+            number(cv, Logic.statLabel(d, Logic.ON), x, bar.bottom - Ui.px(getContext(), 5));
         }
         label.setColor(pal.muted);
         float y=bar.bottom-label.ascent()+Ui.px(getContext(),5);
         cv.drawText(WEEKDAYS[d.date.getDayOfWeek().getValue()-1],x,y,label);
     }
 
-    private void number(Canvas cv,String text,float x,float y,float segment,int outsideInk,boolean upper) {
-        if(value.measureText(text)>bar.width()-Ui.px(getContext(),2)) return;
-        boolean inside=segment>=value.getFontSpacing()+Ui.px(getContext(),5);
-        int ink = inside ? pal.ink : outsideInk;
-        if(!inside) {
-            y=upper?bar.top-Ui.px(getContext(),4):bar.bottom-segment-Ui.px(getContext(),4);
-            // a short green segment under a tall red one: most of its number stands on the red
-            if(!upper&&y+value.ascent()/2<offEnd) ink=pal.ink;
-        }
-        value.setColor(ink);
-        cv.drawText(text,x,y,value);
+    private void number(Canvas cv, String text, float x, float y) {
+        if (text.isEmpty() || value.measureText(text) > bar.width() - Ui.px(getContext(), 2)) return;
+        value.setColor(pal.ink);
+        cv.drawText(text, x, y, value);
     }
 
     private void weekBar(Canvas cv,Logic.WeekStat w) {

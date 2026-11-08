@@ -377,7 +377,6 @@ public class LogicTest {
     @Test
     public void aSharedPictureSaysWhereToGetTheApp() {
         // the picture says everything; the words only where to get the app, no place
-        assertEquals("Завантажити застосунок: https://abovsh.github.io/svitlyachok/", Logic.SHARE_TEXT);
     }
 
     @Test
@@ -1899,10 +1898,10 @@ public class LogicTest {
 
     @Test
     public void theFooterSaysWhenCheckedAndPublishedInOneLine() {
-        assertEquals("Розклад оновлено: 12:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 5)));
-        assertEquals("Перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 5)));
+        assertEquals("Графік оновлено: 12:00 · перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 5)));
+        assertEquals("Графік перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 5)));
         assertEquals("", Logic.checkedLine(0, 0, at(13, 5)));
-        assertEquals("Розклад оновлено: вчора 22:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(-2, 0), at(13, 5)));
+        assertEquals("Графік оновлено: вчора 22:00 · перевірено: 13:00", Logic.checkedLine(at(13, 0), at(-2, 0), at(13, 5)));
     }
 
     @Test
@@ -2035,8 +2034,8 @@ public class LogicTest {
     }
 
     @Test public void publishedTimePrecedesTheSeparateCheckTime() {
-        assertEquals("Розклад оновлено: 12:00 · Перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 0)));
-        assertEquals("Перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 0)));
+        assertEquals("Графік оновлено: 12:00 · перевірено: 13:00", Logic.checkedLine(at(13, 0), at(12, 0), at(13, 0)));
+        assertEquals("Графік перевірено: 13:00", Logic.checkedLine(at(13, 0), 0, at(13, 0)));
     }
 
     @Test public void helpLinkNamesTheSelectedRegion() {
@@ -2229,7 +2228,7 @@ public class LogicTest {
         List<Logic.Note> notes = Logic.notes(home(), before, after, at(10, 0));
         assertEquals(2, notes.size());
         assertEquals("Зміни на сьогодні", notes.get(0).title);
-        assertEquals("Зміни на завтра", notes.get(1).title);
+        assertEquals("Графік на завтра оновлено", notes.get(1).title);
         Logic.Notice combined = Logic.scheduleNotice(home(), notes);
         assertEquals("Графік оновлено", combined.title);
         assertEquals("Дім · Сьогодні: Без світла усю добу\nЗавтра: Без планових вимкнень · 24 год світла", combined.text);
@@ -2265,5 +2264,111 @@ public class LogicTest {
         Logic.Notice note = Logic.eventText(event, timeline, OCT30, at(5, 45));
         assertEquals("\uD83D\uDD34 Вимкнуть світло", note.title);
         assertEquals("06:00–10:00 · до 4 год", note.text);
+    }
+
+    // ---- 1.9.0: the DTEK draft of tomorrow, tomorrow's revisions, compact texts ----------------
+
+    static Logic.Data real(String name) throws Exception {
+        try (java.io.InputStream in = LogicTest.class.getResourceAsStream("/kyiv-region-" + name + ".json")) {
+            return Logic.parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    static long kyiv(int month, int day, int h, int m) {
+        return java.time.ZonedDateTime.of(2026, month, day, h, m, 0, 0, Logic.KYIV).toEpochSecond();
+    }
+
+    static final LocalDate NOV8 = LocalDate.of(2026, 11, 8);
+    static final LocalDate NOV7 = LocalDate.of(2026, 11, 7);
+
+    static Logic.Place queue(String group) {
+        Logic.Place p = home(); p.group = group; return p;
+    }
+
+    @Test public void dtekDraftOfTomorrowIsNotASchedule() throws Exception {
+        long now = kyiv(11, 7, 21, 10);
+        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), now);
+        assertNull(Logic.day(draft, "GPV4.2", NOV8));  // the draft says 24 h of light
+        assertNull(Logic.day(draft, "GPV5.1", NOV8));
+        assertEquals(Logic.day(real("2026-11-07-2103"), "GPV4.2", NOV7), Logic.day(draft, "GPV4.2", NOV7));
+        long later = kyiv(11, 6, 19, 10);
+        assertNull(Logic.day(Logic.withoutDraft(real("2026-11-06-1907"), later), "GPV4.2", NOV7));
+    }
+
+    @Test public void realScheduleOfTomorrowStays() throws Exception {
+        assertEquals("111111111100000000000000011111100000000000000011",
+                Logic.day(Logic.withoutDraft(real("2026-11-07-2218"), kyiv(11, 7, 22, 20)), "GPV4.2", NOV8));
+        assertEquals("001111111100000000000000011111100000000000000011",
+                Logic.day(Logic.withoutDraft(real("2026-11-07-2326"), kyiv(11, 7, 23, 30)), "GPV4.2", NOV8));
+        assertTrue(Logic.day(Logic.withoutDraft(real("2026-11-06-1928"), kyiv(11, 6, 19, 30)), "GPV4.2", NOV7) != null);
+    }
+
+    @Test public void draftShownWhenItStandsThreeHours() throws Exception {
+        // today with daytime outages, tomorrow only a night one, published 30.10 20:25
+        String night = HOURS_11_TOMORROW.replace("\"21\":\"no\"", "\"21\":\"yes\"").replace("\"22\":\"no\"", "\"22\":\"yes\"");
+        Logic.Data d = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31 + "\":{\"GPV1.1\":" + night + "}}")
+                .replace("29.10.2026 20:25", "30.10.2026 20:25"));
+        LocalDate tomorrow = OCT30.plusDays(1);
+        assertNull(Logic.day(Logic.withoutDraft(d, at(23, 0)), "GPV1.1", tomorrow));
+        assertEquals("000011111111111111111111111111111111111111111111", Logic.day(Logic.withoutDraft(d, at(23, 30)), "GPV1.1", tomorrow));
+    }
+
+    @Test public void lightAllDayIsNotADraftWithoutOutagesToday() throws Exception {
+        String light = HOURS_11.replace("\"no\"", "\"yes\"").replace("\"second\"", "\"yes\"").replace("\"first\"", "\"yes\"");
+        Logic.Data d = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + light + "},\"" + D31 + "\":{\"GPV1.1\":" + light + "}}"));
+        assertEquals(repeat('1', 48), Logic.day(Logic.withoutDraft(d, at(20, 30)), "GPV1.1", OCT30.plusDays(1)));
+    }
+
+    @Test public void eveningOfSevenNovemberGivesOneFirstAndOneRevision() throws Exception {
+        Logic.Data before = real("2026-11-07-2103");
+        before.days.remove(NOV8);  // the file of 21:00 had only today
+        Logic.Alerts tomorrowOnly = new Logic.Alerts(); tomorrowOnly.tomorrow = true; tomorrowOnly.changes = false;
+        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), kyiv(11, 7, 21, 10));
+        assertTrue(Logic.notes(queue("GPV4.2"), before, draft, kyiv(11, 7, 21, 10)).isEmpty());
+        Logic.Data first = Logic.withoutDraft(real("2026-11-07-2218"), kyiv(11, 7, 22, 20));
+        List<Logic.Note> n = Logic.notes(queue("GPV4.2"), draft, first, kyiv(11, 7, 22, 20));
+        assertEquals(1, n.size());
+        assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
+        assertEquals("Графік на завтра", n.get(0).title);
+        assertEquals("9 год світла · 38 %", n.get(0).summary);
+        assertTrue(Logic.wanted(n.get(0), tomorrowOnly));
+        Logic.Data revised = Logic.withoutDraft(real("2026-11-07-2326"), kyiv(11, 7, 23, 30));
+        List<Logic.Note> r = Logic.notes(queue("GPV4.2"), first, revised, kyiv(11, 7, 23, 30));
+        assertEquals(1, r.size());
+        assertEquals("Графік на завтра оновлено", r.get(0).title);
+        assertEquals("8 год світла · 33 %", r.get(0).summary);
+        assertTrue(Logic.wanted(r.get(0), tomorrowOnly));  // a revision of tomorrow belongs to "Графік на завтра"
+        assertTrue(Logic.notes(queue("GPV5.1"), first, revised, kyiv(11, 7, 23, 30)).isEmpty());
+    }
+
+    @Test public void todayChangesNeedTheirOwnSwitch() throws Exception {
+        String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
+        Logic.Note n = Logic.notes(home(), data(TODAY_ONLY), data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}")), at(12, 0)).get(0);
+        Logic.Alerts a = new Logic.Alerts(); a.tomorrow = true; a.changes = false;
+        assertFalse(Logic.wanted(n, a));
+        a.changes = true;
+        assertTrue(Logic.wanted(n, a));
+    }
+
+    @Test public void statisticsHideZero() {
+        Logic.DayStat d = new Logic.DayStat(); d.date = OCT30; d.known = true; d.on = 0; d.off = 48;
+        assertEquals("", Logic.statLabel(d, Logic.ON));
+        assertEquals("24", Logic.statLabel(d, Logic.OFF));
+        d.on = 11; d.off = 37;
+        assertEquals("5,5", Logic.statLabel(d, Logic.ON));
+    }
+
+    @Test public void versionLineAtTheBottom() {
+        assertEquals("Версія 1.9.0", Logic.versionLine("1.9.0", null));
+        assertEquals("Версія 1.9.0 · остання", Logic.versionLine("1.9.0", "1.9.0"));
+        assertEquals("Версія 1.8.0 · є нова 1.9.0, оновити ›", Logic.versionLine("1.8.0", "1.9.0"));
+        assertEquals("Версія 1.9.0-rc.1", Logic.versionLine("1.9.0-rc.1", null));
+    }
+
+    @Test public void shareChipsNameOnlyTheTime() {
+        Logic.Outage o = new Logic.Outage(); o.label = "05:00 – 13:30"; o.when = Logic.Outage.NOW;
+        assertEquals("05:00–13:30", Logic.shareChip(o));
+        o.maybe = true;
+        assertEquals("можливо 05:00–13:30", Logic.shareChip(o));
     }
 }

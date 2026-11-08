@@ -296,21 +296,13 @@ public class SetupActivity extends Base {
         preview.removeAllViews();
         Logic.Region r = Logic.region(region);
         if (!group.isEmpty() && d != null) {
+            // the queue's own days, as the main screen shows them: what this choice means at a glance
             long now = Sync.now();
             LocalDate base = Logic.today(now);
-            String day = Logic.day(d, group, base);
-            TextView t = Ui.text(this, 14, Ui.bold(this), pal.text);
-            t.setText("Сьогодні в черзі " + Logic.queue(group) + ": " + Logic.dayLight(day));
-            t.setPadding(Ui.dp(this, 4), Ui.dp(this, 14), 0, 0);
-            preview.addView(t, fill());
-            if (day != null) {
-                BarView b = new BarView(this, pal);
-                int cur = Logic.index(base, now);
-                b.set(day, cur + (Logic.z(now).getMinute() % 30) / 30f);
-                LinearLayout.LayoutParams bl = fill();
-                bl.topMargin = Ui.dp(this, 10);
-                preview.addView(b, bl);
-            }
+            int cur = Logic.index(base, now);
+            previewDay("Сьогодні", Logic.day(d, group, base), cur + (Logic.z(now).getMinute() % 30) / 30f);
+            LocalDate tomorrow = base.plusDays(1);
+            previewDay("Завтра, " + tomorrow.getDayOfMonth() + "." + tomorrow.getMonthValue(), Logic.day(d, group, tomorrow), -1);
         } else if (loading) {
             TextView t = Ui.text(this, 14, Ui.body(this), pal.muted);
             t.setText("Завантажую список черг…");
@@ -348,6 +340,22 @@ public class SetupActivity extends Base {
         return t;
     }
 
+    /** One day of the chosen queue: its title and light, and the bar; a day not published says so. */
+    private void previewDay(String title, String slots, float nowRel) {
+        String none = nowRel < 0 ? "графік ще не опубліковано" : "графіка немає";
+        DayHeader head = new DayHeader(this, pal, title, slots != null ? Logic.daySummaries(slots)
+                : java.util.Collections.singletonList(none), slots != null ? pal.onText : pal.muted, null);
+        head.setContentDescription(Logic.describe(title, slots));
+        LinearLayout.LayoutParams hl = fill();
+        hl.topMargin = Ui.dp(this, 10);
+        preview.addView(head, hl);
+        if (slots == null) return;
+        BarView bar = new BarView(this, pal);
+        bar.set(slots, nowRel);
+        bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        preview.addView(bar, fill());
+    }
+
     /** The region's file: its queues and the preview. */
     private void load() {
         String r = region;
@@ -358,7 +366,7 @@ public class SetupActivity extends Base {
         if (Store.data(this, r) == null) fillPreview(null);
         new Thread(() -> {
             // a file checked minutes ago needs no network: the queues of a region hardly ever change
-            int result = Store.fetch(getApplicationContext(), r, Long.MAX_VALUE, false, request);
+            int result = Sync.fetchRegion(getApplicationContext(), r, request);
             runOnUiThread(() -> {
                 if (loadRequest != request || isFinishing()) return;
                 loading = false;
@@ -424,6 +432,7 @@ public class SetupActivity extends Base {
                     .setNegativeButton("Скасувати",null).show();
             return;
         }
+        if (before == null) inheritAlerts(p);
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
         if (before != null && !Logic.sameQueue(before, p)) {  // all of this belongs to the old queue
@@ -435,6 +444,15 @@ public class SetupActivity extends Base {
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
         leave(first, p);
+    }
+
+    /** A new place notifies as the place on screen does: one choice made once, not again for every place. */
+    private void inheritAlerts(Logic.Place p) {
+        List<Logic.Place> places = Prefs.places(this);
+        if (places.isEmpty()) return;
+        Logic.Place from = places.get(0);
+        for (Logic.Place q : places) if (q.id.equals(Prefs.current(this))) from = q;
+        Prefs.setAlerts(this, p.id, Prefs.alerts(this, from.id));
     }
 
     private void leave(boolean first, Logic.Place p) {

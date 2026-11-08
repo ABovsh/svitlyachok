@@ -50,6 +50,21 @@ final class Sync {
         return fetchAndApply(c, true, Long.MAX_VALUE, new Store.Request());
     }
 
+    /**
+     * One region for a screen that needs its queues now (adding or editing a place): a new file still
+     * tells the places already there what changed, as any other check does.
+     */
+    static int fetchRegion(Context c, String region, Store.Request request) {
+        Logic.Data before = Store.data(c, region);
+        int r = Store.fetch(c, region, Long.MAX_VALUE, false, request);
+        if (r == Store.NEW) {
+            reconcile(c, region);
+            notifyNotes(c, region, before, Store.data(c, region), now());
+            rememberDays(c, now());
+        }
+        return r;
+    }
+
     /** A background check: no network when the source answered moments ago (see Logic.dueForFetch). */
     static boolean refreshInBackground(Context c) {
         return refreshInBackground(c, new Store.Request());
@@ -369,9 +384,8 @@ final class Sync {
             Logic.Alerts a = Prefs.alerts(c, p.id);
             List<Logic.Note> changed = new ArrayList<>();
             for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
-                boolean wanted = n.kind == Logic.Note.PUBLISHED ? a.tomorrow : a.changes;
                 // the source may drop a day and bring it back unchanged: that is nothing new to the person
-                if (!wanted || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
+                if (!Logic.wanted(n, a) || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
                 Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.key));
                 changed.add(n);
             }

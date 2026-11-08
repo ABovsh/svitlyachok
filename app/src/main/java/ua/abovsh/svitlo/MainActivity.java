@@ -234,7 +234,7 @@ public class MainActivity extends Base {
         android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
         b.append(nm.areNotificationsEnabled());
         Logic.Release r = Updates.offered(this);
-        return b.append(r == null ? "" : r.version).toString();
+        return b.append(r == null ? "" : r.version).append(Updates.known(this)).toString();
     }
 
     @Override
@@ -254,7 +254,7 @@ public class MainActivity extends Base {
         tips.hide();  // its views go with the page
         long now = Sync.now();
         LocalDate base = Logic.today(now);
-        sub.setText(loading ? "оновлюю графік…" : Ui.date(base) + " · за графіком");
+        sub.setText(loading ? "оновлюю графік…" : Ui.date(base));
         Logic.Place p = current(places);
         Logic.Data d = Store.data(this, p.region);
         String tl = Logic.timeline(d, p.group, base);
@@ -271,9 +271,10 @@ public class MainActivity extends Base {
         View stale = stale(p, d, now);
         if (stale != null) body.addView(stale, gap(8));
         body.addView(schedule(p, d, base, cur, nowRel), gap(8));
+        View checked = checked(p, d, now); if (checked != null) body.addView(checked, gap(4));
         body.addView(actions(p), gap(6));
         View blocked = blockedReminders(p); if (blocked != null) body.addView(blocked, gap(6));
-        body.addView(footer(p, d, now), fill());
+        body.addView(footer(p), fill());
 
         // always offered, also beside an existing widget: this is where the other size is added
         boolean offer = android.appwidget.AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported();
@@ -521,29 +522,54 @@ public class MainActivity extends Base {
         return Logic.missingSchedule(Store.data(this, p.region), p.group);
     }
 
-    private View footer(Logic.Place p, Logic.Data d, long now) {
+    /** Right under the bars: when the schedule was published and when it was checked. */
+    private View checked(Logic.Place p, Logic.Data d, long now) {
+        String line = Logic.checkedLine(Store.checkedAt(this, p.region), d != null ? d.updated : 0, now);
+        if (line.isEmpty()) return null;
+        FitText t = new FitText(this, 13, 12.5f, 1, Ui.body(this), pal.muted).compact(1.1f);
+        t.setText(line);
+        t.setLineSpacing(0, 1.1f);
+        t.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
+        android.graphics.drawable.Drawable mark = getDrawable(R.drawable.ic_check);
+        if (mark != null) {
+            mark = mark.mutate(); mark.setTint(pal.onText); mark.setBounds(0, 0, Ui.dp(this, 15), Ui.dp(this, 15));
+            t.setCompoundDrawablesRelative(mark, null, null, null);
+            t.setCompoundDrawablePadding(Ui.dp(this, 5));
+        }
+        return t;
+    }
+
+    /** The help on a power cut the schedule does not show, and the version: a newer one, even skipped, is a tap away. */
+    private View footer(Logic.Place p) {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
-        String line = Logic.checkedLine(Store.checkedAt(this, p.region), d != null ? d.updated : 0, now);
-        line = line.replace("Розклад оновлено:", "Оновлено:");
-        if (!line.isEmpty()) {
-            FitText t = new FitText(this, 13, 12.5f, 1, Ui.body(this), pal.muted).compact(1.1f);
-            t.setText(line);
-            t.setLineSpacing(0, 1.1f);
-            android.graphics.drawable.Drawable mark = getDrawable(R.drawable.ic_check);
-            if (mark != null) {
-                mark = mark.mutate(); mark.setTint(pal.onText); mark.setBounds(0, 0, Ui.dp(this, 15), Ui.dp(this, 15));
-                t.setCompoundDrawablesRelative(mark, null, null, null);
-                t.setCompoundDrawablePadding(Ui.dp(this, 5));
-            }
-            box.addView(t, fill());
-        }
         FitText help = new FitText(this, 14, 13, 1, Ui.heavy(this), pal.accentText).compact(1.1f);
         help.setText("Світла немає, хоча за графіком є? ›");
         help.setGravity(Gravity.CENTER_VERTICAL);
         help.setMinHeight(Ui.dp(this, 44));
         help.setOnClickListener(v -> AlertsSheet.help(this, p));
         box.addView(help, fill());
+        String known = Updates.known(this);
+        FitText version = new FitText(this, 13, 12, 1, Ui.body(this), pal.muted).compact(1.1f);
+        String line = Logic.versionLine(BuildConfig.VERSION_NAME, known);
+        if (known != null && Logic.newer(known, BuildConfig.VERSION_NAME)) {
+            android.text.SpannableString words = new android.text.SpannableString(line);
+            int at = line.indexOf(" · ") + 3;
+            words.setSpan(new android.text.style.ForegroundColorSpan(pal.accentText), at, line.length(), 0);
+            words.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), at, line.length(), 0);
+            version.setText(words);
+            version.setMinHeight(Ui.dp(this, 44));
+            version.setOnClickListener(v -> {
+                Updates.undismiss(this);
+                render();
+                scroll.smoothScrollTo(0, 0);
+            });
+        } else {
+            version.setText(line);
+        }
+        version.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams vl = fill(); vl.topMargin = Ui.dp(this, 4); vl.bottomMargin = Ui.dp(this, 8);
+        box.addView(version, vl);
         return box;
     }
 

@@ -63,6 +63,18 @@ final class Updates {
         }
     }
 
+    /** The latest version GitHub named at the last check, or null before any (and in an RC). */
+    static String known(Context c) {
+        if (BuildConfig.IS_RC) return null;
+        String v = p(c).getString(VERSION, "");
+        return v.isEmpty() ? null : v;
+    }
+
+    /** A skipped version wanted after all: the main screen offers it again. */
+    static void undismiss(Context c) {
+        p(c).edit().remove(DISMISSED).apply();
+    }
+
     /** "Пропустити цю версію": not offered on the main screen again; a newer one will be. */
     static void dismiss(Context c, String version) {
         p(c).edit().putString(DISMISSED, version).apply();

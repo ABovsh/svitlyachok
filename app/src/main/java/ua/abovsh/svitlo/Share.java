@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * "Поділитися": one day of a place as a picture, for a messenger the person picks. The picture
- * names the region and queue, not the place; the words under it say where to get the app.
+ * names the region and queue, not the place, and says where to get the app: no text goes with it.
  * The app sends nothing itself: the picture goes through Android's own share sheet.
  */
 final class Share {
@@ -43,7 +43,6 @@ final class Share {
             Intent send = new Intent(Intent.ACTION_SEND)
                     .setType("image/png")
                     .putExtra(Intent.EXTRA_STREAM, uri)
-                    .putExtra(Intent.EXTRA_TEXT, Logic.SHARE_TEXT)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             send.setClipData(ClipData.newRawUri("", uri));
             a.startActivity(Intent.createChooser(send, "Поділитися графіком"));
@@ -59,11 +58,14 @@ final class Share {
         return new File(dir, FILE);
     }
 
-    /** One day of one place, as on the main screen, on a picture 1080 px wide. */
+    /**
+     * One day of one place on a picture 1080 px wide, as compact as the main screen: the queue and its
+     * region on one line, the day and its light, the grid, the outages in one row, and a footer.
+     */
     static Bitmap draw(Context c, Logic.Place p, LocalDate day, long now) {
         Ui.Pal pal = Ui.pal(c);
         int w = Math.round(W * Sheet.S);
-        Bitmap tall = Bitmap.createBitmap(w, Math.round(900 * Sheet.S), Bitmap.Config.ARGB_8888);
+        Bitmap tall = Bitmap.createBitmap(w, Math.round(420 * Sheet.S), Bitmap.Config.ARGB_8888);
         Canvas cv = new Canvas(tall);
         cv.drawColor(pal.card);
         Sheet sh = new Sheet(c, new Brush(pal, pal.card).on(cv), w);
@@ -71,22 +73,17 @@ final class Share {
         Logic.Data d = Store.data(c, p.region);
         Logic.Region r = Logic.region(p.region);
 
-        float y = sh.line("Черга " + Logic.queue(p.group), 22 * s, sh.text(Ui.display(c), 22, pal.text));
-        if (r != null) y = sh.line(r.name, y + 6 * s, sh.text(Ui.body(c), 13, pal.muted));
-        y += 18 * s;
-
+        float y = sh.pair("Черга " + Logic.queue(p.group), sh.text(Ui.display(c), 17, pal.text),
+                r == null ? "" : r.name, sh.text(Ui.body(c), 13, pal.muted), false, 14 * s);
         // the date in words: the picture is read later, when "today" is another day
         String date = Ui.date(day);
         boolean today = day.equals(Logic.today(now));
         int cur = today ? Logic.index(day, now) : -1;
         float nowRel = today ? cur + (Logic.z(now).getMinute() % 30) / 30f : -1;
-        y = sh.day(Character.toUpperCase(date.charAt(0)) + date.substring(1), Logic.day(d, p.group, day), cur, nowRel, y);
-
-        y = sh.legend(y + 24 * s) + 18 * s;
-        y = sh.line("Це графік обленерго, а не фактична наявність світла.", y, sh.text(Ui.body(c), 11.5f, pal.dim));
-        y = sh.line(Logic.SHARE_SIGNATURE, y + 6 * s, sh.text(Ui.heavy(c), 13, pal.accentText));
+        y = sh.day(Character.toUpperCase(date.charAt(0)) + date.substring(1), Logic.day(d, p.group, day), cur, nowRel, y + 10 * s);
+        y = sh.footer(y + 10 * s);
         // drawn on a tall sheet, then cut to what was used
-        Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 22 * s)));
+        Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 12 * s)));
         tall.recycle();
         return out;
     }
@@ -104,70 +101,81 @@ final class Share {
             this.c = c;
             this.b = b;
             this.pal = b.pal;
-            left = 20 * S;
-            right = width - 20 * S;
+            left = 16 * S;
+            right = width - 16 * S;
         }
 
-        /** A day: its title and the light to expect, the bar with hours, the outages as chips. */
-        float day(String title, String slots, int cur, float nowRel, float top) {
-            Paint head = text(Ui.display(c), 16, pal.text);
-            float y = line(title, top, head);
-            if (slots == null) return line("Графік ще не опубліковано", y + 8 * S, text(Ui.body(c), 14, pal.muted));
-            y = light(Logic.daySummaries(slots).get(0), head.measureText(title), top, head.getTextSize(), y);
-            y = bar(slots, nowRel, y + 12 * S);
-            return chips(Logic.outages(slots, cur), y);
-        }
-
-        /** "очікується 17 год світла · 71 %" in a green pill at the right, level with the title. */
-        private float light(String light, float titleWidth, float top, float titleSize, float y) {
-            Paint lp = text(Ui.heavy(c), 12.5f, pal.onText);
-            float lw = lp.measureText(light) + 20 * S;
-            float lh = 26 * S;
-            float lt = top + (titleSize - lh) / 2f;
-            if (left + titleWidth + 10 * S + lw > right) {  // narrow: under the title
-                lt = y + 6 * S;
-                y = lt + lh;
-                b.r.set(left, lt, left + lw, lt + lh);
-            } else {
-                b.r.set(right - lw, lt, right, lt + lh);
+        /**
+         * Two texts on one line, the second after the first or at the right edge; when they do not fit,
+         * the second goes under the first. Returns the y under them.
+         */
+        float pair(String first, Paint fp, String second, Paint sp, boolean atRight, float top) {
+            float fh = fp.getTextSize();
+            b.cv.drawText(first, left, top + fh * 0.8f, fp);
+            if (second.isEmpty()) return top + fh;
+            float gap = 8 * S;
+            float sw = sp.measureText(second);
+            float fw = fp.measureText(first);
+            if (left + fw + gap + sw <= right) {
+                float x = atRight ? right - sw : left + fw + gap;
+                b.cv.drawText(second, x, top + fh * 0.8f, sp);
+                return top + fh;
             }
-            b.p.setColor(Ui.blend(pal.card, Ui.fade(pal.on, pal.dark ? 0.18f : 0.12f)));
-            b.cv.drawRoundRect(b.r, lh / 2, lh / 2, b.p);
-            b.cv.drawText(light, b.r.left + 10 * S, b.r.centerY() + lp.getTextSize() * 0.36f, lp);
-            return y;
+            float y = top + fh + 4 * S;
+            b.cv.drawText(second, left, y + sp.getTextSize() * 0.8f, sp);
+            return y + sp.getTextSize();
         }
 
-        /** The day's bar with the hours under it and, for today, a stroke at now. */
-        private float bar(String slots, float nowRel, float top) {
-            RectF cells = new RectF(left, top, right, top + 55 * S);
+        /** A day: its title and light, the grid, the outages in one row. */
+        float day(String title, String slots, int cur, float nowRel, float top) {
+            Paint head = text(Ui.heavy(c), 15, pal.text);
+            if (slots == null) return pair(title, head, "графік ще не опубліковано", text(Ui.bold(c), 14, pal.muted), true, top);
+            float y = pair(title, head, Logic.daySummaries(slots).get(0), text(Ui.heavy(c), 14, pal.onText), true, top);
+            RectF cells = new RectF(left, y + 8 * S, right, y + 8 * S + 55 * S);
             BarView.grid(b, slots, nowRel, cells, text(Ui.heavy(c), 14, pal.text), -1, -1);
-            return cells.bottom + 6 * S;
+            return chips(Logic.outages(slots, cur), cells.bottom + 8 * S, cells.bottom);
         }
 
-        /** The outages as chips: the one going on now filled red, the past ones faded. */
-        private float chips(List<Logic.Outage> list, float y) {
-            if (list.isEmpty()) return y;
-            Paint chip = text(Ui.heavy(c), 14, pal.text);
+        /**
+         * The outages in one row: the one going on now filled, past ones faded. The font gets smaller
+         * to keep them on one line; what still does not fit is counted, "+2".
+         */
+        private float chips(List<Logic.Outage> list, float y, float none) {
+            if (list.isEmpty()) return none;
+            float size = 12;
+            Paint chip = text(Ui.heavy(c), size, pal.text);
+            while (size > 10 && rowWidth(list, list.size(), chip, size) > right - left) {
+                size -= 0.5f;
+                chip = text(Ui.heavy(c), size, pal.text);
+            }
+            int shown = list.size();
+            Paint more = text(Ui.heavy(c), size, pal.muted);
+            if (rowWidth(list, shown, chip, size) > right - left) {
+                while (shown > 1 && rowWidth(list, shown, chip, size) + 6 * S + more.measureText("+" + (list.size() - shown)) > right - left) shown--;
+            }
+            float ch = (size + 14) * S;
             float x = left;
-            float ch = 30 * S;
-            float cy = y + 8 * S;
-            for (Logic.Outage o : list) {
+            for (int i = 0; i < shown; i++) {
+                Logic.Outage o = list.get(i);
                 boolean now = o.when == Logic.Outage.NOW;
-                String label = (now ? "зараз " : "") + (o.maybe ? "можливо " : "") + o.label.replace(" – ", "–");
-                float cw = chip.measureText(label) + 22 * S;
-                if (x > left && x + cw > right) {
-                    x = left;
-                    cy += ch + 6 * S;
-                }
-                b.r.set(x, cy, x + cw, cy + ch);
+                String label = Logic.shareChip(o);
+                float cw = chip.measureText(label) + (size + 8) * S;
+                b.r.set(x, y, x + cw, y + ch);
                 b.p.setColor(chipColour(o, now));
                 b.cv.drawRoundRect(b.r, ch / 2, ch / 2, b.p);
                 chip.setColor(now ? pal.ink : pal.text);
                 chip.setAlpha(o.when == Logic.Outage.PAST ? 120 : 255);
-                b.cv.drawText(label, x + 11 * S, cy + ch / 2 + chip.getTextSize() * 0.36f, chip);
+                b.cv.drawText(label, x + (size + 8) * S / 2, y + ch / 2 + chip.getTextSize() * 0.36f, chip);
                 x += cw + 6 * S;
             }
-            return cy + ch;
+            if (shown < list.size()) b.cv.drawText("+" + (list.size() - shown), x, y + ch / 2 + more.getTextSize() * 0.36f, more);
+            return y + ch;
+        }
+
+        private float rowWidth(List<Logic.Outage> list, int count, Paint chip, float size) {
+            float sum = 0;
+            for (int i = 0; i < count; i++) sum += chip.measureText(Logic.shareChip(list.get(i))) + (size + 8) * S + (i > 0 ? 6 * S : 0);
+            return sum;
         }
 
         private int chipColour(Logic.Outage o, boolean now) {
@@ -176,29 +184,20 @@ final class Share {
             return Ui.blend(pal.card, Ui.fade(pal.off, pal.dark ? 0.24f : 0.14f));
         }
 
-        /** What the colours mean, wrapping to a second line on the narrow picture. */
-        float legend(float y) {
-            Paint t = text(Ui.bold(c), 12, pal.muted);
-            String[][] items = {{"1", "світло є"}, {"0", "світла немає"}, {"3", "можливе вимкнення"}};
-            float x = left;
-            for (String[] it : items) {
-                if (x > left && x + 24 * S + t.measureText(it[1]) > right) {
-                    x = left;
-                    y += 22 * S;
-                }
-                b.r.set(x, y + 2 * S, x + 18 * S, y + 12 * S);
-                BarView.runs(b, it[0], 0, 1, 0, b.r, 0);
-                x += 24 * S;
-                b.cv.drawText(it[1], x, y + 11.5f * S, t);
-                x += t.measureText(it[1]) + 16 * S;
+        /** "Графік обленерго" and where the app is, on one line, smaller when the picture is narrow. */
+        float footer(float y) {
+            String what = "Графік обленерго";
+            float size = 12;
+            Paint a = text(Ui.body(c), size, pal.dim);
+            Paint sig = text(Ui.heavy(c), size, pal.accentText);
+            while (size > 9 && a.measureText(what) + 10 * S + sig.measureText(Logic.SHARE_SIGNATURE) > right - left) {
+                size -= 0.25f;
+                a = text(Ui.body(c), size, pal.dim);
+                sig = text(Ui.heavy(c), size, pal.accentText);
             }
-            return y + 16 * S;
-        }
-
-        /** A line of text whose top is at y, from the left margin; returns the y under it. */
-        float line(String s, float y, Paint p) {
-            b.cv.drawText(s, left, y + p.getTextSize() * 0.8f, p);
-            return y + p.getTextSize();
+            b.cv.drawText(what, left, y + a.getTextSize() * 0.8f, a);
+            b.cv.drawText(Logic.SHARE_SIGNATURE, right - sig.measureText(Logic.SHARE_SIGNATURE), y + sig.getTextSize() * 0.8f, sig);
+            return y + size * S;
         }
 
         /** A paint for text of `sizeDp`. */

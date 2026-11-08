@@ -86,9 +86,10 @@ public final class Logic {
     private static final String Y29 = "https://raw.githubusercontent.com/yaroslav2901/OE_OUTAGE_DATA/main/data/";
 
     /** Open community archives of the oblenergo schedules on GitHub, one JSON format for all. */
+    private static final String KYIV_REGION = "kyiv_region";
     private static final Region[] REGIONS = {
         new Region("kyiv", "Місто Київ", "https://bezsvitla.com.ua/kyiv#street-search-widget", B42 + "kyiv.json"),
-        new Region("kyiv_region", "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
+        new Region(KYIV_REGION, "Київська область", "https://www.dtek-krem.com.ua/ua/shutdowns", B42 + "kyiv-region.json"),
         new Region("vinnytsia", "Вінницька область", "https://www.voe.com.ua/",
                 "https://raw.githubusercontent.com/vn-progr/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json",
                 "https://raw.githubusercontent.com/olnet93/gpv-voe-vinnytsia/main/data/Vinnytsiaoblenerho.json"),
@@ -317,7 +318,7 @@ public final class Logic {
     /** A draft stands no longer than this after the source's last change; then it is taken as published. */
     static final long DRAFT_S = 3 * 3600L;
     /** Only DTEK of Kyiv region posts a draft; elsewhere a tomorrow without daytime outages is real. */
-    static final String DRAFT_REGION = "kyiv_region";
+    static final String DRAFT_REGION = KYIV_REGION;
     /** Slot 12 = 06:00: a draft of tomorrow knows only the night. */
     private static final int DRAFT_FROM = 12;
 
@@ -2015,7 +2016,6 @@ public final class Logic {
         return new int[] {from, to};
     }
 
-    /** "15:30–19:30 · без світла · 4 год": what a touched run is. */
     /**
      * The chosen run of the hour grid as one frame per row of twelve: {first hour, last hour}. A run
      * from 11:00 to 13:00 is two frames, the end of the first row and the start of the second.
@@ -2054,6 +2054,7 @@ public final class Logic {
         return out;
     }
 
+    /** "15:30–19:30 · без світла · 4 год": what a touched run is. */
     public static String barTip(String day, int from, int to) {
         return clock(from) + "–" + clock(to) + " · " + tipWord(day.charAt(from)) + " · " + length(to - from);
     }

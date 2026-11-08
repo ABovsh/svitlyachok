@@ -271,8 +271,8 @@ final class HeroCard extends ViewGroup {
         } else {
             panel(false, x, 1);
             panel(true, x + Ui.dp(getContext(), 9), 4);
-            float apart = gap + Ui.dp(getContext(), 8);  // the room between the panels, as measured
-            futureBounds.set((float) x, baselines[4] - cap(futureTitle) - apart / 2f, edge, height - gap / 2f);
+            float apart = (float) gap + Ui.dp(getContext(), 8);  // the room between the panels, as measured
+            futureBounds.set((float) x, (float) baselines[4] - cap(futureTitle) - apart / 2f, edge, height - gap / 2f);
         }
     }
 

@@ -2344,11 +2344,8 @@ public class LogicTest {
         assertTrue(Logic.notes(queue("GPV5.1"), first, revised, kyiv(11, 7, 23, 30)).isEmpty());
     }
 
-    @Test public void oneSwitchCoversTheScheduleAndEveryChange() throws Exception {
-        String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
-        Logic.Note n = Logic.notes(home(), data(TODAY_ONLY), data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}")), at(12, 0)).get(0);
+    @Test public void oneSwitchCoversTheScheduleAndEveryChange() {
         Logic.Alerts a = new Logic.Alerts(); a.tomorrow = true; a.changes = false;  // saved by 1.8.0: one of the two
-        assertTrue(a.schedule());
         assertTrue(a.schedule());
         a.tomorrow = false; a.changes = true;
         assertTrue(a.schedule());

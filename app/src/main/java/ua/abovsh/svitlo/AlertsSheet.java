@@ -131,9 +131,7 @@ final class AlertsSheet {
         box.addView(a.toggle("Перед увімкненням", "", al.on, a.pal.on, v -> save(x -> x.on = v)), Base.fill());
         if (al.on) box.addView(a.leads(Prefs.LEADS_ON, al.leadOn, m -> save(x -> x.leadOn = m)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Графік на завтра", "", al.tomorrow, v -> save(x -> x.tomorrow = v)), Base.fill());
-        box.addView(a.divider());
-        box.addView(a.toggle("Зміни графіка", "", al.changes, v -> save(x -> x.changes = v)), Base.fill());
+        box.addView(a.toggle("Графік і його зміни", "", al.schedule(), v -> save(x -> x.schedule(v))), Base.fill());
         col.addView(box, Base.fill());
 
         long now = Sync.now();

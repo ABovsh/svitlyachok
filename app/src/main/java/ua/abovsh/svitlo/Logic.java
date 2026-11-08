@@ -1092,7 +1092,20 @@ public final class Logic {
 
         /** Anything at all: otherwise the bell of the place is crossed out. */
         public boolean any() {
-            return off || on || tomorrow || changes;
+            return off || on || schedule();
+        }
+
+        /**
+         * "Графік і його зміни": a new day and every change. Stored as the two keys of 1.8.0, so a place
+         * where only one of them was on gets everything.
+         */
+        public boolean schedule() {
+            return tomorrow || changes;
+        }
+
+        public void schedule(boolean v) {
+            tomorrow = v;
+            changes = v;
         }
     }
 
@@ -1150,7 +1163,7 @@ public final class Logic {
         }
     }
 
-    /** "За 15 хв до вимкнення й увімкнення", "У момент вимкнення · графік на завтра", "Вимкнено". */
+    /** "За 15 хв до вимкнення й увімкнення", "У момент вимкнення · графік і його зміни", "Вимкнено". */
     static String alertsSummary(Alerts a) {
         List<String> main = new ArrayList<>();
         if (a.off && a.on && a.leadOff == a.leadOn) {
@@ -1161,8 +1174,7 @@ public final class Logic {
         }
         List<String> parts = new ArrayList<>();
         if (!main.isEmpty()) parts.add(String.join(", ", main));
-        if (a.tomorrow) parts.add("графік на завтра");
-        if (a.changes) parts.add("зміни графіка");
+        if (a.schedule()) parts.add("графік і його зміни");
         if (parts.isEmpty()) return "Вимкнено";
         String s = String.join(" · ", parts);
         return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
@@ -1437,7 +1449,7 @@ public final class Logic {
         if (b != null && !outagesChanged(b, a, from)) return null;
         n.kind = b == null ? Note.PUBLISHED : Note.CHANGED;
         if (n.kind == Note.PUBLISHED) n.title = "Графік на " + (today ? TODAY_WORD : TOMORROW_WORD);
-        else n.title = today ? "Зміни на " + TODAY_WORD : "Графік на " + TOMORROW_WORD + " оновлено";
+        else n.title = "Оновлення графіка на " + (today ? TODAY_WORD : TOMORROW_WORD);
         n.key = a;
         n.today = today;
         n.summary = noticeSummary(a);
@@ -1456,15 +1468,6 @@ public final class Logic {
         return daySummaries(day).get(0);
     }
 
-    /**
-     * Whether a person asked for this note: "Графік на завтра" covers tomorrow's first schedule and its
-     * revisions until midnight; "Зміни графіка" covers changes of the day already going on.
-     */
-    static boolean wanted(Note n, Alerts a) {
-        if (n.kind == Note.PUBLISHED) return a.tomorrow;
-        return n.today ? a.changes : a.tomorrow || a.changes;
-    }
-
     /** Merge only the days that passed the place's preferences and duplicate checks. */
     static Notice scheduleNotice(Place p, List<Note> notes) {
         if (notes.isEmpty()) return null;
@@ -1474,7 +1477,7 @@ public final class Logic {
             n.text = named(p.name, notes.get(0).summary);
             return n;
         }
-        n.title = "Графік оновлено";
+        n.title = "Оновлення графіка";
         List<String> days = new ArrayList<>();
         for (Note note : notes) days.add((note.today ? "Сьогодні: " : TOMORROW_LABEL) + note.summary);
         n.text = named(p.name, String.join("\n", days));

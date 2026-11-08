@@ -428,7 +428,7 @@ public class MainActivity extends Base {
         boolean channelBlocked = (wanted.off || wanted.on) && ch != null && ch.getImportance() == 0;
         boolean quietBlocked = Prefs.quietNights(this) && quiet != null && quiet.getImportance() == 0;
         android.app.NotificationChannel schedule = nm.getNotificationChannel(Sync.CH_SCHEDULE);
-        boolean scheduleBlocked = (wanted.tomorrow || wanted.changes) && schedule != null && schedule.getImportance()==0;
+        boolean scheduleBlocked = wanted.schedule() && schedule != null && schedule.getImportance()==0;
         if (!wanted.any() || (nm.areNotificationsEnabled() && !channelBlocked && !quietBlocked && !scheduleBlocked)) return null;
         FitText warning = new FitText(this, 14, 13, 1, Ui.heavy(this), pal.offText).compact(1.1f);
         warning.setText("Сповіщення не прийдуть · Увімкнути ›"); warning.setMinHeight(Ui.dp(this,48));

@@ -380,12 +380,11 @@ final class Sync {
     static void notifyNotes(Context c, String region, Logic.Data before, Logic.Data after, long now) {
         List<Logic.Place> places = Prefs.places(c);
         for (Logic.Place p : places) {
-            if (!p.region.equals(region)) continue;
-            Logic.Alerts a = Prefs.alerts(c, p.id);
+            if (!p.region.equals(region) || !Prefs.alerts(c, p.id).schedule()) continue;
             List<Logic.Note> changed = new ArrayList<>();
             for (Logic.Note n : Logic.notes(Logic.inNotices(p, places.size()), before, after, now)) {
                 // the source may drop a day and bring it back unchanged: that is nothing new to the person
-                if (!Logic.wanted(n, a) || Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
+                if (Logic.noteSeen(Prefs.notes(c, p.id), n.day, n.key)) continue;
                 Prefs.setNotes(c, p.id, Logic.rememberNote(Prefs.notes(c, p.id), n.day, n.key));
                 changed.add(n);
             }

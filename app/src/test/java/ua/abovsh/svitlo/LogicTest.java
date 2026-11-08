@@ -333,11 +333,11 @@ public class LogicTest {
         a.leadOff = 0;
         a.on = false;
         a.tomorrow = true;
-        assertEquals("У момент вимкнення · графік на завтра", Logic.alertsSummary(a));
+        assertEquals("У момент вимкнення · графік і його зміни", Logic.alertsSummary(a));
         a.off = false;
         a.tomorrow = false;
         a.changes = true;
-        assertEquals("Зміни графіка", Logic.alertsSummary(a));
+        assertEquals("Графік і його зміни", Logic.alertsSummary(a));
         a.changes = false;
         assertFalse(a.any());
         assertEquals("Вимкнено", Logic.alertsSummary(a));
@@ -657,7 +657,7 @@ public class LogicTest {
         List<Logic.Note> n = Logic.notes(home(), data(TODAY_ONLY), after, at(12, 0));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.CHANGED, n.get(0).kind);
-        assertEquals("Зміни на сьогодні", n.get(0).title);
+        assertEquals("Оновлення графіка на сьогодні", n.get(0).title);
         assertEquals("Дім · 17 год світла · 71 %", n.get(0).text);
     }
 
@@ -814,7 +814,7 @@ public class LogicTest {
         assertEquals("Графік на завтра", tomorrow.get(0).title);
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
         Logic.Data after = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}"));
-        assertEquals("Зміни на сьогодні", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
+        assertEquals("Оновлення графіка на сьогодні", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
     }
 
     // ---- 1.3.1: the update downloads inside the app ----------------------------------
@@ -2229,10 +2229,10 @@ public class LogicTest {
         after.days.get(OCT30.plusDays(1)).put(home().group, repeat('1', 48));
         List<Logic.Note> notes = Logic.notes(home(), before, after, at(10, 0));
         assertEquals(2, notes.size());
-        assertEquals("Зміни на сьогодні", notes.get(0).title);
-        assertEquals("Графік на завтра оновлено", notes.get(1).title);
+        assertEquals("Оновлення графіка на сьогодні", notes.get(0).title);
+        assertEquals("Оновлення графіка на завтра", notes.get(1).title);
         Logic.Notice combined = Logic.scheduleNotice(home(), notes);
-        assertEquals("Графік оновлено", combined.title);
+        assertEquals("Оновлення графіка", combined.title);
         assertEquals("Дім · Сьогодні: Без світла усю добу\nЗавтра: Без планових вимкнень · 24 год світла", combined.text);
         assertEquals(notes.get(1).title, Logic.scheduleNotice(home(), notes.subList(1, 2)).title);
         assertNull(Logic.scheduleNotice(home(), java.util.Collections.emptyList()));
@@ -2334,23 +2334,29 @@ public class LogicTest {
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
         assertEquals("Графік на завтра", n.get(0).title);
         assertEquals("9 год світла · 38 %", n.get(0).summary);
-        assertTrue(Logic.wanted(n.get(0), tomorrowOnly));
+        assertTrue(tomorrowOnly.schedule());
         Logic.Data revised = Logic.withoutDraft(real("2026-11-07-2326"), KYIV_REGION, kyiv(11, 7, 23, 30));
         List<Logic.Note> r = Logic.notes(queue("GPV4.2"), first, revised, kyiv(11, 7, 23, 30));
         assertEquals(1, r.size());
-        assertEquals("Графік на завтра оновлено", r.get(0).title);
+        assertEquals("Оновлення графіка на завтра", r.get(0).title);
         assertEquals("8 год світла · 33 %", r.get(0).summary);
-        assertTrue(Logic.wanted(r.get(0), tomorrowOnly));  // a revision of tomorrow belongs to "Графік на завтра"
+        assertTrue(tomorrowOnly.schedule());
         assertTrue(Logic.notes(queue("GPV5.1"), first, revised, kyiv(11, 7, 23, 30)).isEmpty());
     }
 
-    @Test public void todayChangesNeedTheirOwnSwitch() throws Exception {
+    @Test public void oneSwitchCoversTheScheduleAndEveryChange() throws Exception {
         String changed = HOURS_11.replace("\"20\":\"yes\"", "\"20\":\"no\"");
         Logic.Note n = Logic.notes(home(), data(TODAY_ONLY), data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + changed + "}}")), at(12, 0)).get(0);
-        Logic.Alerts a = new Logic.Alerts(); a.tomorrow = true; a.changes = false;
-        assertFalse(Logic.wanted(n, a));
-        a.changes = true;
-        assertTrue(Logic.wanted(n, a));
+        Logic.Alerts a = new Logic.Alerts(); a.tomorrow = true; a.changes = false;  // saved by 1.8.0: one of the two
+        assertTrue(a.schedule());
+        assertTrue(a.schedule());
+        a.tomorrow = false; a.changes = true;
+        assertTrue(a.schedule());
+        a.schedule(false);
+        assertFalse(a.tomorrow || a.changes);
+        assertFalse(a.schedule());
+        a.schedule(true);
+        assertTrue(a.tomorrow && a.changes);
     }
 
     @Test public void statisticsHideZero() {

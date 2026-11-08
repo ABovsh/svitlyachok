@@ -1117,6 +1117,15 @@ public final class Logic {
         return a;
     }
 
+    /** Minutes ahead offered for both reminders. */
+    static final int[] LEADS = {0, 10, 15, 30, 60};
+
+    /** A lead no longer offered (5 min of the old "Перед увімкненням" row) becomes the next one up. */
+    static int lead(int minutes) {
+        for (int m : LEADS) if (m >= minutes) return m;
+        return LEADS[LEADS.length - 1];
+    }
+
     /**
      * The notifications of one place: its own record, or, for a place from before 1.3, the old
      * common settings (switched off where the old bell was off); defaults for a new place.
@@ -1128,8 +1137,8 @@ public final class Logic {
                 JSONObject o = new JSONObject(json);
                 a.off = o.optBoolean("off", a.off);
                 a.on = o.optBoolean("on", a.on);
-                a.leadOff = Math.max(0, Math.min(120, o.optInt("leadOff", a.leadOff)));
-                a.leadOn = Math.max(0, Math.min(120, o.optInt("leadOn", a.leadOn)));
+                a.leadOff = lead(o.optInt("leadOff", a.leadOff));
+                a.leadOn = lead(o.optInt("leadOn", a.leadOn));
                 a.tomorrow = o.optBoolean("tomorrow", a.tomorrow);
                 a.changes = o.optBoolean("changes", a.changes);
             } catch (JSONException e) {
@@ -1140,8 +1149,8 @@ public final class Logic {
         if (legacy != null) {
             a.off = legacy.off;
             a.on = legacy.on;
-            a.leadOff = legacy.leadOff;
-            a.leadOn = legacy.leadOn;
+            a.leadOff = lead(legacy.leadOff);
+            a.leadOn = lead(legacy.leadOn);
             a.tomorrow = legacy.tomorrow;
             a.changes = legacy.changes;
         }

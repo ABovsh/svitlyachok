@@ -126,10 +126,10 @@ final class AlertsSheet {
         Logic.Alerts al = Prefs.alerts(a, place.id);
         LinearLayout box = a.box();
         box.addView(a.toggle("Перед вимкненням", "", al.off, a.pal.off, v -> save(x -> x.off = v)), Base.fill());
-        if (al.off) box.addView(a.leads(Prefs.LEADS_OFF, al.leadOff, m -> save(x -> x.leadOff = m)), Base.fill());
+        if (al.off) box.addView(a.leads(Logic.LEADS, al.leadOff, m -> save(x -> x.leadOff = m)), Base.fill());
         box.addView(a.divider());
         box.addView(a.toggle("Перед увімкненням", "", al.on, a.pal.on, v -> save(x -> x.on = v)), Base.fill());
-        if (al.on) box.addView(a.leads(Prefs.LEADS_ON, al.leadOn, m -> save(x -> x.leadOn = m)), Base.fill());
+        if (al.on) box.addView(a.leads(Logic.LEADS, al.leadOn, m -> save(x -> x.leadOn = m)), Base.fill());
         box.addView(a.divider());
         box.addView(a.toggle("Графік і його зміни", "", al.schedule(), v -> save(x -> x.schedule(v))), Base.fill());
         col.addView(box, Base.fill());

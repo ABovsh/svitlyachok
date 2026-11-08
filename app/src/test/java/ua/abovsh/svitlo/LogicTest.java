@@ -1,5 +1,6 @@
 package ua.abovsh.svitlo;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -303,6 +304,20 @@ public class LogicTest {
         assertEquals(15, b.leadOn);
         assertTrue(b.tomorrow);
         assertFalse(b.changes);
+    }
+
+    @Test
+    public void bothRemindersOfferTheSameLeads() {
+        assertArrayEquals(new int[] {0, 10, 15, 30, 60}, Logic.LEADS);
+        // 5 min before the light came only with the old row of "Перед увімкненням": it becomes 10
+        Logic.Alerts a = Logic.alertsFrom("{\"leadOff\":10,\"leadOn\":5}", null, false);
+        assertEquals(10, a.leadOn);
+        assertEquals(10, a.leadOff);
+        assertEquals(0, Logic.alertsFrom("{\"leadOn\":0}", null, false).leadOn);
+        assertEquals(30, Logic.alertsFrom("{\"leadOn\":30}", null, false).leadOn);
+        assertEquals(60, Logic.alertsFrom("{\"leadOff\":90}", null, false).leadOff);
+        Logic.Alerts old = new Logic.Alerts(); old.leadOn = 5;
+        assertEquals(10, Logic.alertsFrom(null, old, false).leadOn);
     }
 
     @Test

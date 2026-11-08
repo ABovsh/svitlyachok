@@ -432,7 +432,7 @@ public class SetupActivity extends Base {
                     .setNegativeButton("Скасувати",null).show();
             return;
         }
-        if (before == null) inheritAlerts(p);
+        if (before == null) Prefs.setAlerts(this, p.id, Logic.newPlaceAlerts());
         Prefs.putPlace(this, p);
         Prefs.setCurrent(this, p.id);
         if (before != null && !Logic.sameQueue(before, p)) {  // all of this belongs to the old queue
@@ -444,15 +444,6 @@ public class SetupActivity extends Base {
         Sync.schedulePeriodic(this);
         Sync.apply(getApplicationContext());
         leave(first, p);
-    }
-
-    /** A new place notifies as the place on screen does: one choice made once, not again for every place. */
-    private void inheritAlerts(Logic.Place p) {
-        List<Logic.Place> places = Prefs.places(this);
-        if (places.isEmpty()) return;
-        Logic.Place from = places.get(0);
-        for (Logic.Place q : places) if (q.id.equals(Prefs.current(this))) from = q;
-        Prefs.setAlerts(this, p.id, Prefs.alerts(this, from.id));
     }
 
     private void leave(boolean first, Logic.Place p) {

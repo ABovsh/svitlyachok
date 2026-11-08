@@ -14,12 +14,14 @@ import android.widget.TextView;
 
 /**
  * The notifications of one place, from its bell or from the settings: a sheet that rises from the
- * bottom. Every change is saved at once and re-arms the reminders.
+ * bottom. Every change is saved at once and re-arms the reminders; "Застосувати" closes the sheet,
+ * for whoever does not expect a switch to be saved by itself.
  */
 final class AlertsSheet {
     private final Base a;
     private final Logic.Place place;
     private final LinearLayout col;
+    private Dialog shown;
 
     private AlertsSheet(Base a, Logic.Place place, LinearLayout col) {
         this.a = a;
@@ -32,7 +34,7 @@ final class AlertsSheet {
         LinearLayout col = Ui.column(a);
         AlertsSheet sheet = new AlertsSheet(a, place, col);
         sheet.build();
-        sheet(a, col, closed);
+        sheet.shown = sheet(a, col, closed);
     }
 
     /** Why there may be no power although the schedule says there is, and where to look. */
@@ -75,7 +77,7 @@ final class AlertsSheet {
         col.addView(grip, gl);
     }
 
-    private static void sheet(Base a, LinearLayout col, Runnable closed) {
+    private static Dialog sheet(Base a, LinearLayout col, Runnable closed) {
         Dialog d = new Dialog(a);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
         ScrollView sv = new ScrollView(a);
@@ -102,6 +104,11 @@ final class AlertsSheet {
         }
         d.setOnDismissListener(x -> closed.run());
         d.show();
+        return d;
+    }
+
+    private void close() {
+        if (shown != null) shown.dismiss();
     }
 
     private void build() {
@@ -132,6 +139,7 @@ final class AlertsSheet {
         long now = Sync.now();
         Logic.Event next = Sync.nextAlert(a, place.id, now);
         if (next != null) col.addView(nextBox(next, now), a.gapTop(8));
+        col.addView(a.primary("Застосувати", v -> close()), a.gapTop(14));
         if (Prefs.places(a).size() > 1) {
             TextView all = Ui.text(a, 15, Ui.heavy(a), a.pal.accentText);
             all.setText("Застосувати до всіх місць");
@@ -164,7 +172,7 @@ final class AlertsSheet {
                     Logic.Alerts al = Prefs.alerts(a, place.id);
                     for (Logic.Place p : Prefs.places(a)) Prefs.setAlerts(a, p.id, al);
                     Sync.apply(a.getApplicationContext());
-                    build();
+                    close();
                 }).setNegativeButton("Скасувати", null).show();
     }
 

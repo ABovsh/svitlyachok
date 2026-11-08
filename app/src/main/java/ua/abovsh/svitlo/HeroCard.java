@@ -10,7 +10,11 @@ import android.util.TypedValue;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-/** Two independent information columns, measured as shared typographic rows. */
+/**
+ * Two independent information columns, measured as shared typographic rows. Every row stands one
+ * gap from the next, from a baseline to the cap top of the row under it, and the same gap lies above
+ * the first row and under the last: the card reads evenly whatever the fonts.
+ */
 final class HeroCard extends ViewGroup {
     private final Ui.Pal pal;
     private final String location;
@@ -23,34 +27,34 @@ final class HeroCard extends ViewGroup {
     private final TextView currentClock;
     private final TextView futureClock;
     private final TextView currentSide;
-    private final TextView futureSide;
     private final TextView elapsed;
     private final TextView remaining;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint measuring = new Paint();
     private final Paint.FontMetrics titleMetrics = new Paint.FontMetrics();
+    private final android.graphics.Rect glyph = new android.graphics.Rect();
     private final RectF futureBounds = new RectF();
     private boolean horizontal;
     private int leftRoom;
     private int rightRoom;
     private int half;
-    private int bodyTop;
-    private final Band[] shared;
-    private final Band[] leftBands;
-    private final Band[] rightBands;
+    private int gap;
+    private int[] baselines = new int[0];
+    private final TextView[][] wideRows;
+    private final TextView[][] narrowRows;
+    private final int[][] wide = new int[3][4];    // cap heights, extra lines, room before: per row
+    private final int[][] narrow = new int[3][7];
     private final String currentEnd;
-    private final String futureEnd;
     private boolean currentMoved;
-    private boolean futureMoved;
     private Logic.Now last;
 
     HeroCard(Context c, Ui.Pal colours, String name, Logic.Now now, String[] next, boolean lit) {
         super(c); pal = colours; location = name; initial = now; highlighted = lit;
-        setPadding(Ui.dp(c, 11), Ui.dp(c, 7), Ui.dp(c, 11), Ui.dp(c, 9));
+        setPadding(Ui.dp(c, 11), 0, Ui.dp(c, 11), 0);  // the vertical room is the gap of the rows
         setWillNotDraw(false); setFocusable(true);
         if (Build.VERSION.SDK_INT >= 28) setScreenReaderFocusable(true);
         String[] start = Logic.widgetStart(now);
-        currentEnd = start[1]; futureEnd = next[2]; last = now;
+        currentEnd = start[1]; last = now;
         int nextInk = now.next == Logic.UNKNOWN ? pal.muted : pal.status(now.next);
         if (lit) nextInk = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
         FitText place = new FitText(c, 13, 12, 1, Ui.heavy(c), pal.text).compact(1.1f);
@@ -60,7 +64,6 @@ final class HeroCard extends ViewGroup {
         currentClock = text(start[0], 27, start[0].contains(":") ? Ui.display(c) : Ui.bold(c), pal.text);
         futureClock = text(next[1], 27, next[1].contains(":") ? Ui.display(c) : Ui.bold(c), nextInk);
         currentSide = text(start[1], 13, Ui.bold(c), pal.muted);
-        futureSide = text(next[2], 13, Ui.bold(c), lit ? nextInk : pal.muted);
         elapsed = text(now.already, 13.5f, Ui.body(c), pal.muted);
         remaining = text(Logic.heroCountdown(now), 13.5f, Ui.bold(c), lit ? nextInk : pal.text);
         bulb = new BulbView(c, pal); bulb.bare(); bulb.still(); bulb.set(now.state);
@@ -70,10 +73,8 @@ final class HeroCard extends ViewGroup {
         for (int i = 0; i < glow.length; i++) glow[i] = Logic.widgetGlow(pal.soft(now.state), pal.soft(right), pal.card, .5f, i / 16f);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, glow);
         bg.setCornerRadius(Ui.px(c, 18)); setBackground(bg);
-        shared = new Band[] {new Band(26, currentTitle, futureTitle),
-                new Band(0, currentClock, currentSide, futureClock, futureSide), new Band(0, elapsed, remaining)};
-        leftBands = new Band[] {new Band(26, currentTitle), new Band(0, currentClock, currentSide), new Band(0, elapsed)};
-        rightBands = new Band[] {new Band(26, futureTitle), new Band(0, futureClock, futureSide), new Band(0, remaining)};
+        wideRows = new TextView[][] {{label}, {currentTitle, futureTitle}, {currentClock, currentSide, futureClock}, {elapsed, remaining}};
+        narrowRows = new TextView[][] {{label}, {currentTitle}, {currentClock, currentSide}, {elapsed}, {futureTitle}, {futureClock}, {remaining}};
         update(now);
     }
 
@@ -89,10 +90,10 @@ final class HeroCard extends ViewGroup {
         setContentDescription(location + ". " + Logic.heroDescription(now));
     }
 
-    /** The duration rows; an end that has no room beside its clock goes under the duration instead. */
+    /** The duration rows; the day of a start that has no room beside its clock goes under the duration. */
     private void details() {
         String left = under(last.already, currentMoved ? currentEnd : "");
-        String right = under(Logic.heroCountdown(last), futureMoved ? futureEnd : "");
+        String right = Logic.heroCountdown(last);
         if (!android.text.TextUtils.equals(elapsed.getText(), left)) elapsed.setText(left);
         if (!android.text.TextUtils.equals(remaining.getText(), right)) remaining.setText(right);
     }
@@ -163,30 +164,49 @@ final class HeroCard extends ViewGroup {
         configureHeadings();
         measureWords(inner);
         int icon = Ui.dp(c, 25); bulb.measure(MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY));
-        bodyTop = getPaddingTop() + label.getMeasuredHeight() + Ui.dp(c, 4);
-        int content;
-        measureBands(shared); measureBands(leftBands); measureBands(rightBands);
-        if (horizontal) content = total(shared);
-        else content = total(leftBands) + Ui.dp(c, 8) + total(rightBands);
-        setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(bodyTop + content + getPaddingBottom(), height));
+        gap = Math.round(Ui.compactSp(c, 14, 1.1f));
+        TextView[][] rows = horizontal ? wideRows : narrowRows;
+        int[][] metrics = horizontal ? wide : narrow;
+        int[] caps = metrics[0];
+        int[] extra = metrics[1];
+        int[] before = metrics[2];
+        for (int i = 0; i < rows.length; i++) {
+            caps[i] = 0; extra[i] = 0;
+            for (TextView t : rows[i]) if (t.getVisibility() != GONE) {
+                caps[i] = Math.max(caps[i], cap(t)); extra[i] = Math.max(extra[i], lastLine(t));
+            }
+        }
+        if (!horizontal) before[4] = Ui.dp(c, 8);  // the second panel of a narrow card stands apart
+        baselines = Logic.rhythm(gap, caps, extra, before);
+        setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(baselines[rows.length], height));
+    }
+
+    /** The height of a capital in this text's font: what the eye takes for the top of a row. */
+    private int cap(TextView t) {
+        t.getPaint().getTextBounds("Н", 0, 1, glyph);
+        return -glyph.top;
+    }
+
+    /** How far the last line of a wrapped text lies under its first. */
+    private static int lastLine(TextView t) {
+        android.text.Layout layout = t.getLayout();
+        return layout == null || layout.getLineCount() < 2 ? 0 : layout.getLineBaseline(layout.getLineCount() - 1) - layout.getLineBaseline(0);
     }
 
     private void configureClocks() {
         Context c = getContext();
-        size(currentSide, Ui.sp(c, 13)); size(futureSide, Ui.sp(c, 13));
+        size(currentSide, Ui.sp(c, 13));
         float minimumClock = Ui.compactSp(c, 17, 1.1f);
         float preferredClock = Ui.compactSp(c, 27, 1.1f);
-        // The end of a window always shows: beside its clock while the clock may shrink to 80 %, else under the duration.
+        // The day of a start shows beside its clock while the clock may shrink to 80 %, else under the duration.
         optionalSide(currentClock, currentSide, preferredClock * .8f, leftRoom);
-        optionalSide(futureClock, futureSide, preferredClock * .8f, rightRoom);
         currentMoved = !android.text.TextUtils.isEmpty(currentEnd) && currentSide.getVisibility() == GONE;
-        futureMoved = !android.text.TextUtils.isEmpty(futureEnd) && futureSide.getVisibility() == GONE;
         details();
         float low = minimumClock;
         float high = preferredClock;
         for (int i = 0; i < 10; i++) {
             float mid = (low + high) / 2;
-            if (clockFits(currentClock, currentSide, mid, leftRoom) && clockFits(futureClock, futureSide, mid, rightRoom)) low = mid;
+            if (clockFits(currentClock, currentSide, mid, leftRoom) && primaryFits(futureClock, mid, rightRoom)) low = mid;
             else high = mid;
         }
         size(currentClock, currentClock.getText().toString().contains(":") ? low : Ui.compactSp(c, 15, 1.1f));
@@ -210,73 +230,48 @@ final class HeroCard extends ViewGroup {
         int titleRoom = Math.max(1, leftRoom - Ui.dp(getContext(), 30));
         measureText(label, inner, false);
         measureText(currentTitle, titleRoom, false); measureText(futureTitle, rightRoom, false);
-        measureText(currentSide, leftRoom, true); measureText(futureSide, rightRoom, true);
+        measureText(currentSide, leftRoom, true);
         measureText(currentClock, Math.max(1, leftRoom - (int) Math.ceil(sideWidth(currentSide))), currentClock.getText().toString().contains(":"));
-        measureText(futureClock, Math.max(1, rightRoom - (int) Math.ceil(sideWidth(futureSide))), futureClock.getText().toString().contains(":"));
+        measureText(futureClock, rightRoom, futureClock.getText().toString().contains(":"));
         measureText(elapsed, leftRoom, false); measureText(remaining, rightRoom, false);
     }
 
-    private void measureBands(Band[] rows) { for (Band row : rows) row.measure(); }
-
-    private int total(Band[] rows) {
-        int sum = Ui.dp(getContext(), 2); // breathing room before the duration row, shared by both sides
-        for (Band row : rows) sum += row.height;
-        return sum;
-    }
-
-    private final class Band {
-        private final int minimumDp;
-        private final TextView[] texts;
-        int height;
-        int baseline;
-        Band(int minimum, TextView... views) { minimumDp = minimum; texts = views; }
-        void measure() {
-            int ascent = 0;
-            int descent = 0;
-            for (TextView t : texts) if (t.getVisibility() != GONE) {
-                ascent = Math.max(ascent, t.getBaseline()); descent = Math.max(descent, t.getMeasuredHeight() - t.getBaseline());
-            }
-            height = Math.max(Ui.dp(getContext(), minimumDp), ascent + descent);
-            baseline = ascent + (height - ascent - descent) / 2;
-        }
-    }
-
-    private void place(TextView text, int x, int y, Band band) {
+    /** A text whose first baseline is at `baseline`. */
+    private void place(TextView text, int x, int baseline) {
         if (text.getVisibility() == GONE) return;
-        int top = y + band.baseline - text.getBaseline();
+        int top = baseline - text.getBaseline();
         text.layout(x, top, x + text.getMeasuredWidth(), top + text.getMeasuredHeight());
     }
 
-    private void panel(boolean future, int x, int y, Band[] bands) {
+    /** One panel from its row of titles: `row` is the index of that row in the baselines. */
+    private void panel(boolean future, int x, int row) {
         TextView title = future ? futureTitle : currentTitle;
         TextView clock = future ? futureClock : currentClock;
-        TextView side = future ? futureSide : currentSide;
-        place(title, x + (future ? 0 : Ui.dp(getContext(), 30)), y, bands[0]);
+        place(title, x + (future ? 0 : Ui.dp(getContext(), 30)), baselines[row]);
         if (!future) {
             Paint.FontMetrics fm = titleMetrics; currentTitle.getPaint().getFontMetrics(fm);
-            int top = Math.round((float) y + bands[0].baseline + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
+            int top = Math.round(baselines[row] + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
             bulb.layout(x, top, x + bulb.getMeasuredWidth(), top + bulb.getMeasuredHeight());
         }
-        y += bands[0].height;
-        place(clock, x, y, bands[1]);
-        place(side, x + clock.getMeasuredWidth() + Ui.dp(getContext(), 6), y, bands[1]);
-        y += bands[1].height + Ui.dp(getContext(), 2);
-        place(future ? remaining : elapsed, x, y, bands[2]);
+        place(clock, x, baselines[row + 1]);
+        if (!future) place(currentSide, x + clock.getMeasuredWidth() + Ui.dp(getContext(), 6), baselines[row + 1]);
+        place(future ? remaining : elapsed, x, baselines[row + 2]);
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int x = getPaddingLeft();
-        label.layout(x, getPaddingTop(), right - left - getPaddingRight(), getPaddingTop() + label.getMeasuredHeight());
+        place(label, x, baselines[0]);
         float edge = (float) right - left - getPaddingRight();
+        int height = baselines[baselines.length - 1];
         if (horizontal) {
-            panel(false, x, bodyTop, shared);
-            panel(true, x + half + Ui.dp(getContext(), 9), bodyTop, shared);
-            futureBounds.set((float) x + half, (float) bodyTop, edge, (float) bodyTop + total(shared));
+            panel(false, x, 1);
+            panel(true, x + half + Ui.dp(getContext(), 9), 1);
+            futureBounds.set((float) x + half, baselines[0] + gap / 2f, edge, height - gap / 2f);
         } else {
-            panel(false, x, bodyTop, leftBands);
-            int next = bodyTop + total(leftBands) + Ui.dp(getContext(), 8);
-            panel(true, x + Ui.dp(getContext(), 9), next, rightBands);
-            futureBounds.set((float) x, (float) next, edge, (float) next + total(rightBands));
+            panel(false, x, 1);
+            panel(true, x + Ui.dp(getContext(), 9), 4);
+            float apart = gap + Ui.dp(getContext(), 8);  // the room between the panels, as measured
+            futureBounds.set((float) x, baselines[4] - cap(futureTitle) - apart / 2f, edge, height - gap / 2f);
         }
     }
 

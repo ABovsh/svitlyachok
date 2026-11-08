@@ -36,7 +36,7 @@ final class BarTips {
         bar = touched;
         from = run[0];
         bar.choose(run[0], run[1]);
-        show(Logic.barTip(day, run[0], run[1]), (run[0] + run[1]) / 2f);
+        show(Logic.barTip(day, run[0], run[1]), Logic.barTipSlot(run[0], run[1]));
         handler.postDelayed(hideLater, SHOWN_MS);
     }
 

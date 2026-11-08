@@ -201,6 +201,8 @@ public final class Logic {
             d.groups = new ArrayList<>(groups);
             d.updated = updatedAt(fact.optString("update", ""));
             d.sourceTime = sourceTime(file.optString(LAST_UPDATED, ""));
+            // a schedule cannot be published after its file was written (Khmelnytskyi gave 23:32 at 00:02)
+            if (d.sourceTime > 0 && d.updated > d.sourceTime) d.updated = d.sourceTime;
             JSONObject status = file.optJSONObject(STATUS);
             d.sourceOk = status == null || status.optBoolean("ok", true);
             JSONObject meta = file.optJSONObject("meta");
@@ -314,6 +316,8 @@ public final class Logic {
 
     /** A draft stands no longer than this after the source's last change; then it is taken as published. */
     static final long DRAFT_S = 3 * 3600L;
+    /** Only DTEK of Kyiv region posts a draft; elsewhere a tomorrow without daytime outages is real. */
+    static final String DRAFT_REGION = "kyiv_region";
     /** Slot 12 = 06:00: a draft of tomorrow knows only the night. */
     private static final int DRAFT_FROM = 12;
 
@@ -323,8 +327,8 @@ public final class Logic {
      * from 06:00 on while today has daytime outages. It is left out (not published yet) for at most
      * DRAFT_S after the source's last change.
      */
-    static synchronized Data withoutDraft(Data d, long now) {
-        if (d == null || d.none || d.days.isEmpty()) return d;
+    static synchronized Data withoutDraft(Data d, String region, long now) {
+        if (d == null || d.none || d.days.isEmpty() || !DRAFT_REGION.equals(region)) return d;
         LocalDate today = today(now);
         Map<String, String> current = d.days.get(today);
         if (current == null || !daytimeOutages(current) || (d.updated > 0 && now - d.updated >= DRAFT_S)) return d;
@@ -1091,6 +1095,14 @@ public final class Logic {
         }
     }
 
+    /** A place just added notifies of everything; a place saved before keeps its own choice. */
+    static Alerts newPlaceAlerts() {
+        Alerts a = new Alerts();
+        a.tomorrow = true;
+        a.changes = true;
+        return a;
+    }
+
     /**
      * The notifications of one place: its own record, or, for a place from before 1.3, the old
      * common settings (switched off where the old bell was off); defaults for a new place.
@@ -1547,6 +1559,8 @@ public final class Logic {
 
     /** Where the app is published: the only place an update may come from. */
     static final String REPO = "https://github.com/ABovsh/svitlyachok/";
+    /** What each version brought: opened from the version line at the bottom of the main screen. */
+    static final String CHANGELOG = REPO + "blob/main/CHANGELOG.md";
     /** Answers with a redirect to the newest published release (never a draft or pre-release). */
     public static final String LATEST_RELEASE = REPO + "releases/latest";
     static final long UPDATE_CHECK_S = 12 * 3600L;
@@ -2002,6 +2016,44 @@ public final class Logic {
     }
 
     /** "15:30–19:30 · без світла · 4 год": what a touched run is. */
+    /**
+     * The chosen run of the hour grid as one frame per row of twelve: {first hour, last hour}. A run
+     * from 11:00 to 13:00 is two frames, the end of the first row and the start of the second.
+     */
+    static int[][] barFrames(int from, int to) {
+        List<int[]> out = new ArrayList<>();
+        if (from < 0 || to <= from) return new int[0][];
+        for (int row = 0; row < 2; row++) {
+            int a = Math.max(from, row * 24);
+            int b = Math.min(to, row * 24 + 24);
+            if (a < b) out.add(new int[] {a / 2, (b - 1) / 2});
+        }
+        return out.toArray(new int[0][]);
+    }
+
+    /** Where the hint above the grid points: the middle of the run's part in its upper row. */
+    static float barTipSlot(int from, int to) {
+        return from < 24 && to > 24 ? (from + 24) / 2f : (from + to) / 2f;
+    }
+
+    /**
+     * Rows of text one gap apart, measured from a baseline to the cap top of the next row, and the
+     * same gap above the first row and under the last. caps: cap height of each row; extra: how far
+     * the last line of a row lies under its first; before: more room before a row. Returns the
+     * baseline of each row and, last, the height of the whole.
+     */
+    static int[] rhythm(int gap, int[] caps, int[] extra, int[] before) {
+        int[] out = new int[caps.length + 1];
+        int y = 0;
+        for (int i = 0; i < caps.length; i++) {
+            y += gap + before[i] + caps[i];
+            out[i] = y;
+            y += extra[i];
+        }
+        out[caps.length] = y + gap;
+        return out;
+    }
+
     public static String barTip(String day, int from, int to) {
         return clock(from) + "–" + clock(to) + " · " + tipWord(day.charAt(from)) + " · " + length(to - from);
     }
@@ -2030,8 +2082,8 @@ public final class Logic {
     public static String[] heroFuture(Now n, String lastDay) {
         if (n.state == UNKNOWN && !lastDay.isEmpty()) return new String[] {"Останній графік", lastDay, ""};
         String[] next = widgetFuture(n);
-        // The event heading already says tomorrow; its end clock belongs to that same day.
-        if (n.tomorrow) next[2] = next[2].replace(UNTIL_TOMORROW, "до ");
+        // only the clock: the end of the window is on the grid right below
+        next[2] = "";
         return next;
     }
 
@@ -2192,8 +2244,7 @@ public final class Logic {
     /** The last line of the main screen; `latest` is null until the release was checked. */
     public static String versionLine(String current, String latest) {
         String line = "Версія " + current;
-        if (latest == null) return line;
-        return newer(latest, current) ? line + " · є нова " + latest + ", оновити ›" : line + " · остання";
+        return latest != null && newer(latest, current) ? line + " · є нова " + latest + ", оновити ›" : line + " · що нового ›";
     }
 
     static boolean statKnown(DayStat d) {

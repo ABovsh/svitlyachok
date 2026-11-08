@@ -1955,7 +1955,7 @@ public class LogicTest {
         assertEquals(Arrays.asList("Останній графік", "29.10", ""), Arrays.asList(Logic.heroFuture(n, "29.10")));
         assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.heroFuture(n, "")));
         n = Logic.now(DAY_11, OCT30, at(13, 0), false);
-        assertEquals(Arrays.asList("Вимкнуть", "14:30", "до 18:30"), Arrays.asList(Logic.heroFuture(n, "29.10")));
+        assertEquals(Arrays.asList("Вимкнуть", "14:30", ""), Arrays.asList(Logic.heroFuture(n, "29.10")));  // the end is on the grid below
     }
 
     @Test
@@ -1963,12 +1963,13 @@ public class LogicTest {
         String timeline = repeat('1', 48) + repeat('1', 12) + repeat('0', 8) + repeat('1', 28);
         Logic.Now n = Logic.now(timeline, OCT30, at(21, 0), false);
         assertTrue(n.tomorrow);
-        assertEquals(Arrays.asList("Вимкнуть завтра", "06:00", "до 10:00"), Arrays.asList(Logic.heroFuture(n, "")));
+        assertEquals(Arrays.asList("Вимкнуть завтра", "06:00", ""), Arrays.asList(Logic.heroFuture(n, "")));
         assertEquals("до 10:00", Logic.widgetFuture(n)[2]);
         // Endpoints stay compact across midnight; only a future start names its day.
         n = Logic.now(repeat('1', 44) + repeat('0', 16) + repeat('1', 36), OCT30, at(21, 0), false);
         assertFalse(n.tomorrow);
-        assertEquals("до 06:00", Logic.heroFuture(n, "")[2]);
+        assertEquals("до 06:00", Logic.widgetFuture(n)[2]);
+        assertEquals("", Logic.heroFuture(n, "")[2]);
     }
 
     @Test
@@ -2183,7 +2184,8 @@ public class LogicTest {
         Logic.Event event = noticeEvent(Logic.Event.SOON_ON, at(21, 30), 15);
         assertEquals("21:30–00:30 · 3 год світла", Logic.eventText(event, timeline, OCT30, at(21, 15)).text);
         Logic.Now n = Logic.now(timeline, OCT30, at(21, 20), false);
-        assertEquals(Arrays.asList("Увімкнуть", "21:30", "до 00:30"), Arrays.asList(Logic.heroFuture(n, "")));
+        assertEquals(Arrays.asList("Увімкнуть", "21:30", "до 00:30"), Arrays.asList(Logic.widgetFuture(n)));
+        assertEquals("", Logic.heroFuture(n, "")[2]);
     }
 
     @Test public void possibleNoticeKeepsUncertaintyForKnownAndUnknownEnds() {
@@ -2279,6 +2281,7 @@ public class LogicTest {
     }
 
     static final LocalDate NOV8 = LocalDate.of(2026, 11, 8);
+    static final String KYIV_REGION = "kyiv_region";
     static final LocalDate NOV7 = LocalDate.of(2026, 11, 7);
 
     static Logic.Place queue(String group) {
@@ -2287,52 +2290,52 @@ public class LogicTest {
 
     @Test public void dtekDraftOfTomorrowIsNotASchedule() throws Exception {
         long now = kyiv(11, 7, 21, 10);
-        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), now);
+        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), KYIV_REGION, now);
         assertNull(Logic.day(draft, "GPV4.2", NOV8));  // the draft says 24 h of light
         assertNull(Logic.day(draft, "GPV5.1", NOV8));
         assertEquals(Logic.day(real("2026-11-07-2103"), "GPV4.2", NOV7), Logic.day(draft, "GPV4.2", NOV7));
         long later = kyiv(11, 6, 19, 10);
-        assertNull(Logic.day(Logic.withoutDraft(real("2026-11-06-1907"), later), "GPV4.2", NOV7));
+        assertNull(Logic.day(Logic.withoutDraft(real("2026-11-06-1907"), KYIV_REGION, later), "GPV4.2", NOV7));
     }
 
     @Test public void realScheduleOfTomorrowStays() throws Exception {
         assertEquals("111111111100000000000000011111100000000000000011",
-                Logic.day(Logic.withoutDraft(real("2026-11-07-2218"), kyiv(11, 7, 22, 20)), "GPV4.2", NOV8));
+                Logic.day(Logic.withoutDraft(real("2026-11-07-2218"), KYIV_REGION, kyiv(11, 7, 22, 20)), "GPV4.2", NOV8));
         assertEquals("001111111100000000000000011111100000000000000011",
-                Logic.day(Logic.withoutDraft(real("2026-11-07-2326"), kyiv(11, 7, 23, 30)), "GPV4.2", NOV8));
-        assertTrue(Logic.day(Logic.withoutDraft(real("2026-11-06-1928"), kyiv(11, 6, 19, 30)), "GPV4.2", NOV7) != null);
+                Logic.day(Logic.withoutDraft(real("2026-11-07-2326"), KYIV_REGION, kyiv(11, 7, 23, 30)), "GPV4.2", NOV8));
+        assertTrue(Logic.day(Logic.withoutDraft(real("2026-11-06-1928"), KYIV_REGION, kyiv(11, 6, 19, 30)), "GPV4.2", NOV7) != null);
     }
 
     @Test public void draftShownWhenItStandsThreeHours() throws Exception {
         // today with daytime outages, tomorrow only a night one, published 30.10 20:25
         String night = HOURS_11_TOMORROW.replace("\"21\":\"no\"", "\"21\":\"yes\"").replace("\"22\":\"no\"", "\"22\":\"yes\"");
         Logic.Data d = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "},\"" + D31 + "\":{\"GPV1.1\":" + night + "}}")
-                .replace("29.10.2026 20:25", "30.10.2026 20:25"));
+                .replace("29.10.2026 20:25", "30.10.2026 20:25").replace("\"lastUpdated\":1793311200", "\"lastUpdated\":1793385000"));
         LocalDate tomorrow = OCT30.plusDays(1);
-        assertNull(Logic.day(Logic.withoutDraft(d, at(23, 0)), "GPV1.1", tomorrow));
-        assertEquals("000011111111111111111111111111111111111111111111", Logic.day(Logic.withoutDraft(d, at(23, 30)), "GPV1.1", tomorrow));
+        assertNull(Logic.day(Logic.withoutDraft(d, KYIV_REGION, at(23, 0)), "GPV1.1", tomorrow));
+        assertEquals("000011111111111111111111111111111111111111111111", Logic.day(Logic.withoutDraft(d, KYIV_REGION, at(23, 30)), "GPV1.1", tomorrow));
     }
 
     @Test public void lightAllDayIsNotADraftWithoutOutagesToday() throws Exception {
         String light = HOURS_11.replace("\"no\"", "\"yes\"").replace("\"second\"", "\"yes\"").replace("\"first\"", "\"yes\"");
         Logic.Data d = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + light + "},\"" + D31 + "\":{\"GPV1.1\":" + light + "}}"));
-        assertEquals(repeat('1', 48), Logic.day(Logic.withoutDraft(d, at(20, 30)), "GPV1.1", OCT30.plusDays(1)));
+        assertEquals(repeat('1', 48), Logic.day(Logic.withoutDraft(d, KYIV_REGION, at(20, 30)), "GPV1.1", OCT30.plusDays(1)));
     }
 
     @Test public void eveningOfSevenNovemberGivesOneFirstAndOneRevision() throws Exception {
         Logic.Data before = real("2026-11-07-2103");
         before.days.remove(NOV8);  // the file of 21:00 had only today
         Logic.Alerts tomorrowOnly = new Logic.Alerts(); tomorrowOnly.tomorrow = true; tomorrowOnly.changes = false;
-        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), kyiv(11, 7, 21, 10));
+        Logic.Data draft = Logic.withoutDraft(real("2026-11-07-2103"), KYIV_REGION, kyiv(11, 7, 21, 10));
         assertTrue(Logic.notes(queue("GPV4.2"), before, draft, kyiv(11, 7, 21, 10)).isEmpty());
-        Logic.Data first = Logic.withoutDraft(real("2026-11-07-2218"), kyiv(11, 7, 22, 20));
+        Logic.Data first = Logic.withoutDraft(real("2026-11-07-2218"), KYIV_REGION, kyiv(11, 7, 22, 20));
         List<Logic.Note> n = Logic.notes(queue("GPV4.2"), draft, first, kyiv(11, 7, 22, 20));
         assertEquals(1, n.size());
         assertEquals(Logic.Note.PUBLISHED, n.get(0).kind);
         assertEquals("Графік на завтра", n.get(0).title);
         assertEquals("9 год світла · 38 %", n.get(0).summary);
         assertTrue(Logic.wanted(n.get(0), tomorrowOnly));
-        Logic.Data revised = Logic.withoutDraft(real("2026-11-07-2326"), kyiv(11, 7, 23, 30));
+        Logic.Data revised = Logic.withoutDraft(real("2026-11-07-2326"), KYIV_REGION, kyiv(11, 7, 23, 30));
         List<Logic.Note> r = Logic.notes(queue("GPV4.2"), first, revised, kyiv(11, 7, 23, 30));
         assertEquals(1, r.size());
         assertEquals("Графік на завтра оновлено", r.get(0).title);
@@ -2359,10 +2362,12 @@ public class LogicTest {
     }
 
     @Test public void versionLineAtTheBottom() {
-        assertEquals("Версія 1.9.0", Logic.versionLine("1.9.0", null));
-        assertEquals("Версія 1.9.0 · остання", Logic.versionLine("1.9.0", "1.9.0"));
+        assertEquals("Версія 1.9.0 · що нового ›", Logic.versionLine("1.9.0", null));
+        assertEquals("Версія 1.9.0 · що нового ›", Logic.versionLine("1.9.0", "1.9.0"));
         assertEquals("Версія 1.8.0 · є нова 1.9.0, оновити ›", Logic.versionLine("1.8.0", "1.9.0"));
-        assertEquals("Версія 1.9.0-rc.1", Logic.versionLine("1.9.0-rc.1", null));
+        assertEquals("Версія 1.9.0-rc.2 · що нового ›", Logic.versionLine("1.9.0-rc.2", null));
+        assertTrue(Logic.CHANGELOG.startsWith(Logic.REPO));  // Updates.open opens nothing else
+        assertEquals("https://github.com/ABovsh/svitlyachok/blob/main/CHANGELOG.md", Logic.CHANGELOG);
     }
 
     @Test public void shareChipsNameOnlyTheTime() {
@@ -2370,5 +2375,61 @@ public class LogicTest {
         assertEquals("05:00–13:30", Logic.shareChip(o));
         o.maybe = true;
         assertEquals("можливо 05:00–13:30", Logic.shareChip(o));
+    }
+
+    @Test public void onlyDtekKyivRegionPostsADraft() throws Exception {
+        // the same file elsewhere: a real tomorrow without daytime outages is shown at once
+        Logic.Data elsewhere = Logic.withoutDraft(real("2026-11-07-2103"), "khmelnytskyi", kyiv(11, 7, 21, 10));
+        assertEquals(Logic.day(real("2026-11-07-2103"), "GPV4.2", NOV8), Logic.day(elsewhere, "GPV4.2", NOV8));
+        assertTrue(Logic.day(elsewhere, "GPV4.2", NOV8) != null);
+    }
+
+    @Test public void publishedTimeIsNeverAfterTheSourceFile() throws Exception {
+        // Khmelnytskyi, 08.11: "update" 23:32 in a file written at 00:02 that day
+        Logic.Data d = data(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "}}").replace("29.10.2026 20:25", "30.10.2026 23:32"));
+        assertEquals(d.sourceTime, d.updated);
+        Logic.Data ok = data(TODAY_ONLY);
+        assertTrue(ok.updated < ok.sourceTime);
+        String noSource = TODAY_ONLY.replace("\"lastUpdated\":1793311200,", "");
+        assertTrue(data(noSource).updated > 0);  // nothing to compare with: kept as the source says
+    }
+
+    @Test public void newPlaceHasEveryNotification() {
+        Logic.Alerts a = Logic.newPlaceAlerts();
+        assertTrue(a.off && a.on && a.tomorrow && a.changes);
+        assertEquals(15, a.leadOff);
+        assertEquals(15, a.leadOn);
+        // a place saved before keeps what it had, even switched off; one never saved keeps the old defaults
+        Logic.Alerts saved = Logic.alertsFrom("{\"off\":false,\"on\":false,\"tomorrow\":false,\"changes\":false}", null, false);
+        assertFalse(saved.any());
+        assertFalse(Logic.alertsFrom(null, null, false).tomorrow);
+    }
+
+    @Test public void chosenRunIsFramedPerRowOfTheGrid() {
+        // 15:30–22:00: one frame, hours 15–21; the half before 15:30 is dimmed inside it
+        assertEquals("[[15, 21]]", Arrays.deepToString(Logic.barFrames(31, 44)));
+        // 11:00–13:00 crosses the rows: the end of the first row and the start of the second
+        assertEquals("[[11, 11], [12, 12]]", Arrays.deepToString(Logic.barFrames(22, 26)));
+        assertEquals("[[10, 11], [12, 13]]", Arrays.deepToString(Logic.barFrames(21, 27)));
+        assertEquals("[[0, 11], [12, 23]]", Arrays.deepToString(Logic.barFrames(0, 48)));
+        assertEquals("[[12, 12]]", Arrays.deepToString(Logic.barFrames(24, 25)));
+        assertEquals("[[11, 11]]", Arrays.deepToString(Logic.barFrames(23, 24)));
+        assertEquals("[]", Arrays.deepToString(Logic.barFrames(-1, -1)));
+    }
+
+    @Test public void tipPointsAtTheFirstRowOfTheRun() {
+        assertEquals(37.5f, Logic.barTipSlot(31, 44), 0f);
+        assertEquals(23f, Logic.barTipSlot(22, 26), 0f);   // above hour 11, not above 00
+        assertEquals(6f, Logic.barTipSlot(0, 12), 0f);
+        assertEquals(24.5f, Logic.barTipSlot(24, 25), 0f);
+    }
+
+    @Test public void heroRowsKeepOneGap() {
+        // gap 10; rows with cap heights 8, 20, 30 and 12; the third row has a second line 15 lower
+        int[] b = Logic.rhythm(10, new int[] {8, 20, 30, 12}, new int[] {0, 0, 15, 0}, new int[] {0, 0, 0, 0});
+        assertEquals("[18, 48, 88, 125, 135]", Arrays.toString(b));
+        // extra room before a row (the second panel of a narrow card)
+        int[] v = Logic.rhythm(10, new int[] {8, 20}, new int[] {0, 0}, new int[] {0, 6});
+        assertEquals("[18, 54, 64]", Arrays.toString(v));
     }
 }

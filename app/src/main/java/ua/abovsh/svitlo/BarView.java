@@ -7,8 +7,15 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.View;
 
-/** One day as two rows of twelve hour cells; each hour preserves both of its half-hour states. */
+/**
+ * One day as two rows of twelve hour cells; each hour preserves both of its half-hour states. A run
+ * chosen by a touch is framed whole, one frame per row it covers, and the rest of the day fades.
+ */
 final class BarView extends View {
+    /** How much of the card covers an hour that has passed: between the bold 0.65 and none. */
+    static final float PAST_VEIL = .50f;
+    /** How much of the card covers what lies outside a chosen run, while its hint is shown. */
+    static final float ASIDE_VEIL = .45f;
     private static final String[] HOURS = {"00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"};
     private final Brush b;
     private final RectF drawBounds = new RectF();
@@ -98,13 +105,28 @@ final class BarView extends View {
         float widest = 0;
         for (String hour : HOURS) widest = Math.max(widest, text.measureText(hour));
         text.setTextSize(Math.min(size, Math.min((cellW - gap) / widest * size, cellH * (rows == 1 ? .74f : .63f))));
+        float radius = Math.min(cellW, cellH) * .22f;
         for (int hour = range.first; hour < range.first + range.count; hour++) {
             float left = bounds.left + hour % 12 * (cellW + gap);
             int row = (hour - range.first) / 12;
             float top = bounds.top + (float) row * (cellH + gap);
             RectF cell = b.r;
             cell.set(left, top, left + cellW, top + cellH);
-            drawHour(b, slots, nowRel, text, range, hour, Math.min(cellW, cellH) * .22f);
+            drawHour(b, slots, nowRel, text, range, hour, radius);
+        }
+        // the chosen run: a frame in the gaps around its hours, one per row; at the edge it stays inside
+        for (int[] frame : Logic.barFrames(range.from, range.to)) {
+            int row = (frame[0] - range.first) / 12;
+            float top = bounds.top + (float) row * (cellH + gap);
+            float half = gap / 2;
+            RectF box = b.r;
+            box.set(Math.max(bounds.left + half / 2, bounds.left + frame[0] % 12 * (cellW + gap) - half),
+                    Math.max(bounds.top + half / 2, top - half),
+                    Math.min(bounds.right - half / 2, bounds.left + frame[1] % 12 * (cellW + gap) + cellW + half),
+                    Math.min(bounds.bottom - half / 2, top + cellH + half));
+            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(gap); b.p.setColor(b.pal.text);
+            b.cv.drawRoundRect(box, radius + half, radius + half, b.p);
+            b.p.setStyle(Paint.Style.FILL);
         }
     }
 
@@ -115,22 +137,34 @@ final class BarView extends View {
         fillHour(b, slots, hour, cell);
         boolean past = nowRel >= (hour + 1) * 2;
         if (past) {
-            b.p.setColor(Ui.fade(0xFF172428, .65f));
+            b.p.setColor(Ui.fade(0xFF172428, PAST_VEIL));
             b.cv.drawRect(cell, b.p);
         }
+        boolean chosen = range.from >= 0;
+        if (chosen) aside(b, range, hour, cell);
         b.cv.restore();
         int ink = at(slots, hour * 2) == '2' && at(slots, hour * 2 + 1) == '2' ? b.pal.muted : 0xFFFFFFFF;
-        text.setColor(past ? 0xFFB9C0BA : ink);
+        ink = past ? 0xFFB9C0BA : ink;
+        boolean inRun = chosen && hour * 2 < range.to && hour * 2 + 2 > range.from;
+        text.setColor(chosen && !inRun ? Ui.blend(ink, Ui.fade(b.pal.card, ASIDE_VEIL)) : ink);
         float baseline = cell.centerY() - (text.ascent() + text.descent()) / 2;
         b.cv.drawText(HOURS[hour], cell.centerX(), baseline, text);
-        boolean current = nowRel >= hour * 2 && nowRel < hour * 2 + 2;
-        boolean selected = range.from >= 0 && hour * 2 < range.to && hour * 2 + 2 > range.from;
-        if (current || selected) {
-            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(Math.max(1, current ? text.getTextSize() * .17f : cell.height() * .05f));
-            b.p.setColor(selected ? b.pal.text : Ui.Pal.MARKER);
+        if (nowRel >= hour * 2 && nowRel < hour * 2 + 2) {
+            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(Math.max(1, text.getTextSize() * .17f));
+            b.p.setColor(Ui.Pal.MARKER);
             cell.inset(b.p.getStrokeWidth() / 2, b.p.getStrokeWidth() / 2);
             b.cv.drawRoundRect(cell, radius, radius, b.p);
             b.p.setStyle(Paint.Style.FILL);
+        }
+    }
+
+    /** The halves of an hour outside the chosen run fade, so its exact start and end read at once. */
+    private static void aside(Brush b, Range range, int hour, RectF cell) {
+        for (int half = 0; half < 2; half++) {
+            int slot = hour * 2 + half;
+            if (slot >= range.from && slot < range.to) continue;
+            b.p.setColor(Ui.fade(b.pal.card, ASIDE_VEIL));
+            b.cv.drawRect(cell.left + half * cell.width() / 2, cell.top, cell.left + (half + 1) * cell.width() / 2, cell.bottom, b.p);
         }
     }
 

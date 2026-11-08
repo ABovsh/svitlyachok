@@ -539,7 +539,10 @@ public class MainActivity extends Base {
         return t;
     }
 
-    /** The help on a power cut the schedule does not show, and the version: a newer one, even skipped, is a tap away. */
+    /**
+     * The help on a power cut the schedule does not show, and the version: a newer one, even skipped,
+     * is a tap away; otherwise the tap opens what each version brought.
+     */
     private View footer(Logic.Place p) {
         LinearLayout box = Ui.column(this);
         box.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
@@ -566,6 +569,8 @@ public class MainActivity extends Base {
             });
         } else {
             version.setText(line);
+            version.setMinHeight(Ui.dp(this, 44));
+            version.setOnClickListener(v -> Updates.open(this, Logic.CHANGELOG));
         }
         version.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams vl = fill(); vl.topMargin = Ui.dp(this, 4); vl.bottomMargin = Ui.dp(this, 8);

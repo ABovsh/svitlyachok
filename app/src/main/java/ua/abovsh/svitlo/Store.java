@@ -74,7 +74,7 @@ final class Store {
         }
         Logic.touch(d, state(c).getLong(SOURCE + region, 0));
         long now = Sync.now();
-        return Logic.withoutDraft(Logic.validAt(d, now), now);
+        return Logic.withoutDraft(Logic.validAt(d, now), region, now);
     }
     /** Versions before 1.7.1 kept these with the schedule: they are read there until the next check. */
     static long checkedAt(Context c, String region) {

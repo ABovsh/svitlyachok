@@ -65,7 +65,8 @@ final class WidgetArt {
 
     private static boolean dataFresh(Context c, Logic.Place p, Logic.Data d, long now) {
         long checked = Store.checkedAt(c, p.region);
-        return d != null && d.sourceOk && checked > 0 && now - checked <= Logic.STALE_S
+        // a site that does not answer leaves its last schedule standing: that alone is no warning
+        return d != null && checked > 0 && now - checked <= Logic.STALE_S
                 && (d.sourceTime <= 0 || now - d.sourceTime <= 48 * 3600L || Logic.currentData(d, now));
     }
 

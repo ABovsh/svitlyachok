@@ -244,6 +244,8 @@ public final class Logic {
     public static final class Tail {
         public String hash = "";
         public long at;
+        /** False: the collector's last attempt got no schedule from the site; the stored one stays. */
+        public boolean ok = true;
     }
 
     private static final java.util.regex.Pattern TAIL_HASH = java.util.regex.Pattern.compile("\"" + CONTENT_HASH + "\"\\s*:\\s*\"(" + HASH + ")\"");
@@ -257,15 +259,35 @@ public final class Logic {
         return found;
     }
 
-    /** Null unless the end of the file shows a working source and the hash: then the whole file decides. */
+    /** Null unless the end of the file shows the hash and the collector's last attempt: then the whole file decides. */
     public static Tail tail(String end) {
         String hash = lastMatch(TAIL_HASH, end);
         String at = lastMatch(TAIL_AT, end);
-        if (hash == null || at == null || !"true".equals(lastMatch(TAIL_OK, end))) return null;
+        String ok = lastMatch(TAIL_OK, end);
+        if (hash == null || at == null || ok == null) return null;
         Tail t = new Tail();
         t.hash = hash;
         t.at = sourceTime(at);
+        t.ok = "true".equals(ok);
         return t.at > 0 ? t : null;
+    }
+
+    /** A single failed attempt of a collector (3–7 min) is common; only a longer one is worth a word. */
+    static final long SITE_DOWN_S = 15 * 60L;
+
+    /** The collector has not got the schedule from the site for a while; the one shown is its last. */
+    static boolean siteDown(Data d, long now) {
+        return d != null && !d.sourceOk && d.sourceTime > 0 && now - d.sourceTime >= SITE_DOWN_S;
+    }
+
+    /** Since the last attempt that got the schedule, and what may come late: tomorrow, or changes. */
+    static String siteDownText(Data d, String region, boolean tomorrowKnown, long now) {
+        Region r = region(region);
+        boolean dtek = r != null && r.urls.length > 0 && r.urls[0].startsWith(B42);
+        long since = d.sourceTime;
+        String day = dayDiff(since, now) == 0 ? "" : " " + dayWord(since, now);
+        return (dtek ? "Сайт ДТЕК" : "Сайт обленерго") + " не віддає графік з " + hm(since) + day + ". "
+                + (tomorrowKnown ? "Зміни графіка можуть" : "Графік на завтра може") + " з'явитися тут із запізненням.";
     }
 
     /** The source answered at this time, with the schedule already stored. */
@@ -281,7 +303,7 @@ public final class Logic {
     }
 
     private static final long WHOLE_FILE_S = 6 * 3600L;
-    private static final java.util.Set<String> CACHE_KEYS = new java.util.HashSet<>(java.util.Arrays.asList("json", "checked", "etag", "url", "full", "source"));
+    private static final java.util.Set<String> CACHE_KEYS = new java.util.HashSet<>(java.util.Arrays.asList("json", "checked", "etag", "url", "full", "source", "down"));
 
     /** The stored keys of regions no place uses ("json_kyiv"); a region id may itself contain "_". */
     static List<String> cacheKeysOutside(java.util.Set<String> keys, java.util.Set<String> regions) {

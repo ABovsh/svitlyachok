@@ -36,6 +36,7 @@ final class Store {
     private static final String URL_OF = "url_";
     private static final String WHOLE = "full_";
     private static final String SOURCE = "source_";
+    private static final String DOWN = "down_";
     private static final int MAX_BYTES = 2_000_000;
     private static final int TAIL_BYTES = 600;
     private static final Map<String, Logic.Data> parsed = new HashMap<>();
@@ -73,6 +74,7 @@ final class Store {
             catch (Logic.BadFile e) { return null; }
         }
         Logic.touch(d, state(c).getLong(SOURCE + region, 0));
+        if (state(c).getBoolean(DOWN + region, false)) d.sourceOk = false;
         long now = Sync.now();
         return Logic.withoutDraft(Logic.validAt(d, now), region, now);
     }
@@ -148,7 +150,11 @@ final class Store {
             if (call.conn.getResponseCode() != HttpURLConnection.HTTP_PARTIAL) return false;
             Logic.Tail tail = Logic.tail(call.body(end));
             if (tail == null || !tail.hash.equals(cached.hash) || expired(request, end)) return false;
-            state(c).edit().putLong(CHECKED + region, Sync.now()).putLong(SOURCE + region, tail.at).apply();
+            SharedPreferences.Editor e = state(c).edit().putLong(CHECKED + region, Sync.now());
+            // a failed attempt keeps the time of the last one that got the schedule
+            if (tail.ok) e.putLong(SOURCE + region, tail.at).remove(DOWN + region);
+            else e.putBoolean(DOWN + region, true);
+            e.apply();
             return true;
         } catch (IOException | RuntimeException e) {
             return false;  // the whole file decides, or says what is wrong
@@ -181,7 +187,7 @@ final class Store {
             boolean same = kept.equals(prefs(c).getString(JSON + region, null));
             if (!same) prefs(c).edit().putString(JSON + region, kept).remove(CHECKED + region).remove(ETAG + region).remove(URL_OF + region).apply();
             state(c).edit().putString(ETAG + region, call.conn.getHeaderField("ETag")).putString(URL_OF + region, url)
-                    .putLong(CHECKED + region, Sync.now()).putLong(WHOLE + region, Sync.now()).remove(SOURCE + region).apply();
+                    .putLong(CHECKED + region, Sync.now()).putLong(WHOLE + region, Sync.now()).remove(SOURCE + region).remove(DOWN + region).apply();
             return same ? SAME : NEW;
         } catch (IOException | Logic.BadFile | RuntimeException e) {
             return FAILED;

@@ -457,13 +457,22 @@ public class MainActivity extends Base {
         return b;
     }
 
-    /** A line when the source has not answered for a while. */
+    /** A line when the phone has not reached the source for a while, or the source has not reached the site. */
     private View stale(Logic.Place p, Logic.Data d, long now) {
+        if (d == null) return null;
         long checked = Store.checkedAt(this, p.region);
-        if (d == null || (d.sourceOk && checked > 0 && now - checked <= Logic.STALE_S)) return null;
+        String text;
+        if (checked <= 0 || now - checked > Logic.STALE_S) {
+            text = "Немає зв'язку з джерелом графіка. Показано дані, перевірені "
+                    + Logic.updated(checked, now).replace("графік опубліковано ", "") + ".";
+        } else if (Logic.siteDown(d, now)) {
+            boolean tomorrow = Logic.day(d, p.group, Logic.today(now).plusDays(1)) != null;
+            text = Logic.siteDownText(d, p.region, tomorrow, now);
+        } else {
+            return null;
+        }
         TextView t = Ui.text(this, 14, Ui.bold(this), pal.text);
-        t.setText("Немає зв'язку з джерелом графіка. Показано дані, перевірені "
-                + Logic.updated(checked, now).replace("графік опубліковано ", "") + ".");
+        t.setText(text);
         t.setLineSpacing(0, 1.1f);
         t.setPadding(Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14));
         t.setBackground(Ui.outline(pal.maybeText, Ui.px(this, 22), Ui.dp(this, 1)));

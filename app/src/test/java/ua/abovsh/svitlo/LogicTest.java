@@ -1718,11 +1718,49 @@ public class LogicTest {
         Logic.Tail t = Logic.tail(TAIL_B42);
         assertEquals("1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5", t.hash);
         assertEquals(1793695886L, t.at);
+        assertTrue(t.ok);
+    }
+
+    @Test
+    public void aFailedAttemptOfTheCollectorIsReadFromTheTailAlone() {
+        // the schedule is the one already stored: the 68 KB file is not needed to learn the site failed
+        Logic.Tail t = Logic.tail(TAIL_B42.replace("\"ok\": true", "\"ok\": false"));
+        assertFalse(t.ok);
+        assertEquals("1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5", t.hash);
+    }
+
+    @Test
+    public void theSiteIsCalledDownOnlyAfterFifteenMinutesWithoutASchedule() {
+        Logic.Data d = new Logic.Data();
+        d.sourceTime = kyiv(11, 8, 22, 7);  // the last attempt that got the schedule
+        d.sourceOk = false;
+        // one failed attempt (3–7 min) is common and says nothing
+        assertFalse(Logic.siteDown(d, kyiv(11, 8, 22, 21)));
+        assertTrue(Logic.siteDown(d, kyiv(11, 8, 22, 22)));
+        d.sourceOk = true;
+        assertFalse(Logic.siteDown(d, kyiv(11, 8, 23, 30)));
+        d.sourceOk = false; d.sourceTime = 0;
+        assertFalse(Logic.siteDown(d, kyiv(11, 8, 23, 30)));  // no time to tell it from
+        assertFalse(Logic.siteDown(null, kyiv(11, 8, 23, 30)));
+    }
+
+    @Test
+    public void theSiteDownTextSaysSinceWhenAndWhatMayBeLate() {
+        Logic.Data d = new Logic.Data();
+        d.sourceTime = kyiv(11, 8, 22, 7);
+        d.sourceOk = false;
+        assertEquals("Сайт ДТЕК не віддає графік з 22:07. Графік на завтра може з'явитися тут із запізненням.",
+                Logic.siteDownText(d, "kyiv_region", false, kyiv(11, 8, 23, 20)));
+        assertEquals("Сайт ДТЕК не віддає графік з 22:07. Зміни графіка можуть з'явитися тут із запізненням.",
+                Logic.siteDownText(d, "kyiv_region", true, kyiv(11, 8, 23, 20)));
+        assertEquals("Сайт ДТЕК не віддає графік з 22:07 вчора. Зміни графіка можуть з'явитися тут із запізненням.",
+                Logic.siteDownText(d, "kyiv_region", true, kyiv(11, 9, 0, 30)));
+        // other collectors read other oblenergo sites
+        assertTrue(Logic.siteDownText(d, "vinnytsia", true, kyiv(11, 8, 23, 20)).startsWith("Сайт обленерго не віддає графік з 22:07."));
     }
 
     @Test
     public void aTailThatDoesNotProveItAsksForTheWholeFile() {
-        assertNull(Logic.tail(TAIL_B42.replace("\"ok\": true", "\"ok\": false")));  // the source failed: read what it says
         assertNull(Logic.tail(TAIL_B42.replace("contentHash", "other")));
         assertNull(Logic.tail(TAIL_B42.replace("\"at\": \"2026-11-03T08:51:26.602Z\"", "\"at\": null")));
         assertNull(Logic.tail(TAIL_VINNYTSIA));  // cut before its status: "ok" did not fit

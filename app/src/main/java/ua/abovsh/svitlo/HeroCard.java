@@ -139,7 +139,9 @@ final class HeroCard extends ViewGroup {
         if (android.text.TextUtils.isEmpty(t.getText()) || t.getVisibility() == GONE) {
             t.setVisibility(GONE); return;
         }
-        int w = intrinsic ? Math.min(room, (int) Math.ceil(width(t, t.getTextSize())) + 1) : room;
+        // intrinsic: as wide as its words and a little slack, never wider than its room; so a centred text
+        // stays inside its half and still never breaks into a second line
+        int w = intrinsic ? Math.min(room, (int) Math.ceil(width(t, t.getTextSize())) + 1 + Ui.dp(getContext(), 2)) : room;
         t.measure(MeasureSpec.makeMeasureSpec(Math.max(1, w), MeasureSpec.EXACTLY), MeasureSpec.UNSPECIFIED);
     }
 
@@ -244,10 +246,10 @@ final class HeroCard extends ViewGroup {
     private void measureWords(int inner) {
         int titleRoom = Math.max(1, leftRoom - Ui.dp(getContext(), 30));
         measureText(label, inner, false);
-        measureText(currentTitle, titleRoom, false); measureText(futureTitle, rightRoom, false);
+        measureText(currentTitle, titleRoom, horizontal); measureText(futureTitle, rightRoom, horizontal);
         measureText(currentSide, leftRoom, true);
-        measureText(currentClock, Math.max(1, leftRoom - (int) Math.ceil(sideWidth(currentSide))), currentClock.getText().toString().contains(":"));
-        measureText(futureClock, rightRoom, futureClock.getText().toString().contains(":"));
+        measureText(currentClock, Math.max(1, leftRoom - (int) Math.ceil(sideWidth(currentSide))), horizontal || currentClock.getText().toString().contains(":"));
+        measureText(futureClock, rightRoom, horizontal || futureClock.getText().toString().contains(":"));
         measureText(elapsed, leftRoom, false); measureText(remaining, rightRoom, false);
     }
 

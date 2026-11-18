@@ -472,7 +472,6 @@ public class LogicTest {
         Logic.Release r = Logic.releaseAt(LATEST);
         assertEquals("1.3.0", r.version);
         assertEquals(LATEST, r.page);
-        assertEquals("https://github.com/ABovsh/svitlyachok/releases/download/v1.3.0/Svitlyachok-1.3.0.apk", r.apk);
     }
 
     @Test
@@ -832,20 +831,22 @@ public class LogicTest {
         assertEquals("Оновлення графіка на сьогодні", Logic.notes(only, data(TODAY_ONLY), after, at(12, 0)).get(0).title);
     }
 
-    // ---- 1.3.1: the update downloads inside the app ----------------------------------
+    // ---- 1.9.1: an update is downloaded from the site, not inside the app ----------------
 
     @Test
-    public void anUpdateDownloadsOnlyFromThisReleaseAndGithubFiles() {
-        assertTrue(Logic.trustedDownload("https://github.com/ABovsh/svitlyachok/releases/download/v1.3.1/Svitlyachok-1.3.1.apk"));
-        // GitHub sends the file itself from its file hosts
-        assertTrue(Logic.trustedDownload("https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r"));
-        assertTrue(Logic.trustedDownload("https://objects.githubusercontent.com/github-production-release-asset-2e65be/1/2"));
-        assertFalse(Logic.trustedDownload("http://github.com/ABovsh/svitlyachok/releases/download/v1.3.1/Svitlyachok-1.3.1.apk"));
-        assertFalse(Logic.trustedDownload("https://github.com/someone/svitlyachok/releases/download/v1.3.1/x.apk"));
-        assertFalse(Logic.trustedDownload("https://github.com/ABovsh/svitlyachok/archive/main.zip"));
-        assertFalse(Logic.trustedDownload("https://evil.example/objects.githubusercontent.com/x"));
-        assertFalse(Logic.trustedDownload("https://objects.githubusercontent.com.evil.example/x"));
-        assertFalse(Logic.trustedDownload(null));
+    public void anUpdateOpensTheSiteAndTheAppInstallsNothing() throws Exception {
+        assertEquals("https://abovsh.github.io/svitlyachok/", Logic.SITE);
+        assertTrue(Logic.opens(Logic.SITE));
+        assertTrue(Logic.opens(Logic.REPO + "releases/tag/v1.9.1"));
+        assertTrue(Logic.opens(Logic.CHANGELOG));
+        assertFalse(Logic.opens("http://abovsh.github.io/svitlyachok/"));
+        assertFalse(Logic.opens("https://abovsh.github.io/other/"));
+        assertFalse(Logic.opens("https://abovsh.github.io.evil.example/svitlyachok/"));
+        assertFalse(Logic.opens("https://github.com/someone/svitlyachok/"));
+        assertFalse(Logic.opens(null));
+        String manifest = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("src/main/AndroidManifest.xml")), java.nio.charset.StandardCharsets.UTF_8);
+        assertFalse(manifest.contains("REQUEST_INSTALL_PACKAGES"));
     }
 
     // ---- 1.4: three lines in the place card, a bar with clock times ---------------------

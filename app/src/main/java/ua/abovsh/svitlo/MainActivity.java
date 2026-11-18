@@ -28,9 +28,6 @@ public class MainActivity extends Base {
     static final String EXTRA_PLACE = "place";
     static final String EXTRA_OFFER_WIDGET = "offer_widget";
     /** The version being downloaded now, and how far; the card shows it after a re-render too. */
-    private String downloading;
-    private int percent;
-    private TextView getButton;
 
     private static final int HERO_BUTTON = 48;
     private TextView sub;
@@ -283,10 +280,6 @@ public class MainActivity extends Base {
     }
 
     /** A newer version on GitHub: what it is, and two ways on. The user decides; "later" hides it. */
-    private String downloadText() {
-        return "Завантажую… " + percent + " %";
-    }
-
     private View updateCard(Logic.Release r) {
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 16), Ui.dp(this, 14), Ui.dp(this, 16), Ui.dp(this, 14));
@@ -319,25 +312,12 @@ public class MainActivity extends Base {
 
         FlowRow buttons = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 8));
         TextView get = Ui.text(this, 15, Ui.heavy(this), pal.accentInk);
-        get.setText(r.version.equals(downloading) ? downloadText() : "Оновити");
+        get.setText("Оновити");
         get.setGravity(Gravity.CENTER);
         get.setMinHeight(Ui.dp(this, 46));
         get.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
         get.setBackground(Ui.round(pal.accent, Ui.px(this, 100)));
-        get.setOnClickListener(v -> {
-            if (downloading != null) return;
-            downloading = r.version;
-            percent = 0;
-            get.setText(downloadText());
-            Updates.get(this, r, p -> {
-                percent = p;
-                if (getButton != null) getButton.setText(downloadText());
-            }, () -> {
-                downloading = null;
-                render();
-            });
-        });
-        getButton = get;
+        get.setOnClickListener(v -> Updates.open(this, Logic.SITE));  // downloaded there, in the browser
         buttons.addView(get);
         TextView what = Ui.text(this, 15, Ui.heavy(this), pal.text);
         what.setText("Що нового");

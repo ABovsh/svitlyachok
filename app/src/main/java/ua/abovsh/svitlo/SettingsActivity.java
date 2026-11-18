@@ -218,11 +218,7 @@ public class SettingsActivity extends Base {
         Logic.Release r = Updates.latest(this);
         if (r != null) {
             t.setText("Оновити до версії " + r.version + " ›");
-            t.setOnClickListener(v -> {
-                t.setOnClickListener(null);
-                t.setText("Завантажую… 0 %");
-                Updates.get(this, r, p -> t.setText("Завантажую… " + p + " %"), this::rebuild);
-            });
+            t.setOnClickListener(v -> Updates.open(this, Logic.SITE));  // downloaded there, in the browser
             return t;
         }
         t.setText("Перевірити зараз");

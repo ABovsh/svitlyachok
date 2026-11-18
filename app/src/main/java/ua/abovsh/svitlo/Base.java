@@ -91,7 +91,6 @@ abstract class Base extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        Updates.resume(this);  // back from allowing installs: the update goes on
         if (Ui.pal(this).dark != pal.dark) {  // the theme changed while away
             recreate();
             return;

@@ -11,28 +11,20 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 /**
- * Lends two files, read-only, by a one-time grant: the shared picture to the app the person
- * picked, and a downloaded update to the system installer. Not exported: no other app can ask
- * for anything here, and no other file is ever served.
+ * Lends one file, read-only, by a one-time grant: the shared picture to the app the person
+ * picked. Not exported: no other app can ask for anything here, and no other file is ever served.
  */
 public class ShareProvider extends ContentProvider {
     static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".share";
-
-    private static final String APK_TYPE = "application/vnd.android.package-archive";
 
     static Uri uri() {
         return new Uri.Builder().scheme("content").authority(AUTHORITY).appendPath(Share.FILE).build();
     }
 
-    static Uri apkUri() {
-        return new Uri.Builder().scheme("content").authority(AUTHORITY).appendPath(Updates.APK).build();
-    }
-
-    /** The file behind the address, or null when it is not one of the two. */
+    /** The file behind the address, or null when it is not the picture. */
     private File file(Uri u) {
         if (!AUTHORITY.equals(u.getAuthority())) return null;
         if (("/" + Share.FILE).equals(u.getPath())) return Share.picture(getContext());
-        if (("/" + Updates.APK).equals(u.getPath())) return Updates.updateFile(getContext());
         return null;
     }
 
@@ -52,7 +44,7 @@ public class ShareProvider extends ContentProvider {
     public String getType(Uri u) {
         File f = file(u);
         if (f == null) return null;
-        return f.getName().equals(Updates.APK) ? APK_TYPE : "image/png";
+        return "image/png";
     }
 
     /** Name and size: some messengers ask before they read. */
@@ -61,8 +53,7 @@ public class ShareProvider extends ContentProvider {
         File f = file(u);
         if (f == null) return null;
         MatrixCursor c = new MatrixCursor(new String[] {OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE});
-        boolean apk = f.getName().equals(Updates.APK);
-        c.addRow(new Object[] {apk ? "Svitlyachok.apk" : "svitlyachok-grafik.png", f.length()});
+        c.addRow(new Object[] {"svitlyachok-grafik.png", f.length()});
         return c;
     }
 

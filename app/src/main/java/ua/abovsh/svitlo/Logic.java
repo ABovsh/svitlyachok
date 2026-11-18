@@ -1248,17 +1248,6 @@ public final class Logic {
         return q;
     }
 
-    /** Hosts GitHub serves release files from, after the redirect from the release address. */
-    private static final String[] FILE_HOSTS = {"release-assets.githubusercontent.com", "objects.githubusercontent.com"};
-
-    /** An update is downloaded only from a release of this repository and GitHub's file hosts. */
-    static boolean trustedDownload(String url) {
-        if (url == null) return false;
-        if (url.startsWith(REPO + "releases/download/")) return true;
-        for (String h : FILE_HOSTS) if (url.startsWith("https://" + h + "/")) return true;
-        return false;
-    }
-
     /** A title: the mark and what happens, "🔴 Скоро вимкнуть світло". */
     private static String headed(String mark, String what) {
         return mark + Character.toUpperCase(what.charAt(0)) + what.substring(1);
@@ -1589,11 +1578,17 @@ public final class Logic {
     public static final class Release {
         public String version = "";
         public String page = "";
-        public String apk = "";
     }
 
     /** Where the app is published: the only place an update may come from. */
     static final String REPO = "https://github.com/ABovsh/svitlyachok/";
+    /** The app's site: "Оновити" opens it, the new version is downloaded there in the browser. */
+    static final String SITE = "https://abovsh.github.io/svitlyachok/";
+
+    /** The app opens only pages of its own repository and site in the browser. */
+    static boolean opens(String url) {
+        return url != null && (url.startsWith(REPO) || url.startsWith(SITE));
+    }
     /** What each version brought: opened from the version line at the bottom of the main screen. */
     static final String CHANGELOG = REPO + "blob/main/CHANGELOG.md";
     /** Answers with a redirect to the newest published release (never a draft or pre-release). */
@@ -1624,7 +1619,7 @@ public final class Logic {
 
     /**
      * The release GitHub points to from "latest". Only an exact release address of this repository
-     * with a version tag is accepted; the APK is the one the release publishes under its version.
+     * with a version tag is accepted.
      */
     public static Release releaseAt(String location) throws BadFile {
         String prefix = REPO + "releases/tag/v";
@@ -1633,7 +1628,6 @@ public final class Logic {
         Release r = new Release();
         r.version = v;
         r.page = location;
-        r.apk = REPO + "releases/download/v" + v + "/Svitlyachok-" + v + ".apk";
         return r;
     }
 

@@ -339,7 +339,8 @@ final class Ui {
                 float share = i < shares.length ? shares[i] : -1;
                 float h = share < 0 ? w : Math.max(w, (float) r.height() * share);
                 float x = r.left + i * step + (step - w) / 2;
-                bar.set(x, r.bottom - h, x + w, r.bottom);
+                float bottom = (float) r.bottom;
+                bar.set(x, bottom - h, x + w, bottom);
                 paint.setColor(colour(share));
                 cv.drawRoundRect(bar, w / 2, w / 2, paint);
             }

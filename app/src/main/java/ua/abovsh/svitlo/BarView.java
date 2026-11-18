@@ -38,7 +38,7 @@ final class BarView extends View {
 
     float slotX(float slot) {
         int hour = Math.min(23, (int) (slot / 2));
-        float gap = columnGap(getHeight());
+        float gap = columnGap((float) getHeight());
         float cell = (getWidth() - gap * 11) / 12;
         return (float) (hour % 12) * (cell + gap) + cell / 2;
     }

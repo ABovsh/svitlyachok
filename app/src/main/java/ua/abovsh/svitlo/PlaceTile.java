@@ -28,6 +28,7 @@ final class PlaceTile extends ViewGroup {
         // The selection stroke must not alter the content width.
         setPadding(0, 0, 0, 0);
         bulb = new BulbView(c, pal); bulb.still(); bulb.set(now.state); addView(bulb);
+        setClipChildren(false);  // the glow of a lit bulb reaches past its disc, within the tile
         name = new FitText(c, 14, 14, 2, Ui.heavy(c), pal.text).compact(1);
         name.setText(place.name); addView(name);
         namedQueue = chosen && !Logic.autoNamed(place);

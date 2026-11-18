@@ -86,6 +86,7 @@ final class BulbView extends View {
 
     /** The disc and the bulb, also drawn into the widget; the brush knows the colour behind the disc. */
     static void draw(Brush b, int state, float cx, float cy, float size, float glow) {
+        shine(b, state, cx, cy, size);
         disc(b, state, cx, cy, size, glow);
         float line = size * 0.045f;
         glass(b, state, cx, cy, size, line);
@@ -97,12 +98,33 @@ final class BulbView extends View {
 
     /** Without the disc: on a widget the whole card already carries the colour of the state. */
     static void plain(Brush b, int state, float cx, float cy, float size) {
+        shine(b, state, cx, cy, size);
         float line = size * 0.045f;
         glass(b, state, cx, cy, size, line);
         cap(b, state, cx, cy, size, line);
         if (state == Logic.ON) rays(b, cx, cy - size * 0.09f, size, line);
         else if (state == Logic.OFF) crossOut(b, cx, cy, size, line);
         b.p.setStyle(Paint.Style.FILL);
+    }
+
+    /** A firefly's light: a warm glow around the bulb while power is on, past its disc; none otherwise. */
+    static void shine(Brush b, int state, float cx, float cy, float size) {
+        if (state != Logic.ON) return;
+        float r = size * .74f;
+        float y = cy - size * .06f;
+        if (b.warm == null || b.warmX != cx || b.warmY != y || b.warmR != r) {
+            int core = b.pal.dark ? 0x66 : 0x8C;
+            b.warm = new RadialGradient(cx, y, r,
+                    new int[] {(core << 24) | 0xFFD640, (core * 2 / 5 << 24) | 0xFFD640, 0x00FFD640},
+                    new float[] {0f, .45f, 1f}, Shader.TileMode.CLAMP);
+            b.warmX = cx;
+            b.warmY = y;
+            b.warmR = r;
+        }
+        b.p.setStyle(Paint.Style.FILL);
+        b.p.setShader(b.warm);
+        b.cv.drawCircle(cx, y, r, b.p);
+        b.p.setShader(null);
     }
 
     private static void disc(Brush b, int state, float cx, float cy, float size, float glow) {

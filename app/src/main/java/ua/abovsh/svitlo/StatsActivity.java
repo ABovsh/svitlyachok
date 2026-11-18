@@ -212,7 +212,7 @@ public class StatsActivity extends Base {
         }
         View rare = legend(shown, days != 7 && Logic.weeksMissData(weeks));
         if (rare != null) card.addView(rare, gapTop(5));
-        String note = coverage(daily, weeks, shown);
+        String note = coverage(daily, weeks);
         if (!note.isEmpty()) {
             TextView coverage = Ui.text(this, 12.5f, Ui.body(this), pal.muted);
             coverage.setText(note);
@@ -245,7 +245,7 @@ public class StatsActivity extends Base {
     }
 
     /** Said only when something is missing: seven full days of seven need no line. */
-    private String coverage(List<Logic.DayStat> daily, List<Logic.WeekStat> weeks, List<Logic.DayStat> shown) {
+    private String coverage(List<Logic.DayStat> daily, List<Logic.WeekStat> weeks) {
         String text = "";
         if (days == 7) {
             int known = Logic.statKnownDays(daily);
@@ -256,9 +256,7 @@ public class StatsActivity extends Base {
             for (Logic.WeekStat w : weeks) { counts.add(w.known + "/7"); missing |= w.known < 7; }
             if (missing) text = "Днів із графіком на всі 24 години: " + String.join(" · ", counts) + ". Решта не враховані.";
         }
-        int possible = Logic.statAverageMinutes(shown, Logic.MAYBE);
-        if (possible <= 0) return text;
-        return (text.isEmpty() ? "" : text + "\n") + "Можливе вимкнення: " + Logic.hoursMinutes(possible) + " на день";
+        return text;  // the possible outages a day stand in their legend
     }
 
     private static String shortDate(java.time.LocalDate date) {
@@ -295,7 +293,7 @@ public class StatsActivity extends Base {
         for (Logic.DayStat d : days) { possible |= d.maybe > 0; unknown |= !Logic.statKnown(d) || d.on + d.off + d.maybe < 48; }
         if (!possible && !unknown) return null;
         FlowRow row = new FlowRow(this, Ui.dp(this, 10), Ui.dp(this, 5));
-        if (possible) legendItem(row, '3', "Можливе вимкнення");
+        if (possible) legendItem(row, '3', Logic.possibleLegend(Logic.statAverageMinutes(days, Logic.MAYBE)));
         if (unknown) legendItem(row, '2', "Немає даних");
         return row;
     }

@@ -23,6 +23,10 @@ final class Brush {
     float haloY;
     float haloR;
     int haloColour;
+    RadialGradient warm;
+    float warmX;
+    float warmY;
+    float warmR;
 
     Brush(Ui.Pal pal, int under) {
         this.pal = pal;

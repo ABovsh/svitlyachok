@@ -190,12 +190,16 @@ public class SettingsActivity extends Base {
             n.addView(warning(), fill());
             n.addView(divider());
         }
-        n.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку",
-                Prefs.quietNights(this), on -> Prefs.setFlag(this, "quiet", on)), fill());
+        n.addView(toggle("Тиша вночі", "З 23:00 до 07:00 сповіщення приходять без звуку", Prefs.quietNights(this),
+                Ui.toned(this, R.drawable.ic_moon, pal.dark ? 0xFFC9C7F2 : 0xFF4B4A7A, pal.dark ? 0xFF2C2D4A : 0xFFE6E5F2, 32, 17),
+                on -> Prefs.setFlag(this, "quiet", on)), fill());
         n.addView(divider());
         TextView test = Ui.text(this, 15, Ui.heavy(this), pal.accentText);
         test.setText("Надіслати пробне сповіщення");
-        test.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
+        test.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+        test.setGravity(Gravity.CENTER_VERTICAL);
+        test.setCompoundDrawables(Ui.toned(this, R.drawable.ic_send, pal.accentText, Ui.blend(pal.card, Ui.fade(pal.accent, .22f)), 32, 15), null, null, null);
+        test.setCompoundDrawablePadding(Ui.dp(this, 10));
         test.setOnClickListener(v -> {
             if (!notificationsAllowed()) {
                 openNotificationSettings();
@@ -216,9 +220,11 @@ public class SettingsActivity extends Base {
         look.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
         LinearLayout seg = Ui.row(this);
         String[][] themes = {{"system", "Як у системі"}, {"light", "Світла"}, {"dark", "Темна"}};
+        int[] icons = {R.drawable.ic_theme_auto, R.drawable.ic_sun, R.drawable.ic_moon};
         for (int i = 0; i < themes.length; i++) {
             String id = themes[i][0];
             TextView t = Ui.pill(this, pal, themes[i][1], id.equals(Prefs.theme(this)), 14);
+            t.setText(withIcon(icons[i], t.getCurrentTextColor(), themes[i][1]));
             t.setPadding(Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12));
             t.setOnClickListener(v -> {
                 Prefs.setTheme(this, id);
@@ -232,6 +238,21 @@ public class SettingsActivity extends Base {
         }
         look.addView(seg, fill());
         page.addView(look, fill());
+    }
+
+    /** An icon before the words, centred with them however wide the pill is. */
+    private CharSequence withIcon(int icon, int ink, String words) {
+        android.graphics.drawable.Drawable d = getDrawable(icon);
+        if (d == null) return words;
+        d = d.mutate();
+        d.setTint(ink);
+        int size = Ui.dp(this, 15);
+        d.setBounds(0, 0, size, size);
+        android.text.SpannableString s = new android.text.SpannableString("  " + words);
+        int align = android.os.Build.VERSION.SDK_INT >= 29 ? android.text.style.DynamicDrawableSpan.ALIGN_CENTER
+                : android.text.style.DynamicDrawableSpan.ALIGN_BASELINE;
+        s.setSpan(new android.text.style.ImageSpan(d, align), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
     }
 
     private void updatesSection() {
@@ -317,7 +338,7 @@ public class SettingsActivity extends Base {
         t.setPadding(0, Ui.dp(this, 14), 0, Ui.dp(this, 14));
         Logic.Release r = Updates.latest(this);
         if (r != null) {
-            t.setText("Оновити до версії " + r.version + " ›");
+            t.setText("Завантажити версію " + r.version + " на сайті ›");
             t.setOnClickListener(v -> Updates.open(this, Logic.SITE));  // downloaded there, in the browser
             return t;
         }
@@ -344,14 +365,37 @@ public class SettingsActivity extends Base {
     private View placeRow(Logic.Place p) {
         LinearLayout r = Ui.row(this);
         r.setBaselineAligned(false);
+        r.setGravity(Gravity.CENTER_VERTICAL);
         r.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+        long now = Sync.now();
+        java.time.LocalDate base = Logic.today(now);
+        Logic.Data data = Store.data(this, p.region);
+        BulbView bulb = new BulbView(this, pal);
+        bulb.still();
+        bulb.set(Logic.now(Logic.timeline(data, p.group, base), base, now, data != null && data.none).state);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(Ui.dp(this, 30), Ui.dp(this, 30));
+        bl.rightMargin = Ui.dp(this, 11);
+        r.addView(bulb, bl);
+        r.setClipChildren(false);
         LinearLayout t = Ui.column(this);
         t.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+        LinearLayout title = Ui.row(this);
+        title.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = Ui.text(this, 16, Ui.heavy(this), pal.text);
         name.setText(p.name);
-        t.addView(name);
+        title.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView queue = Ui.text(this, 12.5f, Ui.heavy(this), pal.accentText);  // as on the place's tile
+        queue.setText(Logic.queue(p.group));
+        queue.setPadding(Ui.dp(this, 5), Ui.dp(this, 1), Ui.dp(this, 5), Ui.dp(this, 1));
+        queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
+        LinearLayout.LayoutParams ql = wrap();
+        ql.leftMargin = Ui.dp(this, 6);
+        ql.rightMargin = Ui.dp(this, 6);
+        title.addView(queue, ql);
+        t.addView(title, fill());
         TextView w = Ui.text(this, 13, Ui.body(this), pal.muted);
-        w.setText(where(p));
+        Logic.Region region = Logic.region(p.region);
+        w.setText(region == null ? where(p) : region.name);
         w.setPadding(0, Ui.dp(this, 2), 0, 0);
         t.addView(w);
         if (placeOrder == null) {
@@ -379,13 +423,14 @@ public class SettingsActivity extends Base {
         b.setText(Logic.alertsShort(a));
         b.setMinHeight(Ui.dp(this, 48));
         b.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        b.setPadding(Ui.dp(this, 9), 0, Ui.dp(this, 11), 0);
+        b.setPadding(Ui.dp(this, 10), 0, Ui.dp(this, 13), 0);
         int inset = Ui.dp(this, 6);
         b.setBackground(new android.graphics.drawable.InsetDrawable(Ui.round(pal.raised, Ui.px(this, 18)), 0, inset, 0, inset));
         android.graphics.drawable.Drawable icon = getDrawable(a.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off);
         if (icon != null) {
             icon = icon.mutate(); icon.setTint(ink); icon.setBounds(0, 0, Ui.dp(this, 16), Ui.dp(this, 16));
-            b.setCompoundDrawablesRelative(icon, null, null, null);
+            // not the relative form: before it is resolved its width is left out and the words reach the edge
+            b.setCompoundDrawables(icon, null, null, null);
             b.setCompoundDrawablePadding(Ui.dp(this, 5));
         }
         b.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(a));

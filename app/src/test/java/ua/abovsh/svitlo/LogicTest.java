@@ -2493,4 +2493,78 @@ public class LogicTest {
         int[] e = Logic.rhythm(10, new int[] {8, 0, 12}, new int[] {0, 0, 0}, new int[] {0, -10, 0});
         assertEquals("[18, 18, 40, 50]", Arrays.toString(e));
     }
+
+    // ---- 1.9.1-rc.2: the approved look -------------------------------------------------
+
+    @Test
+    public void progressOfTheRunningInterval() throws Exception {
+        // light since 08:00, off at 14:30: at 10:00 two of six and a half hours have gone
+        Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), false);
+        assertEquals(at(8, 0), n.started);
+        assertEquals(2 / 6.5f, Logic.progress(n, at(10, 0)), 1e-4f);
+        assertEquals(0f, Logic.progress(n, at(8, 0)), 1e-6f);
+    }
+
+    @Test
+    public void noProgressWithoutAKnownEnd() throws Exception {
+        // 20:00 on the last day published: light to the end of the data, no change to count to
+        Logic.Now n = Logic.now(tl(TODAY_ONLY), OCT30, at(20, 0), false);
+        assertEquals(-1f, Logic.progress(n, at(20, 0)), 0f);
+        Logic.Now none = Logic.now(tl(TODAY_ONLY), OCT30, at(10, 0), true);
+        assertEquals(-1f, Logic.progress(none, at(10, 0)), 0f);
+    }
+
+    @Test
+    public void gridRunsJoinHoursOfOneStateWithinARow() {
+        // DAY_11 at 13:00: the hours to 12 have passed, a run never crosses into the other row
+        List<int[]> runs = Logic.gridRuns(DAY_11, 26, 0, 24);
+        StringBuilder b = new StringBuilder();
+        for (int[] r : runs) b.append(r[0]).append('-').append(r[1]).append(' ');
+        assertEquals("0-12 12-16 16-24 24-26 26-29 29-37 37-48 ", b.toString());
+    }
+
+    @Test
+    public void gridRunsOfOneWidgetRow() {
+        List<int[]> runs = Logic.gridRuns(DAY_11, -1, 12, 12);
+        StringBuilder b = new StringBuilder();
+        for (int[] r : runs) b.append(r[0]).append('-').append(r[1]).append(' ');
+        assertEquals("24-29 29-37 37-48 ", b.toString());
+    }
+
+    @Test
+    public void aShortSegmentTakesItsNumberAbove() {
+        assertTrue(Logic.numberInside(30f, 15f, 5f));
+        assertFalse(Logic.numberInside(16f, 15f, 5f));  // 3,5 h of a week bar: the number would cross into the next colour
+    }
+
+    @Test
+    public void possibleOutagesInOneLegendLine() {
+        assertEquals("Можливе вимкнення · 9 хв на день", Logic.possibleLegend(9));
+        assertEquals("Можливе вимкнення", Logic.possibleLegend(0));
+    }
+
+    @Test
+    public void aLowLargeWidgetShowsOneReadableRow() {
+        assertTrue(Logic.widgetOneRow(110, false));   // two rows there were digits of about 4 sp
+        assertFalse(Logic.widgetOneRow(120, false));
+        assertFalse(Logic.widgetOneRow(150, false));
+        assertFalse(Logic.widgetOneRow(110, true));
+        float[] two = Logic.widgetGridLayout(110, false);
+        float[] one = Logic.widgetGridLayout(110, false, true);
+        assertTrue(one[3] < two[3]);
+        assertTrue(one[1] > two[1]);  // the halves get the room the second row gave up
+    }
+
+    @Test
+    public void theSmallestWidgetKeepsOnlyWhatReads() {
+        assertFalse(Logic.widgetSmallWords(29.6f));  // 110×40: the name came out at 3 sp
+        assertTrue(Logic.widgetSmallWords(59f));
+    }
+
+    @Test
+    public void theRowOfALowWidgetIsNamedByItsHalf() {
+        assertEquals("Сьогодні · 00–11", Logic.widgetHalfTitle(false, 0));
+        assertEquals("Сьогодні · 12–23", Logic.widgetHalfTitle(false, 12));
+        assertEquals(Logic.widgetDayTitle(true, true), Logic.widgetHalfTitle(true, 0));
+    }
 }

@@ -129,20 +129,22 @@ abstract class Base extends Activity {
 
     /** A switch row: a title, a line under it, the switch. */
     View toggle(String title, String desc, boolean on, ToggleView.Listener l) {
-        return toggle(title, desc, on, 0, l);
+        return toggle(title, desc, on, null, l);
     }
 
-    /** dot: the colour of the mark before the title, 0 for none. */
-    View toggle(String title, String desc, boolean on, int dot, ToggleView.Listener l) {
+    /** lead: the tinted icon before the words (Ui.toned), or null for none. */
+    View toggle(String title, String desc, boolean on, android.graphics.drawable.Drawable lead, ToggleView.Listener l) {
         LinearLayout r = Ui.row(this);
+        r.setGravity(android.view.Gravity.CENTER_VERTICAL);
         r.setPadding(0, Ui.dp(this, desc.isEmpty() ? 7 : 11), 0, Ui.dp(this, desc.isEmpty() ? 7 : 11));
         View words = label(title, desc);
-        if (dot != 0) {
-            TextView name = (TextView) ((LinearLayout) words).getChildAt(0);
-            android.graphics.drawable.GradientDrawable mark = Ui.round(dot, Ui.px(this, 6));
-            mark.setBounds(0, 0, Ui.dp(this, 10), Ui.dp(this, 10));
-            name.setCompoundDrawablesRelative(mark, null, null, null);
-            name.setCompoundDrawablePadding(Ui.dp(this, 8));
+        if (lead != null) {
+            android.widget.ImageView icon = new android.widget.ImageView(this);
+            icon.setImageDrawable(lead);
+            icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(lead.getBounds().width(), lead.getBounds().height());
+            il.rightMargin = Ui.dp(this, 10);
+            r.addView(icon, il);
         }
         r.addView(words, weight());
         ToggleView tv = new ToggleView(this, pal, on, l::changed);

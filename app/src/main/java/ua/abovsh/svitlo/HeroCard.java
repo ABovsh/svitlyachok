@@ -34,6 +34,8 @@ final class HeroCard extends ViewGroup {
     private final Paint.FontMetrics titleMetrics = new Paint.FontMetrics();
     private final android.graphics.Rect glyph = new android.graphics.Rect();
     private final RectF futureBounds = new RectF();
+    private final RectF track = new RectF();
+    private final android.graphics.Path arrow = new android.graphics.Path();
     private boolean horizontal;
     private int leftRoom;
     private int rightRoom;
@@ -67,7 +69,8 @@ final class HeroCard extends ViewGroup {
         elapsed = text(now.already, 13.5f, Ui.body(c), pal.muted);
         remaining = text(Logic.heroCountdown(now), 13.5f, Ui.bold(c), lit ? nextInk : pal.text);
         bulb = new BulbView(c, pal); bulb.bare(); bulb.still(); bulb.set(now.state);
-        bulb.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); addView(bulb);
+        bulb.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); addView(bulb, 0);  // under the words: its glow must not tint them
+        setClipChildren(false);
         int right = Logic.widgetRightState(now, next[1]);
         int[] glow = new int[17];
         for (int i = 0; i < glow.length; i++) glow[i] = Logic.widgetGlow(pal.soft(now.state), pal.soft(right), pal.card, .5f, i / 16f);
@@ -87,6 +90,7 @@ final class HeroCard extends ViewGroup {
     void update(Logic.Now now) {
         last = now;
         details();
+        invalidate();  // the line of the interval moves on
         setContentDescription(location + ". " + Logic.heroDescription(now));
     }
 
@@ -162,6 +166,7 @@ final class HeroCard extends ViewGroup {
         rightRoom = horizontal ? proposedRight : Math.max(1, inner - Ui.dp(c, 14));
         configureClocks();
         configureHeadings();
+        centre(horizontal);
         measureWords(inner);
         int icon = Ui.dp(c, 25); bulb.measure(MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY));
         gap = Math.round(Ui.compactSp(c, 14, 1.1f));
@@ -227,14 +232,22 @@ final class HeroCard extends ViewGroup {
         size(elapsed, detail); size(remaining, detail);
     }
 
+    /** Side by side, each state stands in the middle of its half; stacked, everything starts at the left. */
+    private void centre(boolean middle) {
+        int g = middle ? android.view.Gravity.CENTER_HORIZONTAL : android.view.Gravity.START;
+        for (TextView t : new TextView[] {label, elapsed, remaining}) {
+            if ((t.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK) != g) t.setGravity(g | android.view.Gravity.TOP);
+        }
+    }
+
     private void measureWords(int inner) {
         int titleRoom = Math.max(1, leftRoom - Ui.dp(getContext(), 30));
         measureText(label, inner, false);
-        measureText(currentTitle, titleRoom, false); measureText(futureTitle, rightRoom, false);
+        measureText(currentTitle, titleRoom, horizontal); measureText(futureTitle, rightRoom, horizontal);
         measureText(currentSide, leftRoom, true);
         measureText(currentClock, Math.max(1, leftRoom - (int) Math.ceil(sideWidth(currentSide))), currentClock.getText().toString().contains(":"));
         measureText(futureClock, rightRoom, futureClock.getText().toString().contains(":"));
-        measureText(elapsed, leftRoom, false); measureText(remaining, rightRoom, false);
+        measureText(elapsed, leftRoom, horizontal); measureText(remaining, rightRoom, horizontal);
     }
 
     /** A text whose first baseline is at `baseline`. */
@@ -244,19 +257,25 @@ final class HeroCard extends ViewGroup {
         text.layout(x, top, x + text.getMeasuredWidth(), top + text.getMeasuredHeight());
     }
 
-    /** One panel from its row of titles: `row` is the index of that row in the baselines. */
-    private void panel(boolean future, int x, int row) {
+    /** One panel from its row of titles: `row` is the index of that row in the baselines; `column` its width when centred. */
+    private void panel(boolean future, int x, int row, int column) {
         TextView title = future ? futureTitle : currentTitle;
         TextView clock = future ? futureClock : currentClock;
-        place(title, x + (future ? 0 : Ui.dp(getContext(), 30)), baselines[row]);
+        int icon = future ? 0 : Ui.dp(getContext(), 30);
+        int titleX = x + icon + (column > 0 ? (column - icon - title.getMeasuredWidth()) / 2 : 0);
+        place(title, titleX, baselines[row]);
         if (!future) {
             Paint.FontMetrics fm = titleMetrics; currentTitle.getPaint().getFontMetrics(fm);
             int top = Math.round(baselines[row] + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
-            bulb.layout(x, top, x + bulb.getMeasuredWidth(), top + bulb.getMeasuredHeight());
+            int bx = titleX - icon;
+            bulb.layout(bx, top, bx + bulb.getMeasuredWidth(), top + bulb.getMeasuredHeight());
         }
-        place(clock, x, baselines[row + 1]);
-        if (!future) place(currentSide, x + clock.getMeasuredWidth() + Ui.dp(getContext(), 6), baselines[row + 1]);
-        place(future ? remaining : elapsed, x, baselines[row + 2]);
+        int side = !future && currentSide.getVisibility() != GONE ? currentSide.getMeasuredWidth() + Ui.dp(getContext(), 6) : 0;
+        int clockX = x + (column > 0 ? (column - clock.getMeasuredWidth() - side) / 2 : 0);
+        place(clock, clockX, baselines[row + 1]);
+        if (!future) place(currentSide, clockX + clock.getMeasuredWidth() + Ui.dp(getContext(), 6), baselines[row + 1]);
+        TextView detail = future ? remaining : elapsed;
+        place(detail, x + (column > 0 ? (column - detail.getMeasuredWidth()) / 2 : 0), baselines[row + 2]);
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -265,12 +284,12 @@ final class HeroCard extends ViewGroup {
         float edge = (float) right - left - getPaddingRight();
         int height = baselines[baselines.length - 1];
         if (horizontal) {
-            panel(false, x, 1);
-            panel(true, x + half + Ui.dp(getContext(), 9), 1);
+            panel(false, x, 1, half);
+            panel(true, x + half, 1, Math.round(edge) - x - half);
             futureBounds.set((float) x + half, baselines[0] + gap / 2f, edge, height - gap / 2f);
         } else {
-            panel(false, x, 1);
-            panel(true, x + Ui.dp(getContext(), 9), 4);
+            panel(false, x, 1, 0);
+            panel(true, x + Ui.dp(getContext(), 9), 4, 0);
             float apart = (float) gap + Ui.dp(getContext(), 8);  // the room between the panels, as measured
             futureBounds.set((float) x, (float) baselines[4] - cap(futureTitle) - apart / 2f, edge, height - gap / 2f);
         }
@@ -284,6 +303,59 @@ final class HeroCard extends ViewGroup {
         } else if (horizontal) {
             fill.setColor(Ui.fade(pal.text, .16f));
             canvas.drawRect(futureBounds.left, futureBounds.top, futureBounds.left + Ui.px(getContext(), 1), futureBounds.bottom, fill);
+            arrow(canvas, futureBounds.left + Ui.px(getContext(), .5f), baselines[2] - cap(currentClock) / 2f);
         }
+        progress(canvas);
+    }
+
+    /** "now, then": a quiet round mark on the line between the halves, in the colour of what comes. */
+    private void arrow(Canvas canvas, float cx, float cy) {
+        Context c = getContext();
+        int ink = last.next == Logic.UNKNOWN ? pal.muted : pal.status(last.next);
+        float r = Ui.px(c, 11);
+        fill.setStyle(Paint.Style.FILL);
+        fill.setColor(pal.card);
+        canvas.drawCircle(cx, cy, r, fill);
+        fill.setStyle(Paint.Style.STROKE);
+        fill.setStrokeWidth(Ui.px(c, 1.3f));
+        fill.setColor(Ui.fade(ink, .45f));
+        canvas.drawCircle(cx, cy, r - fill.getStrokeWidth() / 2, fill);
+        float a = Ui.px(c, 4.6f);
+        float h = Ui.px(c, 3.6f);
+        arrow.reset();
+        arrow.moveTo(cx - a, cy); arrow.lineTo(cx + a, cy);
+        arrow.moveTo(cx + a - h, cy - h); arrow.lineTo(cx + a, cy); arrow.lineTo(cx + a - h, cy + h);
+        fill.setStrokeWidth(Ui.px(c, 2f));
+        fill.setStrokeCap(Paint.Cap.ROUND);
+        fill.setStrokeJoin(Paint.Join.ROUND);
+        fill.setColor(ink);
+        canvas.drawPath(arrow, fill);
+        fill.setStyle(Paint.Style.FILL);
+    }
+
+    /** How much of the state now on has gone: a thin line along the bottom, a yellow mark at now. */
+    private void progress(Canvas canvas) {
+        float done = Logic.progress(last, Sync.now());
+        if (done < 0) return;
+        Context c = getContext();
+        float y = getHeight() - Ui.px(c, 5.5f);
+        float h = Ui.px(c, 4);
+        track.set(getPaddingLeft(), y - h / 2, getWidth() - getPaddingRight(), y + h / 2);
+        fill.setStyle(Paint.Style.FILL);
+        fill.setColor(Ui.fade(pal.fill(last.state), .18f));
+        canvas.drawRoundRect(track, h / 2, h / 2, fill);
+        float at = track.left + track.width() * done;
+        fill.setColor(pal.fill(last.state));
+        track.right = Math.max(track.left + h, at);
+        canvas.drawRoundRect(track, h / 2, h / 2, fill);
+        if (last.next != Logic.UNKNOWN) {
+            fill.setColor(pal.fill(last.next));
+            canvas.drawCircle(getWidth() - getPaddingRight() - h / 2, y, h, fill);
+        }
+        float knob = Ui.px(c, 4.5f);
+        fill.setColor(Ui.Pal.MARKER_EDGE);
+        canvas.drawCircle(at, y, knob + Ui.px(c, 1), fill);
+        fill.setColor(Ui.Pal.MARKER);
+        canvas.drawCircle(at, y, knob, fill);
     }
 }

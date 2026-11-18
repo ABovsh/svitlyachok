@@ -123,19 +123,50 @@ final class StatsChart extends View {
             brush.r2.set(bar.left,bar.top+chartH*d.off/48f,bar.right,bar.top+chartH*(d.off+d.maybe)/48f);
             paint.setColor(pal.soft(Logic.MAYBE)); cv.drawRect(brush.r2,paint); BarView.stripes(brush.on(cv),brush.r2);
         }
+        // a thin cut of the card between the colours: each segment reads as its own number
+        paint.setColor(pal.card);
+        float cut = Ui.px(getContext(), 1);
+        for (float y : new float[] {bar.top + chartH * d.off / 48f, bar.top + chartH * (d.off + d.maybe) / 48f, bar.bottom - chartH * d.on / 48f}) {
+            if (y > bar.top + cut && y < bar.bottom - cut) cv.drawRect(bar.left, y - cut, bar.right, y + cut, paint);
+        }
         cv.restore();
+        if (d.date.equals(Logic.today(Sync.now()))) {  // today: a frame round its bar
+            float out = Ui.px(getContext(), 3);
+            brush.r2.set(bar.left - out, bar.top - out, bar.right + out, bar.bottom + out);
+            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(Ui.px(getContext(), 2)); paint.setColor(pal.accentText);
+            cv.drawRoundRect(brush.r2, Ui.px(getContext(), 8), Ui.px(getContext(), 8), paint);
+            paint.setStyle(Paint.Style.FILL);
+        }
     }
 
     private void dayText(Canvas cv, Logic.DayStat d) {
         float x = bar.centerX();
         if (Logic.statKnown(d)) {
-            // always inside their own bar: off at its top, on at its bottom, however short the segment
-            number(cv, Logic.statLabel(d, Logic.OFF), x, bar.top - value.ascent() + Ui.px(getContext(), 3));
-            number(cv, Logic.statLabel(d, Logic.ON), x, bar.bottom - Ui.px(getContext(), 5));
+            float pad = Ui.px(getContext(), 3);
+            float tall = value.descent() - value.ascent();
+            String off = Logic.statLabel(d, Logic.OFF);
+            if (Logic.numberInside(chartH * d.off / 48f, -value.ascent(), pad)) {
+                number(cv, off, x, bar.top - value.ascent() + pad);
+            } else if (!off.isEmpty()) {  // too short for its number: it stands above the bar, in its colour
+                value.setColor(pal.offText);
+                cv.drawText(off, x, bar.top - Ui.px(getContext(), 4) - value.descent(), value);
+            }
+            if (Logic.numberInside(chartH * d.on / 48f, tall * .8f, pad)) {
+                number(cv, Logic.statLabel(d, Logic.ON), x, bar.bottom - Ui.px(getContext(), 5));
+            }
         }
-        label.setColor(pal.muted);
+        String day = WEEKDAYS[d.date.getDayOfWeek().getValue()-1];
         float y=bar.bottom-label.ascent()+Ui.px(getContext(),5);
-        cv.drawText(WEEKDAYS[d.date.getDayOfWeek().getValue()-1],x,y,label);
+        if (d.date.equals(Logic.today(Sync.now()))) {
+            float w = label.measureText(day) / 2 + Ui.px(getContext(), 7);
+            brush.r2.set(x - w, y + label.ascent() - Ui.px(getContext(), 3), x + w, y + label.descent() + Ui.px(getContext(), 3));
+            paint.setColor(pal.accentText);
+            cv.drawRoundRect(brush.r2, Ui.px(getContext(), 8), Ui.px(getContext(), 8), paint);
+            label.setColor(pal.dark ? pal.accentInk : 0xFFFFFFFF);
+        } else {
+            label.setColor(pal.muted);
+        }
+        cv.drawText(day,x,y,label);
     }
 
     private void number(Canvas cv, String text, float x, float y) {

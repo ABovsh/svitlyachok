@@ -306,13 +306,13 @@ public class MainActivity extends Base {
 
         TextView text = Ui.text(this, 14, Ui.body(this), pal.muted);
         text.setLineSpacing(0, 1.1f);
-        text.setText("У вас " + BuildConfig.VERSION_NAME + ". Місця й налаштування збережуться після оновлення.");
+        text.setText("У вас " + BuildConfig.VERSION_NAME + ". Нову версію завантажте на сайті й встановіть поверх цієї: місця й налаштування збережуться.");
         text.setPadding(0, Ui.dp(this, 8), 0, 0);
         card.addView(text, fill());
 
         FlowRow buttons = new FlowRow(this, Ui.dp(this, 8), Ui.dp(this, 8));
         TextView get = Ui.text(this, 15, Ui.heavy(this), pal.accentInk);
-        get.setText("Оновити");
+        get.setText("Завантажити на сайті ›");
         get.setGravity(Gravity.CENTER);
         get.setMinHeight(Ui.dp(this, 46));
         get.setPadding(Ui.dp(this, 18), 0, Ui.dp(this, 18), 0);
@@ -344,6 +344,19 @@ public class MainActivity extends Base {
         return card;
     }
 
+    /** The top of the page takes a breath of the chosen place's state; it fades out above the places. */
+    private void tint(int state) {
+        if (state == Logic.UNKNOWN) { page.setBackground(null); return; }
+        int soft = pal.soft(state);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {soft, Ui.fade(soft, .55f), soft & 0x00FFFFFF});
+        android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {g});
+        l.setLayerGravity(0, Gravity.TOP | Gravity.FILL_HORIZONTAL);
+        l.setLayerHeight(0, Ui.dp(this, 96));
+        page.setBackground(l);
+    }
+
     /** The place grid measures its own cards; optional details in the hero never affect it. */
     private View tiles(List<Logic.Place> places, Logic.Place chosen, LocalDate base, long now) {
         AdaptiveGrid grid = new AdaptiveGrid(this, 2, 6);
@@ -369,6 +382,7 @@ public class MainActivity extends Base {
         String[] next = d == null ? new String[] {"", state.hint, ""} : Logic.heroFuture(state, Logic.lastScheduleDay(d));
         String label = Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p);
         HeroCard card = new HeroCard(this, pal, label, state, next, Logic.highlight(state, Prefs.alerts(this, p.id), now));
+        tint(state.state);
         clockUpdates.add(() -> card.update(currentNow()));
         return card;
     }
@@ -377,11 +391,23 @@ public class MainActivity extends Base {
         AdaptiveGrid row = new AdaptiveGrid(this, 2, 6);
         Logic.Alerts wanted = Prefs.alerts(this, p.id);
         long now = Sync.now();
-        TextView alerts = action(Logic.alertsLabel(wanted), alertsAnswer(p, wanted, now), wanted.any() ? R.drawable.ic_bell : R.drawable.ic_bell_off, v -> AlertsSheet.show(this, p, this::render));
-        if (!wanted.any()) quiet(alerts);
+        android.graphics.drawable.Drawable bell = wanted.any()
+                ? Ui.toned(this, R.drawable.ic_bell, pal.dark ? pal.accent : 0xFF5A4210, Ui.blend(pal.card, Ui.fade(pal.accent, .35f)), 32, 17)
+                : Ui.toned(this, R.drawable.ic_bell_off, pal.quiet, pal.raised, 32, 17);
+        TextView alerts = action(Logic.alertsLabel(wanted), alertsAnswer(p, wanted, now), bell, v -> AlertsSheet.show(this, p, this::render));
+        if (!wanted.any()) alerts.setTextColor(pal.quiet);
         alerts.setContentDescription("Сповіщення, " + p.name + ": " + Logic.alertsSummary(wanted));
-        int share = Logic.statShare(Logic.window(Prefs.history(this, p.id), Logic.today(now), 7), Logic.ON);
-        TextView stats = action("Статистика", share < 0 ? "" : share + " % за тиждень", R.drawable.ic_stats, v -> startActivity(new Intent(this, StatsActivity.class)));
+        List<Logic.DayStat> week = Logic.window(Prefs.history(this, p.id), Logic.today(now), 7);
+        int share = Logic.statShare(week, Logic.ON);
+        float[] days = new float[week.size()];
+        for (int i = 0; i < days.length; i++) {
+            Logic.DayStat day = week.get(i);
+            int all = day.on + day.off + day.maybe;
+            days[i] = day.known && all > 0 ? (float) day.on / all : -1;
+        }
+        android.graphics.drawable.Drawable bars = new Ui.WeekBars(pal, days);
+        TextView stats = action("Статистика", share < 0 ? "" : share + " % за тиждень",
+                Ui.toned(this, bars, pal.soft(Logic.ON), 32, 17), v -> startActivity(new Intent(this, StatsActivity.class)));
         alerts.setMinimumWidth(Ui.dp(this, 128)); stats.setMinimumWidth(Ui.dp(this, 128));
         row.addView(alerts); row.addView(stats);
         return row;
@@ -391,13 +417,6 @@ public class MainActivity extends Base {
         if (!wanted.any()) return "";
         Logic.Event next = Sync.nextAlert(this, p.id, now);
         return next == null ? "" : Logic.alertButtonLine(next, now);
-    }
-
-    /** A button for something switched off: the same button, its words and icon plainly grey. */
-    private void quiet(TextView button) {
-        button.setTextColor(pal.quiet);
-        android.graphics.drawable.Drawable image = button.getCompoundDrawables()[0];
-        if (image != null) image.setTint(pal.quiet);
     }
 
     private View blockedReminders(Logic.Place p) {
@@ -418,7 +437,7 @@ public class MainActivity extends Base {
     }
 
     /** The second line answers before the button is touched; without an answer there is none. */
-    private TextView action(String text, String answer, int icon, View.OnClickListener listener) {
+    private TextView action(String text, String answer, android.graphics.drawable.Drawable icon, View.OnClickListener listener) {
         TextView b = new ActionButton(this);
         b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14); b.setTypeface(Ui.heavy(this)); b.setTextColor(pal.text); b.setIncludeFontPadding(false);
         android.text.SpannableString words = new android.text.SpannableString(answer.isEmpty() ? text : text + "\n" + answer);
@@ -429,10 +448,8 @@ public class MainActivity extends Base {
         b.setText(words); b.setMinHeight(Ui.dp(this, 48));
         b.setPadding(Ui.dp(this, 7), Ui.dp(this, 6), Ui.dp(this, 7), Ui.dp(this, 6));
         b.setBackground(Ui.card(this, pal, 0));
-        android.graphics.drawable.Drawable image = getDrawable(icon);
-        if (image != null) { image = image.mutate(); image.setTint(pal.text); image.setBounds(0, 0, Ui.dp(this, 18), Ui.dp(this, 18)); }
-        b.setCompoundDrawables(image, null, null, null);
-        b.setCompoundDrawablePadding(Ui.dp(this, 7));
+        b.setCompoundDrawables(icon, null, null, null);  // a tinted disc with the icon, as the rows of settings
+        b.setCompoundDrawablePadding(Ui.dp(this, 8));
         b.setOnClickListener(listener);
         return b;
     }
@@ -532,12 +549,8 @@ public class MainActivity extends Base {
         t.setText(line);
         t.setLineSpacing(0, 1.1f);
         t.setPadding(Ui.dp(this, 6), 0, Ui.dp(this, 6), 0);
-        android.graphics.drawable.Drawable mark = getDrawable(R.drawable.ic_check);
-        if (mark != null) {
-            mark = mark.mutate(); mark.setTint(pal.onText); mark.setBounds(0, 0, Ui.dp(this, 15), Ui.dp(this, 15));
-            t.setCompoundDrawablesRelative(mark, null, null, null);
-            t.setCompoundDrawablePadding(Ui.dp(this, 5));
-        }
+        t.setCompoundDrawablesRelative(Ui.toned(this, R.drawable.ic_check, pal.onText, pal.soft(Logic.ON), 20, 12), null, null, null);
+        t.setCompoundDrawablePadding(Ui.dp(this, 6));
         return t;
     }
 

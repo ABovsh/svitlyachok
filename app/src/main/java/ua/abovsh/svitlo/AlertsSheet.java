@@ -80,13 +80,13 @@ final class AlertsSheet {
 
         Logic.Alerts al = Prefs.alerts(a, place.id);
         LinearLayout box = a.box();
-        box.addView(a.toggle("Перед вимкненням", "", al.off, a.pal.off, v -> save(x -> x.off = v)), Base.fill());
+        box.addView(a.toggle("Перед вимкненням", "", al.off, Ui.toned(a, R.drawable.ic_notify_off, a.pal.offText, a.pal.soft(Logic.OFF), 28, 18), v -> save(x -> x.off = v)), Base.fill());
         if (al.off) box.addView(a.leads(Logic.LEADS, al.leadOff, m -> save(x -> x.leadOff = m)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Перед увімкненням", "", al.on, a.pal.on, v -> save(x -> x.on = v)), Base.fill());
+        box.addView(a.toggle("Перед увімкненням", "", al.on, Ui.toned(a, R.drawable.ic_notify_on, a.pal.onText, a.pal.soft(Logic.ON), 28, 18), v -> save(x -> x.on = v)), Base.fill());
         if (al.on) box.addView(a.leads(Logic.LEADS, al.leadOn, m -> save(x -> x.leadOn = m)), Base.fill());
         box.addView(a.divider());
-        box.addView(a.toggle("Графік і його зміни", "", al.schedule(), v -> save(x -> x.schedule(v))), Base.fill());
+        box.addView(a.toggle("Графік і його зміни", "", al.schedule(), Ui.toned(a, R.drawable.ic_notify_calendar, a.pal.muted, a.pal.raised, 28, 16), v -> save(x -> x.schedule(v))), Base.fill());
         col.addView(box, Base.fill());
 
         long now = Sync.now();
@@ -105,9 +105,19 @@ final class AlertsSheet {
 
     private View nextBox(Logic.Event next, long now) {
         boolean on = next.kind == Logic.Event.SOON_ON || next.kind == Logic.Event.AT_ON;
+        LinearLayout row = Ui.row(a);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(Ui.dp(a, 10), Ui.dp(a, 9), Ui.dp(a, 12), Ui.dp(a, 9));
+        row.setBackground(Ui.round(a.pal.soft(on ? Logic.ON : Logic.OFF), Ui.px(a, 14)));
+        android.graphics.drawable.Drawable bell = Ui.toned(a, R.drawable.ic_bell, a.pal.status(on ? Logic.ON : Logic.OFF),
+                Ui.blend(a.pal.soft(on ? Logic.ON : Logic.OFF), Ui.fade(a.pal.status(on ? Logic.ON : Logic.OFF), .16f)), 30, 16);
+        android.widget.ImageView icon = new android.widget.ImageView(a);
+        icon.setImageDrawable(bell);
+        icon.setImportantForAccessibility(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(Ui.dp(a, 30), Ui.dp(a, 30));
+        il.rightMargin = Ui.dp(a, 10);
+        row.addView(icon, il);
         LinearLayout box = Ui.column(a);
-        box.setPadding(Ui.dp(a, 12), Ui.dp(a, 9), Ui.dp(a, 12), Ui.dp(a, 9));
-        box.setBackground(Ui.round(a.pal.soft(on ? Logic.ON : Logic.OFF), Ui.px(a, 14)));
         TextView when = Ui.text(a, 14, Ui.heavy(a), a.pal.text);
         when.setText(Logic.alertSheetTitle(next, now));
         box.addView(when, Base.fill());
@@ -115,7 +125,8 @@ final class AlertsSheet {
         what.setText(Logic.alertSheetDetail(next));
         what.setPadding(0, Ui.dp(a, 2), 0, 0);
         box.addView(what, Base.fill());
-        return box;
+        row.addView(box, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        return row;
     }
 
     private void confirmAll() {

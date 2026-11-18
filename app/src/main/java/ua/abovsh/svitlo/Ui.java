@@ -301,4 +301,52 @@ final class Ui {
     static String date(java.time.LocalDate d) {
         return DAYS[d.getDayOfWeek().getValue() - 1] + ", " + d.getDayOfMonth() + " " + MONTHS[d.getMonthValue() - 1];
     }
+
+    /** An icon on a tinted disc, as the buttons and rows show a state or a section. */
+    static android.graphics.drawable.Drawable toned(Context c, android.graphics.drawable.Drawable icon, int disc, float discDp, float iconDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(disc);
+        android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {d, icon});
+        int inset = dp(c, (discDp - iconDp) / 2);
+        l.setLayerInset(1, inset, inset, inset, inset);
+        l.setBounds(0, 0, dp(c, discDp), dp(c, discDp));
+        return l;
+    }
+
+    static android.graphics.drawable.Drawable toned(Context c, int icon, int ink, int disc, float discDp, float iconDp) {
+        android.graphics.drawable.Drawable i = c.getDrawable(icon);
+        if (i == null) i = new android.graphics.drawable.ColorDrawable(0);
+        i = i.mutate();
+        i.setTint(ink);
+        return toned(c, i, disc, discDp, iconDp);
+    }
+
+    /** Seven small bars, a day each: the hours of light, green from half a day, red under it; grey when unknown. */
+    static final class WeekBars extends android.graphics.drawable.Drawable {
+        private final float[] shares;
+        private final Pal pal;
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF bar = new android.graphics.RectF();
+
+        WeekBars(Pal pal, float[] shares) { this.pal = pal; this.shares = shares; }
+
+        @Override public void draw(android.graphics.Canvas cv) {
+            android.graphics.Rect r = getBounds();
+            float step = r.width() / 7f;
+            float w = step * .62f;
+            for (int i = 0; i < 7; i++) {
+                float share = i < shares.length ? shares[i] : -1;
+                float h = share < 0 ? w : Math.max(w, r.height() * share);
+                float x = r.left + i * step + (step - w) / 2;
+                bar.set(x, r.bottom - h, x + w, r.bottom);
+                paint.setColor(share < 0 ? pal.quiet : share >= .5f ? pal.on : pal.off);
+                cv.drawRoundRect(bar, w / 2, w / 2, paint);
+            }
+        }
+
+        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
+        @Override public void setColorFilter(android.graphics.ColorFilter f) { paint.setColorFilter(f); }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+    }
 }

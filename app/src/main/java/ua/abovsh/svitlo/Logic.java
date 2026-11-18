@@ -705,6 +705,8 @@ public final class Logic {
         public boolean tomorrow;
         public String changeClock = "";
         public String endDetail = "";
+        /** When the state now on began, as far as the saved schedules know (seconds); 0 if unknown. */
+        public long started;
     }
 
     static int state(char slot) {
@@ -799,6 +801,7 @@ public final class Logic {
                 + (date.getYear() == base.getYear() ? "" : "." + date.getYear());
         n.since = "з " + hm(start) + suffix;
         n.already = goingOn(now - start);
+        n.started = start;
     }
 
     /** No change while the data lasts: either tomorrow is not published yet, or nothing changes. */
@@ -1033,7 +1036,7 @@ public final class Logic {
 
     /** A tap on the two rows of twelve hours, including which half of its hour it hits. */
     public static int hourGridSlot(float x, float y, float width, float height) {
-        float gap = height * 3 / 55;
+        float gap = height * 1.6f / 55;  // the narrow gap across a row, as BarView.columnGap
         float cell = Math.max(1, (width - gap * 11) / 12);
         int column = Math.max(0, Math.min(11, (int) (x / (cell + gap))));
         int hour = (y >= height / 2 ? 12 : 0) + column;
@@ -1052,11 +1055,22 @@ public final class Logic {
         return day + (tomorrow ? " · 00–11" : " · 12–23");
     }
 
+    /** A one-row day names its half: the morning or the afternoon of today, tomorrow's morning. */
+    public static String widgetHalfTitle(boolean tomorrow, int firstHour) {
+        return (tomorrow ? TOMORROW : "Сьогодні") + (firstHour == 0 ? " · 00–11" : " · 12–23");
+    }
+
     /** Name, two state panes, and either one full day or two half-day rows. */
     public static float[] widgetGridLayout(int height, boolean split) {
+        return widgetGridLayout(height, split, false);
+    }
+
+    /** oneRow: one twelve-hour row, a label and the row, as a half-day section takes. */
+    public static float[] widgetGridLayout(int height, boolean split, boolean oneRow) {
         float top = 27;
         float sections = split ? 2f : 1f;
-        float section = Math.min(split ? 34f : 59f, ((float) height - 8 - top - 40) / sections);
+        float section = Math.min(split || oneRow ? 34f : 59f, ((float) height - 8 - top - 40) / sections);
+        if (oneRow) section = Math.min(section, 29f);
         float panes = (float) height - 8 - top - sections * section;
         return new float[] {top, panes, split ? 1 : 0, section};
     }
@@ -1865,6 +1879,60 @@ public final class Logic {
     public static String queueHelp(Region r) {
         return r.id.equals("kyiv") ? "Не знаєте свою чергу? Знайдіть її за адресою на сайті «Без світла» ›"
                 : "Не знаєте свою чергу? Перевірте за адресою на сайті обленерго ›";
+    }
+
+    /** How much of the state now on has gone, 0..1, toward its next change; -1 without a known start and end. */
+    public static float progress(Now n, long now) {
+        if (n.state == UNKNOWN || n.change <= 0 || n.started <= 0 || n.change <= n.started) return -1f;
+        return Math.max(0f, Math.min(1f, (float) (now - n.started) / (n.change - n.started)));
+    }
+
+    /**
+     * The runs of an hour grid, [from, to) in half-hour slots of the day: neighbours of one state and
+     * one side of now join, and a run never leaves its row of twelve hours. `nowRel` is now in slots
+     * (an hour counts as past once it is over), or negative for a day with no now.
+     */
+    public static List<int[]> gridRuns(String slots, float nowRel, int firstHour, int hours) {
+        List<int[]> out = new ArrayList<>();
+        int first = firstHour * 2;
+        int from = first;
+        int end = (firstHour + hours) * 2;
+        for (int i = from + 1; i <= end; i++) {
+            boolean rowEnds = (i - first) % 24 == 0;
+            if (i == end || rowEnds || gridKey(slots, nowRel, i) != gridKey(slots, nowRel, i - 1)) {
+                out.add(new int[] {from, i});
+                from = i;
+            }
+        }
+        return out;
+    }
+
+    private static int gridKey(String slots, float nowRel, int slot) {
+        char c = slot < slots.length() ? slots.charAt(slot) : '2';
+        boolean past = nowRel >= 0 && nowRel >= (slot / 2 + 1) * 2;
+        return c * 2 + (past ? 1 : 0);
+    }
+
+    /** Whether a number stands inside its segment of a bar, with room around it; otherwise it goes above. */
+    public static boolean numberInside(float segment, float textHeight, float pad) {
+        return segment >= textHeight + 2 * pad;
+    }
+
+    /** The legend of possible outages, with their average a day when there are any. */
+    public static String possibleLegend(int minutesADay) {
+        return minutesADay > 0 ? POSSIBLE_OUTAGE + " · " + hoursMinutes(minutesADay) + " на день" : POSSIBLE_OUTAGE;
+    }
+
+    /** A low large widget shows the half of today with now as one row: two rows there would not read. */
+    public static boolean widgetOneRow(int height, boolean split) {
+        if (split) return false;
+        float[] l = widgetGridLayout(height, false);
+        return (l[3] - 18) / 2 < 11;
+    }
+
+    /** Whether a small widget row has room for the name and the event; else the bulb and the clock alone. */
+    public static boolean widgetSmallWords(float rowHeight) {
+        return rowHeight >= 34;
     }
 
     /** Whether now stands in this run: its number reads as the window that is going on. */

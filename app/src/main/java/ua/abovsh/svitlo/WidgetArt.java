@@ -178,6 +178,17 @@ final class WidgetArt {
         float tx = left + 11 * s;
         float tw = f.w - tx - pad * .8f;
         boolean clock = next[1].contains(":");
+        if (!Logic.widgetSmallWords(rowH / s)) {  // too low for words that read: the bulb and the clock alone
+            float bulb = Math.min(rowH * .95f, left * .9f);
+            BulbView.plain(b, n.state, left / 2 + 2.5f * s, f.h / 2, bulb);
+            b.p.setColor(Ui.fade(pal.text, .18f));
+            b.cv.drawRect(left + 3 * s, pad, left + 4 * s, f.h - pad, b.p);
+            Paint only = text(clock ? Ui.display(c) : Ui.heavy(c), rowH * .62f, m.lit ? lit : pal.status(n.next), Paint.Align.CENTER);
+            if (!clock && n.next == Logic.UNKNOWN) only.setColor(unknownValueInk(n, pal));
+            fit(only, next[1], tw);
+            b.cv.drawText(next[1], tx + tw / 2, f.h / 2 - (only.ascent() + only.descent()) / 2, only);
+            return;
+        }
         Paint value = text(clock ? Ui.display(c) : Ui.heavy(c), 100, m.lit ? lit : pal.status(n.next), Paint.Align.LEFT);
         float[] sized = Logic.widgetRowSizes(rowH, clock ? sizeToFit(value, next[1], tw) : Float.MAX_VALUE);
         value.setTextSize(clock ? sized[2] : sized[0] * 1.2f);
@@ -185,18 +196,43 @@ final class WidgetArt {
         if (!clock && n.next == Logic.UNKNOWN) value.setColor(unknownValueInk(n, pal));
         String percent = Logic.dayPercent(dayOf(m.tl, 0));
         Paint share = text(Ui.heavy(c), sized[0] * .8f, m.lit ? lit : pal.muted, Paint.Align.RIGHT);
-        Paint name = fit(text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT), widgetName(m), Math.max(1, tw - share.measureText(percent) - 4 * s));
+        float nameRoom = Math.max(1, tw - share.measureText(percent) - 4 * s);
+        Paint name = text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT);
+        String place = widgetName(m);
+        if (sizeToFit(name, place, nameRoom) < 9.5f * s) {  // a long name is cut short, never shrunk past reading
+            name.setTextSize(Math.min(sized[0], 9.5f * s));
+            place = android.text.TextUtils.ellipsize(place, new android.text.TextPaint(name), nameRoom, android.text.TextUtils.TruncateAt.END).toString();
+        } else {
+            fit(name, place, nameRoom);
+        }
         int eventInk = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
         Paint event = fit(text(Ui.heavy(c), sized[1], m.lit ? lit : eventInk, Paint.Align.LEFT), next[0], tw);
         float block = Logic.widgetRowBlock(sized);
         float y = (f.h - block) / 2f;
         smallNow(c, b, n.state, new float[] {left, y, y + block, sized[1], s});
-        float nameBaseline = capLine(b, widgetName(m), tx, y, name);
+        float nameBaseline = capLine(b, place, tx, y, name);
         b.cv.drawText(percent, f.w - pad * .8f, nameBaseline, share);
         float eventTop = clock ? .74f * sized[0] + sized[3]
                 : Logic.widgetEventTop(block, name.getTextSize(), event.getTextSize(), value.getTextSize());
         capLine(b, next[0], tx, y + eventTop, event);
         b.cv.drawText(next[1], tx, y + block, value);
+        float done = Logic.progress(n, now);
+        if (done >= 0 && !m.lit) {  // the line of the interval along the bottom, as on the card
+            float h = 2.2f * s;
+            float cy = f.h - Math.max(pad * .45f, 3.5f * s);
+            float r = f.w - pad * .8f;
+            b.p.setColor(Ui.fade(pal.fill(n.state), .18f));
+            b.r2.set(tx, cy - h / 2, r, cy + h / 2);
+            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+            float at = tx + (r - tx) * done;
+            b.p.setColor(pal.fill(n.state));
+            b.r2.right = Math.max(tx + h, at);
+            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+            b.p.setColor(Ui.Pal.MARKER_EDGE);
+            b.cv.drawCircle(at, cy, h * 1.3f + .8f * s, b.p);
+            b.p.setColor(Ui.Pal.MARKER);
+            b.cv.drawCircle(at, cy, h * 1.3f, b.p);
+        }
     }
 
     private static int unknownValueInk(Logic.Now n, Ui.Pal pal) {
@@ -243,14 +279,16 @@ final class WidgetArt {
         float width = f.w - 2 * pad;
         int hourSlot = Logic.index(m.base, now);
         boolean split = Logic.widgetSplitTomorrow(Math.round(f.h / s), dayOf(m.tl, 48), hourSlot);
-        float[] layout = Logic.widgetGridLayout(Math.round(f.h / s), split);
+        boolean oneRow = Logic.widgetOneRow(Math.round(f.h / s), split);  // two rows would not read: now's half
+        float[] layout = Logic.widgetGridLayout(Math.round(f.h / s), split, oneRow);
         header(c, b, m, new float[] {pad, pad, width, 13 * s});
-        new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).draw();
+        new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).at(now).draw();
         float first = (layout[0] + layout[1]) * s;
-        dayGrid(c, b, new GridDay(dayOf(m.tl, 0), false, split, (float) hourSlot),
+        int half = split || (oneRow && hourSlot >= 24) ? 12 : 0;
+        dayGrid(c, b, new GridDay(dayOf(m.tl, 0), false, split || oneRow, (float) hourSlot, half),
                 new RectF(pad, first, f.w - pad, first + layout[3] * s), s);
         if (split) {
-            dayGrid(c, b, new GridDay(dayOf(m.tl, 48), true, true, -1),
+            dayGrid(c, b, new GridDay(dayOf(m.tl, 48), true, true, -1, 0),
                     new RectF(pad, first + layout[3] * s, f.w - pad, f.h - pad), s);
         }
     }
@@ -262,12 +300,12 @@ final class WidgetArt {
         final float now;
         final int firstHour;
 
-        GridDay(String slots, boolean tomorrow, boolean partial, float now) {
+        GridDay(String slots, boolean tomorrow, boolean partial, float now, int firstHour) {
             this.slots = slots;
-            this.title = Logic.widgetDayTitle(tomorrow, partial);
+            this.title = partial ? Logic.widgetHalfTitle(tomorrow, firstHour) : Logic.widgetDayTitle(false, false);
             this.partial = partial;
             this.now = now;
-            this.firstHour = partial && !tomorrow ? 12 : 0;
+            this.firstHour = partial ? firstHour : 0;
         }
     }
 
@@ -329,6 +367,7 @@ final class WidgetArt {
         private final float rightSpare;
         private final boolean lit;
         private final Paint smallRight;
+        private float done = -1;
 
         Panes(Context c, Brush b, Model m, String[] next, float[] box, float headShare) {
             this.b = b;
@@ -364,6 +403,12 @@ final class WidgetArt {
             right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, lit ? onFill(b.pal, m.now.next) : b.pal.status(now.next), Paint.Align.LEFT);
         }
 
+        /** The moment drawn, for the line of the interval. */
+        Panes at(long time) {
+            done = Logic.progress(now, time);
+            return this;
+        }
+
         private float spare(String words) {
             return words.isEmpty() ? 0 : small.measureText(words) + gapX;
         }
@@ -377,7 +422,10 @@ final class WidgetArt {
             float tall = Math.max(height(left), height(right));
             float first = height(title);
             float third = inline ? 0 : height(small);
-            float used = first + tall + third;
+            // the line of the interval: in the free third row on the left, else a little room under the clocks
+            float line = done >= 0 ? Math.max(2.4f * s, Math.min(4 * s, room * .045f)) : 0;
+            boolean underClocks = line > 0 && (third == 0 || leftSpare > 0);
+            float used = first + tall + third + (underClocks ? line + 3 * s : 0);
             if (used > room) {  // never past the box: everything shrinks alike
                 float k = room / used;
                 for (Paint p : new Paint[] {title, label, left, right, small, smallRight}) p.setTextSize(p.getTextSize() * k);
@@ -397,13 +445,64 @@ final class WidgetArt {
                 b.cv.drawRoundRect(b.r2, 12 * s, 12 * s, b.p);
             }
             firstRow(y, first, rightX);
+            float titleCentre = y + first / 2;
             y += first + gap;
             float baseline = y + tall - Math.max(left.descent(), right.descent());
             clocks(baseline, rightX);
             if (third > 0) details(y + tall + gap, rightX);
+            if (line > 0) {
+                float cy = underClocks ? baseline + left.descent() * .4f + line / 2 + 2 * s : y + tall + gap + third / 2;
+                progress(cy, line);
+            }
             if (lit) return;
             b.p.setColor(b.pal.line);
             b.cv.drawRect(rightX - 5 * s, top, rightX - 4 * s, top + room, b.p);
+            arrow(rightX - 4.5f * s, titleCentre, Math.min(first * .55f, 10 * s));
+        }
+
+        /** How much of the state now on has gone, under the left clock. */
+        private void progress(float cy, float h) {
+            float l = x + width * .12f;
+            float r = x + width * .88f;
+            b.p.setStyle(Paint.Style.FILL);
+            b.p.setColor(Ui.fade(b.pal.fill(now.state), .18f));
+            b.r2.set(l, cy - h / 2, r, cy + h / 2);
+            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+            float at = l + (r - l) * done;
+            b.p.setColor(b.pal.fill(now.state));
+            b.r2.right = Math.max(l + h, at);
+            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+            if (now.next != Logic.UNKNOWN) {
+                b.p.setColor(b.pal.fill(now.next));
+                b.cv.drawCircle(r - h / 2, cy, h, b.p);
+            }
+            b.p.setColor(Ui.Pal.MARKER_EDGE);
+            b.cv.drawCircle(at, cy, h * 1.15f + s * .8f, b.p);
+            b.p.setColor(Ui.Pal.MARKER);
+            b.cv.drawCircle(at, cy, h * 1.15f, b.p);
+        }
+
+        /** "now, then" on the line between the halves, beside the names of the states: the clocks fill their halves. */
+        private void arrow(float cx, float cy, float r) {
+            int ink = now.next == Logic.UNKNOWN ? b.pal.muted : b.pal.status(now.next);
+            Paint p = b.p;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(b.pal.card);
+            b.cv.drawCircle(cx, cy, r, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1, r * .12f));
+            p.setColor(Ui.fade(ink, .45f));
+            b.cv.drawCircle(cx, cy, r - p.getStrokeWidth() / 2, p);
+            float a = r * .42f;
+            float h = r * .33f;
+            p.setStrokeWidth(Math.max(1.2f, r * .18f));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(ink);
+            b.cv.drawLine(cx - a, cy, cx + a, cy, p);
+            b.cv.drawLine(cx + a - h, cy - h, cx + a, cy, p);
+            b.cv.drawLine(cx + a - h, cy + h, cx + a, cy, p);
+            p.setStrokeCap(Paint.Cap.BUTT);
+            p.setStyle(Paint.Style.FILL);
         }
 
         /** The bulb and the state on the left, what comes next on the right. */
@@ -411,25 +510,30 @@ final class WidgetArt {
             float bulb = Math.min(rowHeight * 1.25f, room * .4f);
             float titleRoom = width - bulb * 1.16f;
             String state = sizeToFit(title, now.title, titleRoom) >= 13 * s ? now.title : compactTitle(now.state);
-            BulbView.plain(b, now.state, x + bulb / 2, y + rowHeight / 2, bulb);
             fit(title, state, titleRoom);
-            drawCentred(b, state, x + bulb * 1.16f, y, rowHeight, title);
+            float lx = x + (width - bulb * 1.16f - title.measureText(state)) / 2;  // the bulb and the state, centred in their half
+            BulbView.plain(b, now.state, lx + bulb / 2, y + rowHeight / 2, bulb);
+            drawCentred(b, state, lx + bulb * 1.16f, y, rowHeight, title);
             String event = next[0];
             if (sizeToFit(label, event, width) < 12 * s && now.next != Logic.UNKNOWN) {
                 event = compactEvent(now) + (now.tomorrow ? " завтра" : "");
             }
             fit(label, event, width);
-            drawCentred(b, event, rightX, y, rowHeight, label);
+            drawCentred(b, event, rightX + (width - label.measureText(event)) / 2, y, rowHeight, label);
         }
 
         private void clocks(float baseline, float rightX) {
             fit(left, start[0], width);
             fit(right, next[1], width);
-            b.cv.drawText(start[0], x, baseline, left);
-            b.cv.drawText(next[1], rightX, baseline, right);
+            float lw = left.measureText(start[0]) + (inline && leftSpare > 0 ? gapX + small.measureText(start[1]) : 0);
+            float rw = right.measureText(next[1]) + (inline && rightSpare > 0 ? gapX + smallRight.measureText(next[2]) : 0);
+            float lx = x + Math.max(0, (width - lw) / 2);
+            float rx = rightX + Math.max(0, (width - rw) / 2);
+            b.cv.drawText(start[0], lx, baseline, left);
+            b.cv.drawText(next[1], rx, baseline, right);
             if (!inline) return;
-            if (leftSpare > 0) b.cv.drawText(start[1], x + left.measureText(start[0]) + gapX, baseline, small);
-            if (rightSpare > 0) b.cv.drawText(next[2], rightX + right.measureText(next[1]) + gapX, baseline, smallRight);
+            if (leftSpare > 0) b.cv.drawText(start[1], lx + left.measureText(start[0]) + gapX, baseline, small);
+            if (rightSpare > 0) b.cv.drawText(next[2], rx + right.measureText(next[1]) + gapX, baseline, smallRight);
         }
 
         private static String compactTitle(int state) {
@@ -444,8 +548,8 @@ final class WidgetArt {
         }
 
         private void details(float y, float rightX) {
-            if (leftSpare > 0) line(b, start[1], x, y, fit(small, start[1], width));
-            if (rightSpare > 0) line(b, next[2], rightX, y, fit(smallRight, next[2], width));
+            if (leftSpare > 0) line(b, start[1], x + (width - fit(small, start[1], width).measureText(start[1])) / 2, y, small);
+            if (rightSpare > 0) line(b, next[2], rightX + (width - fit(smallRight, next[2], width).measureText(next[2])) / 2, y, smallRight);
         }
         private static float height(Paint p) {
             return p.descent() - p.ascent();

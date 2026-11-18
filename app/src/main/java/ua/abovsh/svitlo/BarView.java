@@ -6,6 +6,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.view.View;
+import java.util.List;
 
 /**
  * One day as two rows of twelve hour cells; each hour preserves both of its half-hour states. A run
@@ -30,14 +31,16 @@ final class BarView extends View {
         super(c);
         b = new Brush(pal, pal.card);
         digits.setTypeface(Ui.heavy(c));
-        digits.setTextSize(Ui.sp(c, 14));
+        digits.setTextSize(Ui.sp(c, 15.5f));
     }
 
     int touchedSlot() { return touched; }
 
     float slotX(float slot) {
         int hour = Math.min(23, (int) (slot / 2));
-        return (hour % 12 + .5f) * getWidth() / 12f;
+        float gap = columnGap(getHeight());
+        float cell = (getWidth() - gap * 11) / 12;
+        return hour % 12 * (cell + gap) + cell / 2;
     }
 
     void choose(int from, int to) { chosenFrom = from; chosenTo = to; invalidate(); }
@@ -67,7 +70,7 @@ final class BarView extends View {
         if (slots == null) return;
         b.on(cv);
         drawBounds.set(0, 0, (float) getWidth(), (float) getHeight());
-        digits.setTextSize(Ui.sp(getContext(), 14));
+        digits.setTextSize(Ui.sp(getContext(), 15.5f));
         grid(b, slots, nowRel, drawBounds, digits, chosenFrom, chosenTo);
     }
 
@@ -95,54 +98,131 @@ final class BarView extends View {
         }
     }
 
+    /** The room between hours across a row: narrow, since hours of one state join into one run. */
+    static float columnGap(float height) {
+        return height * 1.6f / 55;
+    }
+
     private static void grid(Brush b, String slots, float nowRel, RectF bounds, Paint text, Range range) {
         float size = text.getTextSize();
         int rows = range.count / 12;
-        float gap = bounds.height() * 3 / (rows == 1 ? 24 : 55);
+        float rowGap = bounds.height() * 3 / (rows == 1 ? 24 : 55);
+        float gap = Math.max(1f, rows == 1 ? bounds.height() * 1.6f / 24 : columnGap(bounds.height()));
         text.setTextAlign(Paint.Align.CENTER);
         float cellW = (bounds.width() - gap * 11) / 12;
-        float cellH = (bounds.height() - gap * (rows - 1)) / rows;
+        float cellH = (bounds.height() - rowGap * (rows - 1)) / rows;
         float widest = 0;
         for (String hour : HOURS) widest = Math.max(widest, text.measureText(hour));
         text.setTextSize(Math.min(size, Math.min((cellW - gap) / widest * size, cellH * (rows == 1 ? .74f : .63f))));
         float radius = Math.min(cellW, cellH) * .22f;
+        Geometry g = new Geometry(bounds, range.first, cellW, cellH, gap, rowGap);
+        List<int[]> runs = Logic.gridRuns(slots, nowRel, range.first, range.count);
+        for (int[] run : runs) drawRun(b, slots, nowRel, range, g, run, radius);
+        for (int[] run : runs) seams(b, g, run);
         for (int hour = range.first; hour < range.first + range.count; hour++) {
-            float left = bounds.left + hour % 12 * (cellW + gap);
-            int row = (hour - range.first) / 12;
-            float top = bounds.top + (float) row * (cellH + gap);
-            RectF cell = b.r;
-            cell.set(left, top, left + cellW, top + cellH);
+            g.cell(hour, b.r);
             drawHour(b, slots, nowRel, text, range, hour, radius);
         }
         // the chosen run: a frame in the gaps around its hours, one per row; at the edge it stays inside
         for (int[] frame : Logic.barFrames(range.from, range.to)) {
             int row = (frame[0] - range.first) / 12;
-            float top = bounds.top + (float) row * (cellH + gap);
-            float half = gap / 2;
+            float top = bounds.top + (float) row * (cellH + rowGap);
+            float half = rowGap / 2;
             RectF box = b.r;
-            box.set(Math.max(bounds.left + half / 2, bounds.left + frame[0] % 12 * (cellW + gap) - half),
+            box.set(Math.max(bounds.left + half / 2, g.x(frame[0]) - half),
                     Math.max(bounds.top + half / 2, top - half),
-                    Math.min(bounds.right - half / 2, bounds.left + frame[1] % 12 * (cellW + gap) + cellW + half),
+                    Math.min(bounds.right - half / 2, g.x(frame[1]) + cellW + half),
                     Math.min(bounds.bottom - half / 2, top + cellH + half));
-            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(gap); b.p.setColor(b.pal.text);
+            b.p.setStyle(Paint.Style.STROKE); b.p.setStrokeWidth(rowGap); b.p.setColor(b.pal.text);
             b.cv.drawRoundRect(box, radius + half, radius + half, b.p);
             b.p.setStyle(Paint.Style.FILL);
         }
     }
 
+    /** Where the hours of a grid stand: columns of twelve, rows under each other. */
+    private static final class Geometry {
+        final RectF bounds;
+        final int first;
+        final float cellW;
+        final float cellH;
+        final float gap;
+        final float rowGap;
+
+        Geometry(RectF bounds, int first, float cellW, float cellH, float gap, float rowGap) {
+            this.bounds = bounds; this.first = first; this.cellW = cellW; this.cellH = cellH; this.gap = gap; this.rowGap = rowGap;
+        }
+
+        float x(int hour) { return bounds.left + (hour - first) % 12 * (cellW + gap); }
+
+        float top(int hour) { return bounds.top + (float) ((hour - first) / 12) * (cellH + rowGap); }
+
+        void cell(int hour, RectF out) { out.set(x(hour), top(hour), x(hour) + cellW, top(hour) + cellH); }
+    }
+
+    /** One run as one shape: round where it meets the gap of an hour, square where a half hour changes. */
+    private static void drawRun(Brush b, String slots, float nowRel, Range range, Geometry g, int[] run, float radius) {
+        int firstHour = run[0] / 2;
+        int lastHour = (run[1] - 1) / 2;
+        float left = g.x(firstHour) + (run[0] % 2 == 1 ? g.cellW / 2 : 0);
+        float right = g.x(lastHour) + (run[1] % 2 == 1 ? g.cellW / 2 : g.cellW);
+        float top = g.top(firstHour);
+        RectF box = b.r2;
+        box.set(left, top, right, top + g.cellH);
+        float l = run[0] % 2 == 0 ? radius : 0;
+        float r = run[1] % 2 == 0 ? radius : 0;
+        float[] corners = {l, l, r, r, r, r, l, l};
+        b.path.reset();
+        b.path.addRoundRect(box, corners, android.graphics.Path.Direction.CW);
+        b.cv.save();
+        b.cv.clipPath(b.path);
+        char state = at(slots, run[0]);
+        b.p.setStyle(Paint.Style.FILL);
+        b.p.setColor(Ui.blend(b.pal.card, b.pal.slot(state)));
+        b.cv.drawRect(box, b.p);
+        if (state == '3') stripes(b, box);
+        if (nowRel >= (firstHour + 1) * 2) {  // a run is past or not as a whole
+            b.p.setColor(Ui.fade(0xFF172428, PAST_VEIL));
+            b.cv.drawRect(box, b.p);
+        }
+        if (range.from >= 0) {
+            for (int slot = run[0]; slot < run[1]; slot++) {
+                if (slot >= range.from && slot < range.to) continue;
+                float x = g.x(slot / 2) + (slot % 2) * g.cellW / 2;
+                float x1 = slot % 2 == 1 && slot + 1 < run[1] ? x + g.cellW / 2 + g.gap : x + g.cellW / 2;
+                b.p.setColor(Ui.fade(b.pal.card, ASIDE_VEIL));
+                b.cv.drawRect(x, box.top, x1, box.bottom, b.p);
+            }
+        }
+        b.cv.restore();
+    }
+
+    /** Inside a run the hours stay countable: a hairline where one ends, a notch at each half hour. */
+    private static void seams(Brush b, Geometry g, int[] run) {
+        float line = Math.max(1f, g.gap * .6f);
+        int seam = Ui.fade(b.pal.card, .8f);
+        int tick = Ui.fade(b.pal.card, .45f);
+        b.p.setStyle(Paint.Style.FILL);
+        for (int slot = run[0] + 1; slot < run[1]; slot++) {
+            int hour = slot / 2;
+            float top = g.top(hour);
+            if (slot % 2 == 0) {
+                float x = g.x(hour) - g.gap / 2;
+                b.p.setColor(seam);
+                b.cv.drawRect(x - line / 2, top + g.cellH * .16f, x + line / 2, top + g.cellH * .84f, b.p);
+            } else {
+                float x = g.x(hour) + g.cellW / 2;
+                float len = g.cellH * .13f;
+                b.p.setColor(tick);
+                b.cv.drawRect(x - line / 3, top, x + line / 3, top + len, b.p);
+                b.cv.drawRect(x - line / 3, top + g.cellH - len, x + line / 3, top + g.cellH, b.p);
+            }
+        }
+    }
+
     private static void drawHour(Brush b, String slots, float nowRel, Paint text, Range range, int hour, float radius) {
         RectF cell = b.r;
-        b.path.reset(); b.path.addRoundRect(cell, radius, radius, android.graphics.Path.Direction.CW);
-        b.cv.save(); b.cv.clipPath(b.path);
-        fillHour(b, slots, hour, cell);
         boolean past = nowRel >= (hour + 1) * 2;
-        if (past) {
-            b.p.setColor(Ui.fade(0xFF172428, PAST_VEIL));
-            b.cv.drawRect(cell, b.p);
-        }
         boolean chosen = range.from >= 0;
-        if (chosen) aside(b, range, hour, cell);
-        b.cv.restore();
         int ink = at(slots, hour * 2) == '2' && at(slots, hour * 2 + 1) == '2' ? b.pal.muted : 0xFFFFFFFF;
         ink = past ? 0xFFB9C0BA : ink;
         boolean inRun = chosen && hour * 2 < range.to && hour * 2 + 2 > range.from;
@@ -155,27 +235,6 @@ final class BarView extends View {
             cell.inset(b.p.getStrokeWidth() / 2, b.p.getStrokeWidth() / 2);
             b.cv.drawRoundRect(cell, radius, radius, b.p);
             b.p.setStyle(Paint.Style.FILL);
-        }
-    }
-
-    /** The halves of an hour outside the chosen run fade, so its exact start and end read at once. */
-    private static void aside(Brush b, Range range, int hour, RectF cell) {
-        for (int half = 0; half < 2; half++) {
-            int slot = hour * 2 + half;
-            if (slot >= range.from && slot < range.to) continue;
-            b.p.setColor(Ui.fade(b.pal.card, ASIDE_VEIL));
-            b.cv.drawRect(cell.left + half * cell.width() / 2, cell.top, cell.left + (half + 1) * cell.width() / 2, cell.bottom, b.p);
-        }
-    }
-
-    private static void fillHour(Brush b, String slots, int hour, RectF cell) {
-        for (int half = 0; half < 2; half++) {
-            char state = at(slots, hour * 2 + half);
-            RectF part = b.r2;
-            part.set(cell.left + half * cell.width() / 2, cell.top, cell.left + (half + 1) * cell.width() / 2, cell.bottom);
-            b.p.setStyle(Paint.Style.FILL); b.p.setColor(Ui.blend(b.pal.card, b.pal.slot(state)));
-            b.cv.drawRect(part, b.p);
-            if (state == '3') stripes(b, part);
         }
     }
 

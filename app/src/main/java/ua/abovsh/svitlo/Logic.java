@@ -1087,8 +1087,10 @@ public final class Logic {
         if (day == null) return title + ": графік ще не опубліковано";
         String off = list(day, false);
         String maybe = list(day, true);
-        return title + ": " + (off.isEmpty() ? NO_OUTAGES : NO_POWER + off)
-                + (maybe.isEmpty() ? "" : "; можливе вимкнення " + maybe);
+        boolean incomplete = day.indexOf('2') >= 0;
+        String summary = off.isEmpty() ? (incomplete ? "графік неповний" : NO_OUTAGES) : NO_POWER + off;
+        if (incomplete && !off.isEmpty()) summary += ". Графік неповний";
+        return title + ": " + summary + (maybe.isEmpty() ? "" : "; можливе вимкнення " + maybe);
     }
 
     /** The outages of a day as "06:00 – 08:00, 14:30 – 18:30": certain ones, or possible ones. */

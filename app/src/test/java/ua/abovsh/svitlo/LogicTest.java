@@ -760,6 +760,7 @@ public class LogicTest {
     public void dayInWordsForScreenReaders() {
         assertEquals("Сьогодні: без світла 06:00 – 08:00, 14:30 – 18:30, 20:00 – 21:00",
                 Logic.describe("Сьогодні", "111111111111000011111111111110000000011100111111"));
+        assertEquals("Сьогодні: графік неповний", Logic.describe("Сьогодні", repeat('1', 32) + repeat('2', 16)));
         String m = repeat('1', 20) + repeat('3', 8) + repeat('1', 20);
         assertEquals("Завтра: без вимкнень; можливе вимкнення 10:00 – 14:00", Logic.describe("Завтра", m));
         assertEquals("Завтра: графік ще не опубліковано", Logic.describe("Завтра", null));

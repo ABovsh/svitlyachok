@@ -484,7 +484,20 @@ public class MainActivity extends Base {
         }
         DayHeader head = new DayHeader(this, pal, title, slots != null ? Logic.daySummaries(slots)
                 : java.util.Collections.singletonList(noSchedule), slots != null ? pal.onText : pal.muted, share);
-        head.setContentDescription(Logic.describe(title, slots));
+        if (slots == null) {
+            head.setContentDescription(Logic.describe(title, null));
+        } else {
+            head.setTag(date);
+            head.openIntervals(pal, trigger -> {
+                tips.hide();
+                boolean keyboard = trigger.isFocused();
+                DayIntervals.show(this, p, date, slots, () -> body.post(() -> {
+                    // The visible header may have been rebuilt by a sync while the panel was open.
+                    DayHeader visible = body.findViewWithTag(date);
+                    if (keyboard && visible != null) visible.restoreKeyboardFocus();
+                }));
+            });
+        }
         android.widget.FrameLayout section = new android.widget.FrameLayout(this);
         LinearLayout inner = Ui.column(this);
         inner.addView(head, fill());

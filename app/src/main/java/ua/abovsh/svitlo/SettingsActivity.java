@@ -3,17 +3,39 @@ package ua.abovsh.svitlo;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.PorterDuff;
+import android.os.Bundle;
 import android.provider.Settings;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Places, notifications, look. */
 public class SettingsActivity extends Base {
     private int built = -1;
+    private ArrayList<String> placeOrder;
+    private String selectedPlace;
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        if (state != null) {
+            placeOrder = state.getStringArrayList("place_order");
+            selectedPlace = state.getString("selected_place");
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putStringArrayList("place_order", placeOrder);
+        state.putString("selected_place", selectedPlace);
+    }
 
     @Override boolean hasClock() { return false; }
 
@@ -55,9 +77,22 @@ public class SettingsActivity extends Base {
 
     /** One row per place: its name opens the place, its bell opens the notifications of the place. */
     private void placesSection() {
-        page.addView(heading("Місця й сповіщення"));
-        LinearLayout places = box();
         List<Logic.Place> list = Prefs.places(this);
+        if (list.size() < 2) {
+            placeOrder = null;
+            selectedPlace = null;
+            page.addView(heading("Місця й сповіщення"));
+        } else {
+            page.addView(orderHeading(list), fill());
+        }
+        if (placeOrder != null) {
+            ArrayList<String> ids = placeIds(list);
+            placeOrder.retainAll(ids);
+            for (String id : ids) if (!placeOrder.contains(id)) placeOrder.add(id);
+            list.sort(java.util.Comparator.comparingInt(p -> placeOrder.indexOf(p.id)));
+            if (!placeOrder.contains(selectedPlace)) selectedPlace = null;
+        }
+        LinearLayout places = box();
         for (int i = 0; i < list.size(); i++) {
             if (i > 0) places.addView(divider());
             places.addView(placeRow(list.get(i)), fill());
@@ -81,6 +116,71 @@ public class SettingsActivity extends Base {
             places.addView(add, fill());
         }
         page.addView(places, fill());
+        if (placeOrder != null) page.addView(orderControls(list), gapTop(4));
+    }
+
+    private LinearLayout orderHeading(List<Logic.Place> list) {
+        LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label = heading("Місця й сповіщення");
+        TextView action = Ui.text(this, 14, Ui.heavy(this), pal.accentText);
+        action.setText(placeOrder == null ? "Змінити порядок ›" : "Готово");
+        action.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        action.setMinHeight(Ui.dp(this, 48));
+        action.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 6), 0);
+        action.setOnClickListener(v -> {
+            if (placeOrder == null) placeOrder = placeIds(list);
+            else {
+                if (!placeIds(Prefs.places(this)).equals(placeOrder)) Prefs.savePlaces(this, list);
+                placeOrder = null;
+                selectedPlace = null;
+            }
+            rebuild();
+        });
+        label.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        action.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int available = Ui.dp(this, getResources().getConfiguration().screenWidthDp - 32);
+        boolean fits = label.getMeasuredWidth() + action.getMeasuredWidth() <= available;
+        if (!fits) row.setOrientation(LinearLayout.VERTICAL);
+        row.addView(label, fits ? weight() : fill());
+        row.addView(action, fits ? wrap() : fill());
+        return row;
+    }
+
+    private static ArrayList<String> placeIds(List<Logic.Place> places) {
+        ArrayList<String> ids = new ArrayList<>();
+        for (Logic.Place place : places) ids.add(place.id);
+        return ids;
+    }
+
+    private View orderControls(List<Logic.Place> list) {
+        LinearLayout box = box();
+        int index = placeOrder.indexOf(selectedPlace);
+        TextView title = note(index < 0 ? "Оберіть місце, щоб перемістити його" : "Перемістити «" + list.get(index).name + "»");
+        title.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+        title.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        box.addView(title, fill());
+        if (index < 0) return box;
+        AdaptiveGrid actions = new AdaptiveGrid(this, 2, 6);
+        actions.addView(moveButton("↑ Підняти", index, -1));
+        actions.addView(moveButton("↓ Опустити", index, 1));
+        box.addView(actions, fill());
+        return box;
+    }
+
+    private View moveButton(String text, int from, int step) {
+        int target = from + step;
+        boolean enabled = target >= 0 && target < placeOrder.size();
+        TextView button = Ui.pill(this, pal, text, false, 14);
+        button.setMinimumWidth(Ui.dp(this, 112));
+        button.setMinHeight(Ui.dp(this, 48));
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.5f);
+        button.setOnClickListener(v -> {
+            Collections.swap(placeOrder, from, target);
+            rebuild();
+        });
+        return button;
     }
 
     /** What is common to all places. */
@@ -254,7 +354,18 @@ public class SettingsActivity extends Base {
         w.setText(where(p));
         w.setPadding(0, Ui.dp(this, 2), 0, 0);
         t.addView(w);
-        t.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
+        if (placeOrder == null) {
+            t.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class).putExtra("id", p.id)));
+        } else {
+            boolean selected = p.id.equals(selectedPlace);
+            t.setSelected(selected);
+            t.setContentDescription(p.name + ". " + where(p));
+            if (selected) r.setBackground(Ui.outline(pal.accentText, Ui.px(this, 12), Ui.dp(this, 1)));
+            t.setOnClickListener(v -> {
+                selectedPlace = p.id;
+                rebuild();
+            });
+        }
         r.addView(t, weight());
         r.addView(bell(p), wrap());
         return r;

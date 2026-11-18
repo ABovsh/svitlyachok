@@ -2,6 +2,9 @@ package ua.abovsh.svitlo;
 
 import android.content.Context;
 import android.graphics.Matrix;
+import android.graphics.drawable.Drawable;
+import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -17,6 +20,8 @@ final class DayHeader extends ViewGroup {
     private final int gap;
     private final int row;
     private static final float ICON_SCALE = 20f / 24;
+    private Drawable chevron;
+    private boolean markerVisible;
     private boolean split;
     private int firstHeight;
 
@@ -44,6 +49,28 @@ final class DayHeader extends ViewGroup {
         addView(share);
     }
 
+    /** The title opens the list while sharing and the summary keep their own targets. */
+    void openIntervals(Ui.Pal pal, View.OnClickListener click) {
+        chevron = getContext().getDrawable(R.drawable.ic_chevron).mutate();
+        chevron.setTint(pal.accentText);
+        int size = Ui.dp(getContext(), 13);
+        chevron.setBounds(0, 0, size, size);
+        title.setCompoundDrawablePadding(Ui.dp(getContext(), 3));
+        title.setContentDescription(title.getText() + ". Показати інтервали");
+        title.setOnClickListener(click);
+        title.setFocusable(true);
+        title.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View view, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(view, info);
+                info.setClassName(android.widget.Button.class.getName());
+            }
+        });
+    }
+
+    void restoreKeyboardFocus() {
+        title.requestFocus();
+    }
+
     private boolean summaryFits(int room) {
         for (String format : formats) {
             total.setText(format);
@@ -57,9 +84,26 @@ final class DayHeader extends ViewGroup {
         int width = MeasureSpec.getSize(ws);
         if (share != null) share.measure(MeasureSpec.makeMeasureSpec(button, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(row, MeasureSpec.EXACTLY));
-        title.measure(MeasureSpec.makeMeasureSpec(Math.max(1, width - button - gap), MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
-        split = !summaryFits(width - title.getMeasuredWidth() - button - gap);
+        int titleRoom = Math.max(1, width - button - gap);
+        int titleSpec = MeasureSpec.makeMeasureSpec(titleRoom, MeasureSpec.AT_MOST);
+        int textWidth = (int) Math.ceil(title.getPaint().measureText(title.getText().toString()));
+        int titleWidth = Math.min(textWidth, titleRoom);
+        if (chevron == null) {
+            title.measure(titleSpec, MeasureSpec.UNSPECIFIED);
+            titleWidth = title.getMeasuredWidth();
+        }
+        split = !summaryFits(titleRoom - titleWidth);
         if (split) summaryFits(width);
+        if (chevron != null) {
+            int markerWidth = chevron.getBounds().width() + title.getCompoundDrawablePadding();
+            int available = titleRoom - (split ? 0 : total.getMeasuredWidth());
+            boolean show = textWidth + markerWidth <= available;
+            if (show != markerVisible) {
+                markerVisible = show;
+                title.setCompoundDrawablesRelative(null, null, show ? chevron : null, null);
+            }
+        }
+        if (chevron != null) title.measure(titleSpec, MeasureSpec.UNSPECIFIED);
         firstHeight = Math.max(row, Math.max(title.getMeasuredHeight(), split ? 0 : total.getMeasuredHeight()));
         setMeasuredDimension(width, firstHeight + (split ? total.getMeasuredHeight() + Ui.dp(getContext(), 2) : 0));
     }

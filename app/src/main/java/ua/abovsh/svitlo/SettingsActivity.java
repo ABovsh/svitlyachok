@@ -85,13 +85,7 @@ public class SettingsActivity extends Base {
         } else {
             page.addView(orderHeading(list), fill());
         }
-        if (placeOrder != null) {
-            ArrayList<String> ids = placeIds(list);
-            placeOrder.retainAll(ids);
-            for (String id : ids) if (!placeOrder.contains(id)) placeOrder.add(id);
-            list.sort(java.util.Comparator.comparingInt(p -> placeOrder.indexOf(p.id)));
-            if (!placeOrder.contains(selectedPlace)) selectedPlace = null;
-        }
+        if (placeOrder != null) applyOrder(list);
         LinearLayout places = box();
         for (int i = 0; i < list.size(); i++) {
             if (i > 0) places.addView(divider());
@@ -117,6 +111,15 @@ public class SettingsActivity extends Base {
         }
         page.addView(places, fill());
         if (placeOrder != null) page.addView(orderControls(list), gapTop(4));
+    }
+
+    /** While the order is edited, the list follows it; places added or removed meanwhile are taken in. */
+    private void applyOrder(List<Logic.Place> list) {
+        ArrayList<String> ids = placeIds(list);
+        placeOrder.retainAll(ids);
+        for (String id : ids) if (!placeOrder.contains(id)) placeOrder.add(id);
+        list.sort(java.util.Comparator.comparingInt(p -> placeOrder.indexOf(p.id)));
+        if (!placeOrder.contains(selectedPlace)) selectedPlace = null;
     }
 
     private LinearLayout orderHeading(List<Logic.Place> list) {
@@ -383,7 +386,7 @@ public class SettingsActivity extends Base {
         title.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = Ui.text(this, 16, Ui.heavy(this), pal.text);
         name.setText(p.name);
-        title.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        title.addView(name, new LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         TextView queue = Ui.text(this, 12.5f, Ui.heavy(this), pal.accentText);  // as on the place's tile
         queue.setText(Logic.queue(p.group));
         queue.setPadding(Ui.dp(this, 5), Ui.dp(this, 1), Ui.dp(this, 5), Ui.dp(this, 1));

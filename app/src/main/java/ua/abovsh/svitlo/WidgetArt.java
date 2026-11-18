@@ -169,42 +169,23 @@ final class WidgetArt {
         float left = Logic.widgetBulbSegment(Math.round(f.w / s)) * s;
         String[] next = future(m);
 
-        if (m.lit) {
-            b.p.setColor(pal.fill(n.next));
-            b.r2.set(left + 5 * s, pad * .45f, f.w - pad * .45f, f.h - pad * .45f);
-            b.cv.drawRoundRect(b.r2, 12 * s, 12 * s, b.p);
-        }
+        if (m.lit) litBehind(b, n, f, left, pad);
         int lit = onFill(pal, n.next);
         float tx = left + 11 * s;
         float tw = f.w - tx - pad * .8f;
         boolean clock = next[1].contains(":");
         if (!Logic.widgetSmallWords(rowH / s)) {  // too low for words that read: the bulb and the clock alone
-            float bulb = Math.min(rowH * .95f, left * .9f);
-            BulbView.plain(b, n.state, left / 2 + 2.5f * s, f.h / 2, bulb);
-            b.p.setColor(Ui.fade(pal.text, .18f));
-            b.cv.drawRect(left + 3 * s, pad, left + 4 * s, f.h - pad, b.p);
-            Paint only = text(clock ? Ui.display(c) : Ui.heavy(c), rowH * .62f, m.lit ? lit : pal.status(n.next), Paint.Align.CENTER);
-            if (!clock && n.next == Logic.UNKNOWN) only.setColor(unknownValueInk(n, pal));
-            fit(only, next[1], tw);
-            b.cv.drawText(next[1], tx + tw / 2, f.h / 2 - (only.ascent() + only.descent()) / 2, only);
+            bulbAndClock(c, b, m, f, new float[] {left, pad, rowH, tx, tw}, next[1]);
             return;
         }
-        Paint value = text(clock ? Ui.display(c) : Ui.heavy(c), 100, m.lit ? lit : pal.status(n.next), Paint.Align.LEFT);
+        Paint value = valuePaint(c, b.pal, m, clock);
         float[] sized = Logic.widgetRowSizes(rowH, clock ? sizeToFit(value, next[1], tw) : Float.MAX_VALUE);
         value.setTextSize(clock ? sized[2] : sized[0] * 1.2f);
         fit(value, next[1], tw);
-        if (!clock && n.next == Logic.UNKNOWN) value.setColor(unknownValueInk(n, pal));
         String percent = Logic.dayPercent(dayOf(m.tl, 0));
         Paint share = text(Ui.heavy(c), sized[0] * .8f, m.lit ? lit : pal.muted, Paint.Align.RIGHT);
-        float nameRoom = Math.max(1, tw - share.measureText(percent) - 4 * s);
         Paint name = text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT);
-        String place = widgetName(m);
-        if (sizeToFit(name, place, nameRoom) < 9.5f * s) {  // a long name is cut short, never shrunk past reading
-            name.setTextSize(Math.min(sized[0], 9.5f * s));
-            place = android.text.TextUtils.ellipsize(place, new android.text.TextPaint(name), nameRoom, android.text.TextUtils.TruncateAt.END).toString();
-        } else {
-            fit(name, place, nameRoom);
-        }
+        String place = readable(name, widgetName(m), Math.max(1, tw - share.measureText(percent) - 4 * s), 9.5f * s);
         int eventInk = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
         Paint event = fit(text(Ui.heavy(c), sized[1], m.lit ? lit : eventInk, Paint.Align.LEFT), next[0], tw);
         float block = Logic.widgetRowBlock(sized);
@@ -216,23 +197,70 @@ final class WidgetArt {
                 : Logic.widgetEventTop(block, name.getTextSize(), event.getTextSize(), value.getTextSize());
         capLine(b, next[0], tx, y + eventTop, event);
         b.cv.drawText(next[1], tx, y + block, value);
-        float done = Logic.progress(n, now);
-        if (done >= 0 && !m.lit) {  // the line of the interval along the bottom, as on the card
-            float h = 2.2f * s;
-            float cy = f.h - Math.max(pad * .45f, 3.5f * s);
-            float r = f.w - pad * .8f;
-            b.p.setColor(Ui.fade(pal.fill(n.state), .18f));
-            b.r2.set(tx, cy - h / 2, r, cy + h / 2);
-            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
-            float at = tx + (r - tx) * done;
-            b.p.setColor(pal.fill(n.state));
-            b.r2.right = Math.max(tx + h, at);
-            b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
-            b.p.setColor(Ui.Pal.MARKER_EDGE);
-            b.cv.drawCircle(at, cy, h * 1.3f + .8f * s, b.p);
-            b.p.setColor(Ui.Pal.MARKER);
-            b.cv.drawCircle(at, cy, h * 1.3f, b.p);
+        if (!m.lit) smallLine(b, n, now, new float[] {tx, f.w - pad * .8f, f.h - Math.max(pad * .45f, 3.5f * s), s});
+    }
+
+    /** The fill of what comes, behind the right segment, when it comes soon and a reminder is due. */
+    private static void litBehind(Brush b, Logic.Now n, Frame f, float left, float pad) {
+        b.p.setColor(b.pal.fill(n.next));
+        b.r2.set(left + 5 * f.s, pad * .45f, f.w - pad * .45f, f.h - pad * .45f);
+        b.cv.drawRoundRect(b.r2, 12 * f.s, 12 * f.s, b.p);
+    }
+
+    /** What comes next, in the colour of that state, or on its fill when it comes soon. */
+    private static Paint valuePaint(Context c, Ui.Pal pal, Model m, boolean clock) {
+        Logic.Now n = m.now;
+        int ink = m.lit ? onFill(pal, n.next) : pal.status(n.next);
+        if (!clock && n.next == Logic.UNKNOWN) ink = unknownValueInk(n, pal);
+        return text(clock ? Ui.display(c) : Ui.heavy(c), 100, ink, Paint.Align.LEFT);
+    }
+
+    /** A long name is cut short, never shrunk past `least`: below it the words no longer read. */
+    private static String readable(Paint p, String words, float room, float least) {
+        if (sizeToFit(p, words, room) >= least) {
+            fit(p, words, room);
+            return words;
         }
+        p.setTextSize(Math.min(p.getTextSize(), least));
+        return android.text.TextUtils.ellipsize(words, new android.text.TextPaint(p), room, android.text.TextUtils.TruncateAt.END).toString();
+    }
+
+    /** box: segment width, padding, row height, left and width of the text. The bulb, and what comes next as the clock. */
+    private static void bulbAndClock(Context c, Brush b, Model m, Frame f, float[] box, String value) {
+        Logic.Now n = m.now;
+        Ui.Pal pal = b.pal;
+        float left = box[0];
+        float pad = box[1];
+        float rowH = box[2];
+        float half = f.h / 2f;
+        BulbView.plain(b, n.state, left / 2 + 2.5f * f.s, half, Math.min(rowH * .95f, left * .9f));
+        b.p.setColor(Ui.fade(pal.text, .18f));
+        b.cv.drawRect(left + 3 * f.s, pad, left + 4 * f.s, f.h - pad, b.p);
+        boolean clock = value.contains(":");
+        int ink = m.lit ? onFill(pal, n.next) : pal.status(n.next);
+        if (!clock && n.next == Logic.UNKNOWN) ink = unknownValueInk(n, pal);
+        Paint only = fit(text(clock ? Ui.display(c) : Ui.heavy(c), rowH * .62f, ink, Paint.Align.CENTER), value, box[4]);
+        b.cv.drawText(value, box[3] + box[4] / 2, half - (only.ascent() + only.descent()) / 2, only);
+    }
+
+    /** line: left, right, centre and scale. How much of the state now on has gone, along the bottom, as on the card. */
+    private static void smallLine(Brush b, Logic.Now n, long now, float[] line) {
+        float done = Logic.progress(n, now);
+        if (done < 0) return;
+        float s = line[3];
+        float h = 2.2f * s;
+        float cy = line[2];
+        b.p.setColor(Ui.fade(b.pal.fill(n.state), .18f));
+        b.r2.set(line[0], cy - h / 2, line[1], cy + h / 2);
+        b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+        float at = line[0] + (line[1] - line[0]) * done;
+        b.p.setColor(b.pal.fill(n.state));
+        b.r2.right = Math.max(line[0] + h, at);
+        b.cv.drawRoundRect(b.r2, h / 2, h / 2, b.p);
+        b.p.setColor(Ui.Pal.MARKER_EDGE);
+        b.cv.drawCircle(at, cy, h * 1.3f + .8f * s, b.p);
+        b.p.setColor(Ui.Pal.MARKER);
+        b.cv.drawCircle(at, cy, h * 1.3f, b.p);
     }
 
     private static int unknownValueInk(Logic.Now n, Ui.Pal pal) {

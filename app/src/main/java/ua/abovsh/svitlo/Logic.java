@@ -1102,8 +1102,9 @@ public final class Logic {
         String off = list(day, false);
         String maybe = list(day, true);
         boolean incomplete = day.indexOf('2') >= 0;
-        String summary = off.isEmpty() ? (incomplete ? "графік неповний" : NO_OUTAGES) : NO_POWER + off;
-        if (incomplete && !off.isEmpty()) summary += ". Графік неповний";
+        String summary;
+        if (!off.isEmpty()) summary = NO_POWER + off + (incomplete ? ". Графік неповний" : "");
+        else summary = incomplete ? "графік неповний" : NO_OUTAGES;
         return title + ": " + summary + (maybe.isEmpty() ? "" : "; можливе вимкнення " + maybe);
     }
 

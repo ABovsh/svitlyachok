@@ -125,7 +125,7 @@ final class AlertsSheet {
         what.setText(Logic.alertSheetDetail(next));
         what.setPadding(0, Ui.dp(a, 2), 0, 0);
         box.addView(what, Base.fill());
-        row.addView(box, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(box, new LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         return row;
     }
 

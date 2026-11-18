@@ -391,8 +391,9 @@ public class MainActivity extends Base {
         AdaptiveGrid row = new AdaptiveGrid(this, 2, 6);
         Logic.Alerts wanted = Prefs.alerts(this, p.id);
         long now = Sync.now();
+        int bellInk = pal.dark ? pal.accent : 0xFF5A4210;
         android.graphics.drawable.Drawable bell = wanted.any()
-                ? Ui.toned(this, R.drawable.ic_bell, pal.dark ? pal.accent : 0xFF5A4210, Ui.blend(pal.card, Ui.fade(pal.accent, .35f)), 32, 17)
+                ? Ui.toned(this, R.drawable.ic_bell, bellInk, Ui.blend(pal.card, Ui.fade(pal.accent, .35f)), 32, 17)
                 : Ui.toned(this, R.drawable.ic_bell_off, pal.quiet, pal.raised, 32, 17);
         TextView alerts = action(Logic.alertsLabel(wanted), alertsAnswer(p, wanted, now), bell, v -> AlertsSheet.show(this, p, this::render));
         if (!wanted.any()) alerts.setTextColor(pal.quiet);
@@ -490,6 +491,20 @@ public class MainActivity extends Base {
         return card;
     }
 
+    /** The name of a published day opens its intervals; closing them gives the focus back to the name. */
+    private void intervals(DayHeader head, Logic.Place p, LocalDate date, String slots) {
+        head.setTag(date);
+        head.openIntervals(pal, trigger -> {
+            tips.hide();
+            boolean keyboard = trigger.isFocused();
+            DayIntervals.show(this, p, date, slots, () -> body.post(() -> {
+                // The visible header may have been rebuilt by a sync while the panel was open.
+                DayHeader visible = body.findViewWithTag(date);
+                if (keyboard && visible != null) visible.restoreKeyboardFocus();
+            }));
+        });
+    }
+
     /** One section: the day and how much light it has, its bar, the times of its changes. */
     private void day(LinearLayout card, Logic.Place p, LocalDate date, String title, String slots, int cur, float nowRel) {
         boolean tomorrow = cur < 0;
@@ -501,20 +516,8 @@ public class MainActivity extends Base {
         }
         DayHeader head = new DayHeader(this, pal, title, slots != null ? Logic.daySummaries(slots)
                 : java.util.Collections.singletonList(noSchedule), slots != null ? pal.onText : pal.muted, share);
-        if (slots == null) {
-            head.setContentDescription(Logic.describe(title, null));
-        } else {
-            head.setTag(date);
-            head.openIntervals(pal, trigger -> {
-                tips.hide();
-                boolean keyboard = trigger.isFocused();
-                DayIntervals.show(this, p, date, slots, () -> body.post(() -> {
-                    // The visible header may have been rebuilt by a sync while the panel was open.
-                    DayHeader visible = body.findViewWithTag(date);
-                    if (keyboard && visible != null) visible.restoreKeyboardFocus();
-                }));
-            });
-        }
+        if (slots == null) head.setContentDescription(Logic.describe(title, null));
+        else intervals(head, p, date, slots);
         android.widget.FrameLayout section = new android.widget.FrameLayout(this);
         LinearLayout inner = Ui.column(this);
         inner.addView(head, fill());

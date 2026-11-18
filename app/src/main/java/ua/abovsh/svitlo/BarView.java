@@ -40,7 +40,7 @@ final class BarView extends View {
         int hour = Math.min(23, (int) (slot / 2));
         float gap = columnGap(getHeight());
         float cell = (getWidth() - gap * 11) / 12;
-        return hour % 12 * (cell + gap) + cell / 2;
+        return (float) (hour % 12) * (cell + gap) + cell / 2;
     }
 
     void choose(int from, int to) { chosenFrom = from; chosenTo = to; invalidate(); }
@@ -152,9 +152,15 @@ final class BarView extends View {
             this.bounds = bounds; this.first = first; this.cellW = cellW; this.cellH = cellH; this.gap = gap; this.rowGap = rowGap;
         }
 
-        float x(int hour) { return bounds.left + (hour - first) % 12 * (cellW + gap); }
+        float x(int hour) {
+            int column = (hour - first) % 12;
+            return bounds.left + (float) column * (cellW + gap);
+        }
 
-        float top(int hour) { return bounds.top + (float) ((hour - first) / 12) * (cellH + rowGap); }
+        float top(int hour) {
+            int row = (hour - first) / 12;
+            return bounds.top + (float) row * (cellH + rowGap);
+        }
 
         void cell(int hour, RectF out) { out.set(x(hour), top(hour), x(hour) + cellW, top(hour) + cellH); }
     }
@@ -184,16 +190,20 @@ final class BarView extends View {
             b.p.setColor(Ui.fade(0xFF172428, PAST_VEIL));
             b.cv.drawRect(box, b.p);
         }
-        if (range.from >= 0) {
-            for (int slot = run[0]; slot < run[1]; slot++) {
-                if (slot >= range.from && slot < range.to) continue;
-                float x = g.x(slot / 2) + (slot % 2) * g.cellW / 2;
-                float x1 = slot % 2 == 1 && slot + 1 < run[1] ? x + g.cellW / 2 + g.gap : x + g.cellW / 2;
-                b.p.setColor(Ui.fade(b.pal.card, ASIDE_VEIL));
-                b.cv.drawRect(x, box.top, x1, box.bottom, b.p);
-            }
-        }
+        if (range.from >= 0) aside(b, range, g, run, box);
         b.cv.restore();
+    }
+
+    /** The halves of a run outside the chosen one fade, so its exact start and end read at once. */
+    private static void aside(Brush b, Range range, Geometry g, int[] run, RectF box) {
+        b.p.setColor(Ui.fade(b.pal.card, ASIDE_VEIL));
+        for (int slot = run[0]; slot < run[1]; slot++) {
+            if (slot >= range.from && slot < range.to) continue;
+            boolean second = slot % 2 == 1;
+            float x = g.x(slot / 2) + (second ? g.cellW / 2 : 0);
+            float x1 = x + g.cellW / 2 + (second && slot + 1 < run[1] ? g.gap : 0);  // and the gap a joined run spans
+            b.cv.drawRect(x, box.top, x1, box.bottom, b.p);
+        }
     }
 
     /** Inside a run the hours stay countable: a hairline where one ends, a notch at each half hour. */

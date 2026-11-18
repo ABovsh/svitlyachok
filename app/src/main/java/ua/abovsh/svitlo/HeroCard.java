@@ -340,7 +340,8 @@ final class HeroCard extends ViewGroup {
         Context c = getContext();
         float y = getHeight() - Ui.px(c, 5.5f);
         float h = Ui.px(c, 4);
-        track.set(getPaddingLeft(), y - h / 2, getWidth() - getPaddingRight(), y + h / 2);
+        float right = (float) getWidth() - getPaddingRight();
+        track.set((float) getPaddingLeft(), y - h / 2, right, y + h / 2);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(Ui.fade(pal.fill(last.state), .18f));
         canvas.drawRoundRect(track, h / 2, h / 2, fill);
@@ -350,7 +351,7 @@ final class HeroCard extends ViewGroup {
         canvas.drawRoundRect(track, h / 2, h / 2, fill);
         if (last.next != Logic.UNKNOWN) {
             fill.setColor(pal.fill(last.next));
-            canvas.drawCircle(getWidth() - getPaddingRight() - h / 2, y, h, fill);
+            canvas.drawCircle(right - h / 2, y, h, fill);
         }
         float knob = Ui.px(c, 4.5f);
         fill.setColor(Ui.Pal.MARKER_EDGE);

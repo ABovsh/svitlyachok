@@ -2567,4 +2567,31 @@ public class LogicTest {
         assertEquals("Сьогодні · 12–23", Logic.widgetHalfTitle(false, 12));
         assertEquals(Logic.widgetDayTitle(true, true), Logic.widgetHalfTitle(true, 0));
     }
+
+    @Test
+    public void noProgressForAnImpossibleInterval() {
+        Logic.Now n = new Logic.Now();
+        n.state = Logic.ON; n.started = 200; n.change = 100;
+        assertEquals(-1f, Logic.progress(n, 150), 0f);
+        n.change = 0;
+        assertEquals(-1f, Logic.progress(n, 150), 0f);
+        n.change = 400; n.started = 0;
+        assertEquals(-1f, Logic.progress(n, 150), 0f);
+        n.started = 200;
+        assertEquals(1f, Logic.progress(n, 900), 0f);  // past the change, before the next refresh: the line is full
+    }
+
+    @Test
+    public void gridRunsPastTheDataAreUnknown() {
+        List<int[]> runs = Logic.gridRuns("1111", -1, 0, 12);
+        assertEquals(2, runs.size());
+        assertEquals(4, runs.get(1)[0]);
+        assertEquals(24, runs.get(1)[1]);
+    }
+
+    @Test
+    public void anIncompleteDayWithOutagesSaysBoth() {
+        assertEquals("Сьогодні: без світла 06:00 – 08:00. Графік неповний",
+                Logic.describe("Сьогодні", "111111111111000011111111" + repeat('2', 24)));
+    }
 }

@@ -337,12 +337,17 @@ final class Ui {
             float w = step * .62f;
             for (int i = 0; i < 7; i++) {
                 float share = i < shares.length ? shares[i] : -1;
-                float h = share < 0 ? w : Math.max(w, r.height() * share);
+                float h = share < 0 ? w : Math.max(w, (float) r.height() * share);
                 float x = r.left + i * step + (step - w) / 2;
                 bar.set(x, r.bottom - h, x + w, r.bottom);
-                paint.setColor(share < 0 ? pal.quiet : share >= .5f ? pal.on : pal.off);
+                paint.setColor(colour(share));
                 cv.drawRoundRect(bar, w / 2, w / 2, paint);
             }
+        }
+
+        private int colour(float share) {
+            if (share < 0) return pal.quiet;
+            return share >= .5f ? pal.on : pal.off;
         }
 
         @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }

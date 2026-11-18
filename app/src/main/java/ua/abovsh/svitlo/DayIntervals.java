@@ -17,7 +17,9 @@ final class DayIntervals {
         long now = Sync.now();
         LocalDate today = Logic.today(now);
         int current = date.equals(today) ? Logic.index(date, now) : -1;
-        String name = current >= 0 ? "Сьогодні" : date.equals(today.plusDays(1)) ? "Завтра" : "";
+        String name = "";
+        if (current >= 0) name = "Сьогодні";
+        else if (date.equals(today.plusDays(1))) name = "Завтра";
         String fullDate = date.getDayOfMonth() + " " + Ui.MONTHS[date.getMonthValue() - 1];
 
         LinearLayout header = Ui.row(page);
@@ -33,7 +35,8 @@ final class DayIntervals {
         TextView where = page.note(place.name + " · " + Base.where(place));
         content.addView(where, page.gap(10));
         LinearLayout intervals = page.box();
-        for (int from = 0; from < day.length();) {
+        int from = 0;
+        while (from < day.length()) {
             int to = Logic.barRun(day, from)[1];
             int state = Logic.state(day.charAt(from));
             if (from > 0) intervals.addView(page.divider());

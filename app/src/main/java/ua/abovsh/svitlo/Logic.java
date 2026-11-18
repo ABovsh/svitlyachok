@@ -2343,7 +2343,7 @@ public final class Logic {
     /** The last line of the main screen; `latest` is null until the release was checked. */
     public static String versionLine(String current, String latest) {
         String line = "Версія " + current;
-        return latest != null && newer(latest, current) ? line + " · є нова " + latest + ", оновити ›" : line + " · що нового ›";
+        return latest != null && newer(latest, current) ? line + " · є нова " + latest + ", завантажити ›" : line + " · що нового ›";
     }
 
     static boolean statKnown(DayStat d) {

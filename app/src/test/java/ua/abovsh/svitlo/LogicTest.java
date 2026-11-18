@@ -2422,7 +2422,7 @@ public class LogicTest {
     @Test public void versionLineAtTheBottom() {
         assertEquals("Версія 1.9.0 · що нового ›", Logic.versionLine("1.9.0", null));
         assertEquals("Версія 1.9.0 · що нового ›", Logic.versionLine("1.9.0", "1.9.0"));
-        assertEquals("Версія 1.8.0 · є нова 1.9.0, оновити ›", Logic.versionLine("1.8.0", "1.9.0"));
+        assertEquals("Версія 1.8.0 · є нова 1.9.0, завантажити ›", Logic.versionLine("1.8.0", "1.9.0"));
         assertEquals("Версія 1.9.0-rc.2 · що нового ›", Logic.versionLine("1.9.0-rc.2", null));
         assertTrue(Logic.CHANGELOG.startsWith(Logic.REPO));  // Updates.open opens nothing else
         assertEquals("https://github.com/ABovsh/svitlyachok/blob/main/CHANGELOG.md", Logic.CHANGELOG);

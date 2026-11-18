@@ -49,6 +49,9 @@ public class MainActivity extends Base {
             return;
         }
         page.addView(header());
+        // the APK an older version downloaded: also when the update came without MY_PACKAGE_REPLACED
+        // reaching the app (it was force-stopped), the first opening removes it
+        Updates.forgetDownload(this);
         body = Ui.column(this);
         page.addView(body, fill());
         pullToRefresh();

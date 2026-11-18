@@ -35,6 +35,7 @@ final class HeroCard extends ViewGroup {
     private final android.graphics.Rect glyph = new android.graphics.Rect();
     private final RectF futureBounds = new RectF();
     private final RectF track = new RectF();
+    private final int[] ends = new int[4];  // where the words end on the left and start on the right: titles, clocks
     private final android.graphics.Path arrow = new android.graphics.Path();
     private boolean horizontal;
     private int leftRoom;
@@ -243,11 +244,11 @@ final class HeroCard extends ViewGroup {
     private void measureWords(int inner) {
         int titleRoom = Math.max(1, leftRoom - Ui.dp(getContext(), 30));
         measureText(label, inner, false);
-        measureText(currentTitle, titleRoom, horizontal); measureText(futureTitle, rightRoom, horizontal);
+        measureText(currentTitle, titleRoom, false); measureText(futureTitle, rightRoom, false);
         measureText(currentSide, leftRoom, true);
         measureText(currentClock, Math.max(1, leftRoom - (int) Math.ceil(sideWidth(currentSide))), currentClock.getText().toString().contains(":"));
         measureText(futureClock, rightRoom, futureClock.getText().toString().contains(":"));
-        measureText(elapsed, leftRoom, horizontal); measureText(remaining, rightRoom, horizontal);
+        measureText(elapsed, leftRoom, false); measureText(remaining, rightRoom, false);
     }
 
     /** A text whose first baseline is at `baseline`. */
@@ -257,25 +258,38 @@ final class HeroCard extends ViewGroup {
         text.layout(x, top, x + text.getMeasuredWidth(), top + text.getMeasuredHeight());
     }
 
-    /** One panel from its row of titles: `row` is the index of that row in the baselines; `column` its width when centred. */
+    /** The width the words of a one-line text take, never more than its view: what centring goes by. */
+    private int inked(TextView t) {
+        if (t.getVisibility() == GONE) return 0;
+        return Math.min(t.getMeasuredWidth(), (int) Math.ceil(width(t, t.getTextSize())) + 1);
+    }
+
+    /**
+     * One panel from its row of titles: `row` is the index of that row in the baselines; `column` its width
+     * when its states stand centred. The views keep the width they were measured with (no new line ever
+     * appears); only where they start moves, by the width of their words.
+     */
     private void panel(boolean future, int x, int row, int column) {
         TextView title = future ? futureTitle : currentTitle;
         TextView clock = future ? futureClock : currentClock;
         int icon = future ? 0 : Ui.dp(getContext(), 30);
-        int titleX = x + icon + (column > 0 ? (column - icon - title.getMeasuredWidth()) / 2 : 0);
+        int titleX = x + icon + (column > 0 ? Math.max(0, (column - icon - inked(title)) / 2) : 0);
         place(title, titleX, baselines[row]);
+        ends[future ? 1 : 0] = future ? titleX : titleX + inked(title);
         if (!future) {
             Paint.FontMetrics fm = titleMetrics; currentTitle.getPaint().getFontMetrics(fm);
             int top = Math.round(baselines[row] + (fm.ascent + fm.descent) / 2 - bulb.getMeasuredHeight() / 2f);
             int bx = titleX - icon;
             bulb.layout(bx, top, bx + bulb.getMeasuredWidth(), top + bulb.getMeasuredHeight());
         }
-        int side = !future && currentSide.getVisibility() != GONE ? currentSide.getMeasuredWidth() + Ui.dp(getContext(), 6) : 0;
-        int clockX = x + (column > 0 ? (column - clock.getMeasuredWidth() - side) / 2 : 0);
+        int side = !future && currentSide.getVisibility() != GONE ? inked(currentSide) + Ui.dp(getContext(), 6) : 0;
+        int clockW = inked(clock);
+        int clockX = x + (column > 0 ? Math.max(0, (column - clockW - side) / 2) : 0);
         place(clock, clockX, baselines[row + 1]);
-        if (!future) place(currentSide, clockX + clock.getMeasuredWidth() + Ui.dp(getContext(), 6), baselines[row + 1]);
-        TextView detail = future ? remaining : elapsed;
-        place(detail, x + (column > 0 ? (column - detail.getMeasuredWidth()) / 2 : 0), baselines[row + 2]);
+        ends[future ? 3 : 2] = future ? clockX : clockX + clockW + side;
+        if (!future) place(currentSide, clockX + clockW + Ui.dp(getContext(), 6), baselines[row + 1]);
+        TextView detail = future ? remaining : elapsed;  // its lines are centred within its own width
+        place(detail, x + (column > 0 ? Math.max(0, (column - detail.getMeasuredWidth()) / 2) : 0), baselines[row + 2]);
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -303,9 +317,18 @@ final class HeroCard extends ViewGroup {
         } else if (horizontal) {
             fill.setColor(Ui.fade(pal.text, .16f));
             canvas.drawRect(futureBounds.left, futureBounds.top, futureBounds.left + Ui.px(getContext(), 1), futureBounds.bottom, fill);
-            arrow(canvas, futureBounds.left + Ui.px(getContext(), .5f), baselines[2] - cap(currentClock) / 2f);
+            float row = arrowRow(futureBounds.left);
+            if (row >= 0) arrow(canvas, futureBounds.left + Ui.px(getContext(), .5f), row);
         }
         progress(canvas);
+    }
+
+    /** Between the clocks if they leave room for the mark, else between the names of the states; -1: nowhere. */
+    private float arrowRow(float divider) {
+        float room = Ui.px(getContext(), 13);
+        if (ends[2] <= divider - room && ends[3] >= divider + room) return baselines[2] - cap(currentClock) / 2f;
+        if (ends[0] <= divider - room && ends[1] >= divider + room) return baselines[1] - cap(currentTitle) / 2f;
+        return -1;
     }
 
     /** "now, then": a quiet round mark on the line between the halves, in the colour of what comes. */

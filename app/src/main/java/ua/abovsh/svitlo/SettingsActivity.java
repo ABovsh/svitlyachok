@@ -386,7 +386,11 @@ public class SettingsActivity extends Base {
         title.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = Ui.text(this, 16, Ui.heavy(this), pal.text);
         name.setText(p.name);
-        title.addView(name, new LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        // the queue stands right after the name, as on the tile; a long name gives way, not the chip
+        name.setMaxWidth(Ui.dp(this, Math.max(80, getResources().getConfiguration().screenWidthDp - 250)));
+        title.addView(name, wrap());
         TextView queue = Ui.text(this, 12.5f, Ui.heavy(this), pal.accentText);  // as on the place's tile
         queue.setText(Logic.queue(p.group));
         queue.setPadding(Ui.dp(this, 5), Ui.dp(this, 1), Ui.dp(this, 5), Ui.dp(this, 1));

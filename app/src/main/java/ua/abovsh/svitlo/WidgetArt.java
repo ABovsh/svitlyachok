@@ -453,7 +453,8 @@ final class WidgetArt {
             // the line of the interval: in the free third row on the left, else a little room under the clocks
             float line = done >= 0 ? Math.max(2.4f * s, Math.min(4 * s, room * .045f)) : 0;
             boolean underClocks = line > 0 && (third == 0 || leftSpare > 0);
-            float used = first + tall + third + (underClocks ? line + 3 * s : 0);
+            float knob = line * 1.15f + .8f * s;  // the mark of now: under the clock it needs its whole height free
+            float used = first + tall + third + (underClocks ? 2 * knob + 2 * s : 0);
             if (used > room) {  // never past the box: everything shrinks alike
                 float k = room / used;
                 for (Paint p : new Paint[] {title, label, left, right, small, smallRight}) p.setTextSize(p.getTextSize() * k);
@@ -479,7 +480,7 @@ final class WidgetArt {
             clocks(baseline, rightX);
             if (third > 0) details(y + tall + gap, rightX);
             if (line > 0) {
-                float cy = underClocks ? baseline + left.descent() * .4f + line / 2 + 2 * s : y + tall + gap + third / 2;
+                float cy = underClocks ? baseline + knob + 1.5f * s : y + tall + gap + third / 2;
                 progress(cy, line);
             }
             if (lit) return;

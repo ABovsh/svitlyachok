@@ -666,24 +666,38 @@ public final class Logic {
         return out.substring(0, cut > 0 ? cut : NOTICE_MAX) + "…";
     }
 
-    private static final java.util.regex.Pattern EMERGENCY_OUTAGES =
-            java.util.regex.Pattern.compile("(екстрен|аварійн)\\p{L}*\\s+(відключен|вимкнен|знеструмлен)", java.util.regex.Pattern.CANON_EQ);
+    // Plain word checks, no regular expressions: Android's Pattern refuses CANON_EQ, which these would need.
+    private static final List<String> EMERGENCY = Arrays.asList("екстрен", "аварійн");
+    private static final List<String> OUTAGE = Arrays.asList("відключен", "вимкнен", "знеструмлен");
     /** Words that make a sentence about emergency outages say they are not on now. */
     private static final List<String> NOT_ON = Arrays.asList("уникн", "запобіг", "не допуст", "скасов", "відмін", "припин",
             "завершен", "можуть", "може бути", "можлив", "ймовірн", "загроз", "у разі", "в разі");
-    private static final java.util.regex.Pattern NOT_APPLIED = java.util.regex.Pattern.compile(
-            "\\bне\\s+(діють|діє|застосов|запровадж|введ|вводит)", java.util.regex.Pattern.CANON_EQ);
+    /** "не діють", "не застосовуються": after "не" these say the outages are not applied. */
+    private static final List<String> APPLIED = Arrays.asList("діють", "діє", "застосов", "запровадж", "введ", "вводит");
 
-    private static boolean saysNotOn(String sentence) {
-        for (String word : NOT_ON) if (sentence.contains(word)) return true;
-        return NOT_APPLIED.matcher(sentence).find();
+    private static boolean startsWithAny(String word, List<String> stems) {
+        for (String stem : stems) if (word.startsWith(stem)) return true;
+        return false;
+    }
+
+    /** One sentence, lower case: "екстрені відключення" stands in it, and nothing says they are off. */
+    static boolean emergencyOn(String sentence) {
+        String[] words = sentence.split("[^\\p{L}'-]+");
+        boolean named = false;
+        for (int i = 0; i + 1 < words.length; i++) {
+            if (startsWithAny(words[i], EMERGENCY) && startsWithAny(words[i + 1], OUTAGE)) named = true;
+            if (words[i].equals("не") && startsWithAny(words[i + 1], APPLIED)) return false;
+        }
+        if (!named) return false;
+        for (String word : NOT_ON) if (sentence.contains(word)) return false;
+        return true;
     }
 
     /** Emergency only when a sentence says emergency outages are on, never for "to avoid emergency outages". */
     public static int noticeLevel(String text) {
         if (text == null || text.isEmpty()) return NOTICE_NONE;
         for (String sentence : text.toLowerCase(Locale.ROOT).replace('ʼ', '\'').split("[.!?;\n]+")) {
-            if (EMERGENCY_OUTAGES.matcher(sentence).find() && !saysNotOn(sentence)) return NOTICE_EMERGENCY;
+            if (emergencyOn(sentence)) return NOTICE_EMERGENCY;
         }
         return NOTICE_CALM;
     }

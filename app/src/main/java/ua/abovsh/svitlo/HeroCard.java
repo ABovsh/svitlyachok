@@ -192,7 +192,8 @@ final class HeroCard extends ViewGroup {
         int clockStep = Math.round(Ui.compactSp(c, 13.5f, 1.1f));
         int detailStep = Math.round(Ui.compactSp(c, 9.5f, 1.1f));
         int[] gaps = horizontal ? wideGaps : narrowGaps;
-        gaps[0] = Math.round(Ui.compactSp(c, 3.5f, 1.1f));
+        // above the name only a little air, but never less than its own line keeps over its capitals
+        gaps[0] = Math.max(Math.round(Ui.compactSp(c, 3.5f, 1.1f)), label.getBaseline() - cap(label));
         for (int i = 1; i < gaps.length - 1; i++) {
             int step = i % 3;
             if (step == 1) gaps[i] = gap;

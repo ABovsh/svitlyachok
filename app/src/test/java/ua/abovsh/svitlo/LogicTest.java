@@ -2663,6 +2663,8 @@ public class LogicTest {
             }
         }
         assertEquals(0f, Logic.paneArrow(1f, 30)[1], 0f);  // too low a widget: no arrow at all
+        // the panes of an ordinary large widget (about 50 dp high) keep their arrow
+        assertTrue(Logic.paneArrow(2.625f, 50 * 2.625f)[1] >= 6 * 2.625f);
     }
 
     @Test public void theSharedOutagesStandThreeARowWhileTheyFit() {

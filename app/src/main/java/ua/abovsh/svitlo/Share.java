@@ -169,17 +169,16 @@ final class Share {
             float headW = Math.max(head.measureText(words[0]), head.measureText(words[1]));
             float x0 = left + pad + 3 * S + headW + gap + 2 * S;
             float room = right - pad - x0;
+            // three a row: the words get a little smaller first, then a row takes fewer
             float size = 12.5f;
             Paint chip = text(Ui.heavy(c), size, pal.ink);
-            float widest = 0;
-            for (Logic.Outage o : list) widest = Math.max(widest, chip.measureText(Logic.shareChip(o)));
-            int columns = Logic.trayColumns(widest + 12 * S, room, gap, 3);
-            while (size > 10 && (widest + 8 * S) * columns + gap * (columns - 1) > room) {
+            float widest = widest(list, chip);
+            while (size > 10.5f && Logic.trayColumns(widest + 8 * S, room, gap, 3) < 3) {
                 size -= .5f;
                 chip = text(Ui.heavy(c), size, pal.ink);
-                widest = 0;
-                for (Logic.Outage o : list) widest = Math.max(widest, chip.measureText(Logic.shareChip(o)));
+                widest = widest(list, chip);
             }
+            int columns = Logic.trayColumns(widest + 8 * S, room, gap, 3);
             float cw = (room - gap * (columns - 1)) / columns;
             float ch = (size + 13) * S;
             int rows = (list.size() + columns - 1) / columns;
@@ -215,6 +214,12 @@ final class Share {
                 b.cv.drawText(Logic.shareChip(o), x + cw / 2, y + ch / 2 + chip.getTextSize() * .36f, chip);
             }
             return bottom;
+        }
+
+        private static float widest(List<Logic.Outage> list, Paint chip) {
+            float widest = 0;
+            for (Logic.Outage o : list) widest = Math.max(widest, chip.measureText(Logic.shareChip(o)));
+            return widest;
         }
 
         /** Light words on red and on the veiled past, dark ones on the amber of a possible outage. */

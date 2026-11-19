@@ -48,6 +48,7 @@ final class DayIntervals {
         dialog.setCanceledOnTouchOutside(true);
         close.setOnClickListener(v -> dialog.dismiss());
         panel.tick();
+        panel.reveal();
     }
 
     /** The rows of one open panel and the clock that keeps its mark of now true. */
@@ -62,6 +63,7 @@ final class DayIntervals {
         private long change = -1;
         private int end = -1;
         private TextView left;
+        private View runningRow;
         private boolean stopped;
 
         Panel(Base page, LocalDate date, String day, TextView title, LinearLayout intervals) {
@@ -78,7 +80,7 @@ final class DayIntervals {
             String fullDate = date.getDayOfMonth() + " " + Ui.MONTHS[date.getMonthValue() - 1];
             title.setText(name.isEmpty() ? fullDate : name + ", " + fullDate);
             intervals.removeAllViews();
-            left = null; end = -1;
+            left = null; end = -1; runningRow = null;
             int from = 0;
             while (from < day.length()) {
                 int to = Logic.barRun(day, from)[1];
@@ -100,9 +102,16 @@ final class DayIntervals {
             if (left != null && end > 0) {
                 String words = Logic.intervalLeft(Logic.slotStart(date, end), now);
                 left.setText("Зараз · " + words);
-                ((View) left.getParent()).setContentDescription(describe((View) left.getParent()) + words);
+                runningRow.setContentDescription(describe(runningRow) + words);
             }
             clock.postDelayed(next, Logic.toNextMinute(System.currentTimeMillis()) + 200);
+        }
+
+        /** A long day opens where it is now: the interval going on in sight, with the one before it. */
+        void reveal() {
+            if (runningRow == null || !(intervals.getParent() instanceof View column)
+                    || !(column.getParent() instanceof android.widget.ScrollView scroll)) return;
+            scroll.post(() -> scroll.scrollTo(0, Math.max(0, intervals.getTop() + runningRow.getTop() - Ui.dp(page, 64))));
         }
 
         void stop() {
@@ -144,29 +153,31 @@ final class DayIntervals {
             FlowRow words = new FlowRow(page, Ui.dp(page, 8), Ui.dp(page, 2));
             TextView range = Ui.text(page, 15.5f, Ui.heavy(page), pal.text);
             range.setText(time);
+            range.setSingleLine(true);  // a time never breaks at its dash
             words.addView(range);
             TextView label = Ui.text(page, 14, Ui.heavy(page), pal.status(state));
             label.setText(status);
             words.addView(label);
             line.addView(words, Base.weight());
 
-            TextView aside;
             String spoken = time + ". " + status + ". ";
-            if (running) {
-                aside = Ui.text(page, 12, Ui.heavy(page), pal.accentInk);
-                aside.setText("Зараз · " + Logic.intervalLeft(Logic.slotStart(date, to), now));
-                aside.setBackground(Ui.round(Ui.Pal.MARKER, Ui.px(page, 7)));
-                aside.setPadding(Ui.dp(page, 7), Ui.dp(page, 2), Ui.dp(page, 7), Ui.dp(page, 2));
+            if (running) {  // among the words: with large text it goes to a line of its own, the time stays whole
+                TextView mark = Ui.text(page, 12, Ui.heavy(page), pal.accentInk);
+                mark.setText("Зараз · " + Logic.intervalLeft(Logic.slotStart(date, to), now));
+                mark.setBackground(Ui.round(Ui.Pal.MARKER, Ui.px(page, 7)));
+                mark.setPadding(Ui.dp(page, 7), Ui.dp(page, 2), Ui.dp(page, 7), Ui.dp(page, 2));
+                words.addView(mark);
                 spoken += "Зараз, ";
-                left = aside;
+                left = mark;
+                runningRow = line;
             } else {
-                aside = Ui.text(page, 13, Ui.bold(page), pal.muted);
+                TextView aside = Ui.text(page, 13, Ui.bold(page), pal.muted);
                 aside.setText(Logic.length(to - from));
                 spoken += Logic.length(to - from) + (past ? ". Минуло" : "");
+                LinearLayout.LayoutParams ap = Base.wrap();
+                ap.leftMargin = Ui.dp(page, 6);
+                line.addView(aside, ap);
             }
-            LinearLayout.LayoutParams ap = Base.wrap();
-            ap.leftMargin = Ui.dp(page, 6);
-            line.addView(aside, ap);
 
             line.setTag(running ? spoken : null);
             line.setContentDescription(running ? spoken + Logic.intervalLeft(Logic.slotStart(date, to), now) : spoken);

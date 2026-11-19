@@ -2215,7 +2215,7 @@ public final class Logic {
      * low for a readable arrow gets none and gives up nothing.
      */
     public static float[] paneArrow(float s, float room) {
-        float r = Math.min(10 * s, room * .1f);
+        float r = Math.min(10 * s, room * .16f);
         if (r < 6 * s) return new float[] {0, 0};
         return new float[] {r - 2 * s + s, r};  // a little air (s) beyond the circle
     }

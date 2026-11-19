@@ -382,21 +382,17 @@ public class SettingsActivity extends Base {
         r.setClipChildren(false);
         LinearLayout t = Ui.column(this);
         t.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
-        LinearLayout title = Ui.row(this);
-        title.setGravity(Gravity.CENTER_VERTICAL);
+        // the queue stands right after the name, as on the tile; a long name wraps whole and the queue
+        // goes to the next line rather than shrink to nothing
+        FlowRow title = new FlowRow(this, Ui.dp(this, 6), Ui.dp(this, 2));
         TextView name = Ui.text(this, 16, Ui.heavy(this), pal.text);
         name.setText(p.name);
-        // the queue stands right after the name, as on the tile; a long name wraps whole, never cut short
-        name.setMaxWidth(Ui.dp(this, Math.max(80, getResources().getConfiguration().screenWidthDp - 250)));
-        title.addView(name, wrap());
+        title.addView(name);
         TextView queue = Ui.text(this, 12.5f, Ui.heavy(this), pal.accentText);  // as on the place's tile
         queue.setText(Logic.queue(p.group));
         queue.setPadding(Ui.dp(this, 5), Ui.dp(this, 1), Ui.dp(this, 5), Ui.dp(this, 1));
         queue.setBackground(Ui.round(Ui.blend(pal.card, Ui.fade(pal.accent, .18f)), Ui.px(this, 6)));
-        LinearLayout.LayoutParams ql = wrap();
-        ql.leftMargin = Ui.dp(this, 6);
-        ql.rightMargin = Ui.dp(this, 6);
-        title.addView(queue, ql);
+        title.addView(queue);
         t.addView(title, fill());
         TextView w = Ui.text(this, 13, Ui.body(this), pal.muted);
         Logic.Region region = Logic.region(p.region);

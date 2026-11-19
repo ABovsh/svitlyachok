@@ -196,7 +196,7 @@ final class Share {
             for (int i = 0; i < list.size(); i++) {
                 Logic.Outage o = list.get(i);
                 float x = x0 + (i % columns) * (cw + gap);
-                float y = top + pad + (i / columns) * (ch + gap);
+                float y = top + pad + (float) (i / columns) * (ch + gap);  // whole rows
                 b.r.set(x, y, x + cw, y + ch);
                 b.p.setStyle(Paint.Style.FILL);
                 b.p.setColor(chipColour(o));
@@ -210,10 +210,16 @@ final class Share {
                     b.cv.drawRoundRect(b.r, 9 * S - stroke / 2, 9 * S - stroke / 2, b.p);
                     b.p.setStyle(Paint.Style.FILL);
                 }
-                chip.setColor(o.maybe && o.when != Logic.Outage.PAST ? pal.accentInk : (o.when == Logic.Outage.PAST ? 0xFFE9DCDF : pal.ink));
+                chip.setColor(chipInk(o));
                 b.cv.drawText(Logic.shareChip(o), x + cw / 2, y + ch / 2 + chip.getTextSize() * .36f, chip);
             }
             return bottom;
+        }
+
+        /** Light words on red and on the veiled past, dark ones on the amber of a possible outage. */
+        private int chipInk(Logic.Outage o) {
+            if (o.when == Logic.Outage.PAST) return 0xFFE9DCDF;
+            return o.maybe ? pal.accentInk : pal.ink;
         }
 
         /** As the grid draws them: a past run under the same veil, the rest in the colour of its state. */

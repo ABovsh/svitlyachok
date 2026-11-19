@@ -174,19 +174,37 @@ final class HeroCard extends ViewGroup {
         centre(horizontal);
         measureWords(inner);
         int icon = Ui.dp(c, 25); bulb.measure(MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY));
-        gap = Math.round(Ui.compactSp(c, 13, 1.1f));
-        // Little room above the name, an even rhythm between the rows, a shorter step from the clocks to
-        // the durations under them (a clock has no descender) and room under the last row for the line.
-        int top = Math.round(Ui.compactSp(c, 3.5f, 1.1f));
-        int clockStep = Math.round(Ui.compactSp(c, 13.5f, 1.1f));
-        int detailStep = Math.round(Ui.compactSp(c, 9.5f, 1.1f));
-        int bottom = Math.round(Ui.compactSp(c, 14, 1.1f));
-        int[] gaps = horizontal ? wideGaps : narrowGaps;
-        gaps[0] = top;
-        for (int i = 1; i < gaps.length - 1; i++) gaps[i] = i % 3 == 1 ? gap : (i % 3 == 2 ? clockStep : detailStep);
-        gaps[gaps.length - 1] = bottom;
+        int[] gaps = gaps();
         TextView[][] rows = horizontal ? wideRows : narrowRows;
         int[][] metrics = horizontal ? wide : narrow;
+        rowMetrics(rows, metrics, gaps);
+        baselines = Logic.rhythm(gaps, metrics[0], metrics[1], metrics[2]);
+        setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(baselines[rows.length], height));
+    }
+
+    /**
+     * Little room above the name, an even rhythm between the rows, a shorter step from the clocks to the
+     * durations under them (a clock has no descender) and room under the last row for the line.
+     */
+    private int[] gaps() {
+        Context c = getContext();
+        gap = Math.round(Ui.compactSp(c, 13, 1.1f));
+        int clockStep = Math.round(Ui.compactSp(c, 13.5f, 1.1f));
+        int detailStep = Math.round(Ui.compactSp(c, 9.5f, 1.1f));
+        int[] gaps = horizontal ? wideGaps : narrowGaps;
+        gaps[0] = Math.round(Ui.compactSp(c, 3.5f, 1.1f));
+        for (int i = 1; i < gaps.length - 1; i++) {
+            int step = i % 3;
+            if (step == 1) gaps[i] = gap;
+            else if (step == 2) gaps[i] = clockStep;
+            else gaps[i] = detailStep;
+        }
+        gaps[gaps.length - 1] = Math.round(Ui.compactSp(c, 14, 1.1f));
+        return gaps;
+    }
+
+    /** Cap heights, extra lines and room before, per row; a row with nothing in it takes no room. */
+    private void rowMetrics(TextView[][] rows, int[][] metrics, int[] gaps) {
         int[] caps = metrics[0];
         int[] extra = metrics[1];
         int[] before = metrics[2];
@@ -196,10 +214,8 @@ final class HeroCard extends ViewGroup {
                 caps[i] = Math.max(caps[i], cap(t)); extra[i] = Math.max(extra[i], lastLine(t));
             }
         }
-        if (!horizontal) before[4] = Ui.dp(c, 8);  // the second panel of a narrow card stands apart
-        for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gaps[i];  // a row with nothing in it takes no room
-        baselines = Logic.rhythm(gaps, caps, extra, before);
-        setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(baselines[rows.length], height));
+        if (!horizontal) before[4] = Ui.dp(getContext(), 8);  // the second panel of a narrow card stands apart
+        for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gaps[i];
     }
 
     /** The height of a capital in this text's font: what the eye takes for the top of a row. */
@@ -340,7 +356,7 @@ final class HeroCard extends ViewGroup {
     /** Between the clocks, as in the widget, when they leave room for the mark; -1: no mark. */
     private float arrowRow(float divider) {
         Context c = getContext();
-        if (!Logic.arrowFits(divider, Ui.px(c, 11), Ui.px(c, 2), ends[2], ends[3])) return -1;
+        if (!Logic.arrowFits(divider, Ui.px(c, 11), Ui.px(c, 2), (float) ends[2], (float) ends[3])) return -1;
         return baselines[2] - cap(currentClock) / 2f;
     }
 

@@ -491,10 +491,13 @@ final class WidgetArt {
                 float cy = underClocks ? baseline + knob + 1.5f * s : y + tall + gap + third / 2;
                 progress(cy, line);
             }
-            if (lit) return;
+            if (!lit) divider(rightX, baseline);
+        }
+
+        /** The line between the halves and, between the clocks as in the app, the arrow where they leave it room. */
+        private void divider(float rightX, float baseline) {
             b.p.setColor(b.pal.line);
             b.cv.drawRect(rightX - 5 * s, top, rightX - 4 * s, top + room, b.p);
-            // between the clocks, as in the app; only where the clocks leave it room, never over a word
             float cx = rightX - 4.5f * s;
             if (arrowR > 0 && Logic.arrowFits(cx, arrowR, s * .5f, clockEnds[0], clockEnds[1])) {
                 left.getTextBounds("0", 0, 1, glyph);

@@ -112,7 +112,7 @@ final class DayIntervals {
 
         private static String describe(View row) {
             Object tag = row.getTag();
-            return tag instanceof String ? (String) tag : "";
+            return tag instanceof String spoken ? spoken : "";
         }
 
         private View row(int state, int from, int to, boolean running, boolean past, long now) {

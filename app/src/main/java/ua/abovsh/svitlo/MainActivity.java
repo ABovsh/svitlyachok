@@ -347,7 +347,6 @@ public class MainActivity extends Base {
         return card;
     }
 
-    /** The top of the page takes a breath of the chosen place's state; it fades out above the places. */
     /** The place grid measures its own cards; optional details in the hero never affect it. */
     private View tiles(List<Logic.Place> places, Logic.Place chosen, LocalDate base, long now) {
         AdaptiveGrid grid = new AdaptiveGrid(this, 2, 6);

@@ -348,18 +348,6 @@ public class MainActivity extends Base {
     }
 
     /** The top of the page takes a breath of the chosen place's state; it fades out above the places. */
-    private void tint(int state) {
-        if (state == Logic.UNKNOWN) { page.setBackground(null); return; }
-        int soft = pal.soft(state);
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {soft, Ui.fade(soft, .55f), soft & 0x00FFFFFF});
-        android.graphics.drawable.LayerDrawable l = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {g});
-        l.setLayerGravity(0, Gravity.TOP | Gravity.FILL_HORIZONTAL);
-        l.setLayerHeight(0, Ui.dp(this, 96));
-        page.setBackground(l);
-    }
-
     /** The place grid measures its own cards; optional details in the hero never affect it. */
     private View tiles(List<Logic.Place> places, Logic.Place chosen, LocalDate base, long now) {
         AdaptiveGrid grid = new AdaptiveGrid(this, 2, 6);
@@ -385,7 +373,6 @@ public class MainActivity extends Base {
         String[] next = d == null ? new String[] {"", state.hint, ""} : Logic.heroFuture(state, Logic.lastScheduleDay(d));
         String label = Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p);
         HeroCard card = new HeroCard(this, pal, label, state, next, Logic.highlight(state, Prefs.alerts(this, p.id), now));
-        tint(state.state);
         clockUpdates.add(() -> card.update(currentNow()));
         return card;
     }

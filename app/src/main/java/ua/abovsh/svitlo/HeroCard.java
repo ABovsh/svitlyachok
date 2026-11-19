@@ -47,6 +47,8 @@ final class HeroCard extends ViewGroup {
     private final TextView[][] narrowRows;
     private final int[][] wide = new int[3][4];    // cap heights, extra lines, room before: per row
     private final int[][] narrow = new int[3][7];
+    private final int[] wideGaps = new int[5];     // before each row and under the last
+    private final int[] narrowGaps = new int[8];
     private final String currentEnd;
     private boolean currentMoved;
     private Logic.Now last;
@@ -172,7 +174,17 @@ final class HeroCard extends ViewGroup {
         centre(horizontal);
         measureWords(inner);
         int icon = Ui.dp(c, 25); bulb.measure(MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(icon, MeasureSpec.EXACTLY));
-        gap = Math.round(Ui.compactSp(c, 14, 1.1f));
+        gap = Math.round(Ui.compactSp(c, 13, 1.1f));
+        // Little room above the name, an even rhythm between the rows, a shorter step from the clocks to
+        // the durations under them (a clock has no descender) and room under the last row for the line.
+        int top = Math.round(Ui.compactSp(c, 3.5f, 1.1f));
+        int clockStep = Math.round(Ui.compactSp(c, 13.5f, 1.1f));
+        int detailStep = Math.round(Ui.compactSp(c, 9.5f, 1.1f));
+        int bottom = Math.round(Ui.compactSp(c, 14, 1.1f));
+        int[] gaps = horizontal ? wideGaps : narrowGaps;
+        gaps[0] = top;
+        for (int i = 1; i < gaps.length - 1; i++) gaps[i] = i % 3 == 1 ? gap : (i % 3 == 2 ? clockStep : detailStep);
+        gaps[gaps.length - 1] = bottom;
         TextView[][] rows = horizontal ? wideRows : narrowRows;
         int[][] metrics = horizontal ? wide : narrow;
         int[] caps = metrics[0];
@@ -185,8 +197,8 @@ final class HeroCard extends ViewGroup {
             }
         }
         if (!horizontal) before[4] = Ui.dp(c, 8);  // the second panel of a narrow card stands apart
-        for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gap;  // a row with nothing in it takes no room
-        baselines = Logic.rhythm(gap, caps, extra, before);
+        for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gaps[i];  // a row with nothing in it takes no room
+        baselines = Logic.rhythm(gaps, caps, extra, before);
         setMeasuredDimension(resolveSize(inner + getPaddingLeft() + getPaddingRight(), width), resolveSize(baselines[rows.length], height));
     }
 
@@ -325,12 +337,11 @@ final class HeroCard extends ViewGroup {
         progress(canvas);
     }
 
-    /** Between the clocks if they leave room for the mark, else between the names of the states; -1: nowhere. */
+    /** Between the clocks, as in the widget, when they leave room for the mark; -1: no mark. */
     private float arrowRow(float divider) {
-        float room = Ui.px(getContext(), 13);
-        if (ends[2] <= divider - room && ends[3] >= divider + room) return baselines[2] - cap(currentClock) / 2f;
-        if (ends[0] <= divider - room && ends[1] >= divider + room) return baselines[1] - cap(currentTitle) / 2f;
-        return -1;
+        Context c = getContext();
+        if (!Logic.arrowFits(divider, Ui.px(c, 11), Ui.px(c, 2), ends[2], ends[3])) return -1;
+        return baselines[2] - cap(currentClock) / 2f;
     }
 
     /** "now, then": a quiet round mark on the line between the halves, in the colour of what comes. */

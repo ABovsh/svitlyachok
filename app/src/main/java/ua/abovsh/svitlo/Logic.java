@@ -2142,15 +2142,82 @@ public final class Logic {
      * baseline of each row and, last, the height of the whole.
      */
     static int[] rhythm(int gap, int[] caps, int[] extra, int[] before) {
+        int[] gaps = new int[caps.length + 1];
+        java.util.Arrays.fill(gaps, gap);
+        return rhythm(gaps, caps, extra, before);
+    }
+
+    /** The same rows with a gap of their own: gaps[i] before row i, the last one under the last row. */
+    static int[] rhythm(int[] gaps, int[] caps, int[] extra, int[] before) {
         int[] out = new int[caps.length + 1];
         int y = 0;
         for (int i = 0; i < caps.length; i++) {
-            y += gap + before[i] + caps[i];
+            y += gaps[i] + before[i] + caps[i];
             out[i] = y;
             y += extra[i];
         }
-        out[caps.length] = y + gap;
+        out[caps.length] = y + gaps[caps.length];
         return out;
+    }
+
+    /**
+     * The words of a state in the card and the widget: the app's own while they fit; only then the
+     * short form, so «Світла немає» becomes «Немає» and «Світло є» stays whole (it is short already).
+     */
+    public static String stateWords(String title, int state, boolean fits) {
+        if (fits) return title;
+        switch (state) {
+            case OFF: return "Немає";
+            case MAYBE: return "Можливо";
+            case UNKNOWN: return "Невідомо";
+            default: return title;
+        }
+    }
+
+    /** "18 год світла · 75 % · вимкнень: 2": the head of the list of a day. */
+    public static String intervalsSummary(String day) {
+        int outages = 0;
+        for (Outage o : outages(day, -1)) if (!o.maybe) outages++;
+        return daySummaries(day).get(1) + (outages == 0 ? " · без вимкнень" : " · вимкнень: " + outages);
+    }
+
+    /**
+     * When an open list of `date` has to move its mark of now: at the end of the interval going on,
+     * at the day's own midnight while it is still to come; -1 for a day gone by.
+     */
+    public static long nextIntervalChange(String day, LocalDate date, long now) {
+        long start = slotStart(date, 0);
+        if (now < start) return start;
+        int at = index(date, now);
+        if (at >= 48) return -1;
+        return slotStart(date, barRun(day, at)[1]);
+    }
+
+    /** "ще 31 хв": what is left of the interval going on, whole minutes rounded up. */
+    public static String intervalLeft(long end, long now) {
+        return "ще " + hoursMinutes((int) Math.max(1, (end - now + 59) / 60));
+    }
+
+    /** How many outages stand in a row of the shared picture: as many as `most` while the widest still fits. */
+    public static int trayColumns(float widest, float room, float gap, int most) {
+        for (int n = most; n > 1; n--) if (n * widest + (n - 1) * gap <= room) return n;
+        return 1;
+    }
+
+    /** Whether a circle at cx with radius r and `air` around it stays clear of text ending at `leftEnd` and starting at `rightStart`. */
+    public static boolean arrowFits(float cx, float r, float air, float leftEnd, float rightStart) {
+        return leftEnd <= cx - r - air && rightStart >= cx + r + air;
+    }
+
+    /**
+     * The arrow between the halves of the widget: {room each clock gives up on the inner side, radius};
+     * the divider stands 3.5 s after the left column, the right column starts 8 s after it. A widget too
+     * low for a readable arrow gets none and gives up nothing.
+     */
+    public static float[] paneArrow(float s, float room) {
+        float r = Math.min(10 * s, room * .1f);
+        if (r < 6 * s) return new float[] {0, 0};
+        return new float[] {r - 2 * s + s, r};  // a little air (s) beyond the circle
     }
 
     /** "15:30–19:30 · без світла · 4 год": what a touched run is. */

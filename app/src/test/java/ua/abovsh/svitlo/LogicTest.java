@@ -2594,4 +2594,81 @@ public class LogicTest {
         assertEquals("Сьогодні: без світла 06:00 – 08:00. Графік неповний",
                 Logic.describe("Сьогодні", "111111111111000011111111" + repeat('2', 24)));
     }
+
+    // ---- 1.10.0-rc.2 ------------------------------------------------------------------
+
+    /** A day: light till 06:00, none till 08:30, light till 14:00, none till 17:30, light. */
+    private static final String TWO_OUTAGES = repeat('1', 12) + repeat('0', 5) + repeat('1', 11) + repeat('0', 7) + repeat('1', 13);
+
+    @Test public void stateWordsAreTheAppsAndShortenOnlyWhenTheyDoNotFit() {
+        assertEquals("Світла немає", Logic.stateWords("Світла немає", Logic.OFF, true));
+        assertEquals("Немає", Logic.stateWords("Світла немає", Logic.OFF, false));
+        assertEquals("Світло є", Logic.stateWords("Світло є", Logic.ON, false));  // never a bare «Є»
+        assertEquals("Можливо", Logic.stateWords("Можливе вимкнення", Logic.MAYBE, false));
+        assertEquals("Невідомо", Logic.stateWords("Графіка немає", Logic.UNKNOWN, false));
+        assertEquals("Графіка немає", Logic.stateWords("Графіка немає", Logic.UNKNOWN, true));
+    }
+
+    @Test public void heroRowsTakeTheirOwnGaps() {
+        // above the name 3, then 13, 13, 9 between the rows and 14 under the last
+        int[] b = Logic.rhythm(new int[] {3, 13, 13, 9, 14}, new int[] {8, 20, 30, 12}, new int[] {0, 0, 15, 0}, new int[] {0, 0, 0, 0});
+        assertEquals("[11, 44, 87, 123, 137]", Arrays.toString(b));
+        // a row with nothing in it gives back its own gap
+        int[] e = Logic.rhythm(new int[] {3, 13, 9, 14}, new int[] {8, 0, 12}, new int[] {0, 0, 0}, new int[] {0, -13, 0});
+        assertEquals("[11, 11, 32, 46]", Arrays.toString(e));
+        // one gap everywhere is the old rhythm
+        assertEquals(Arrays.toString(Logic.rhythm(10, new int[] {8, 20}, new int[] {0, 0}, new int[] {0, 6})),
+                Arrays.toString(Logic.rhythm(new int[] {10, 10, 10}, new int[] {8, 20}, new int[] {0, 0}, new int[] {0, 6})));
+    }
+
+    @Test public void theListOfADaySumsItsLightAndCountsItsOutages() {
+        assertEquals("18 год світла · 75 % · вимкнень: 2", Logic.intervalsSummary(TWO_OUTAGES));
+        assertEquals("24 год світла · 100 % · без вимкнень", Logic.intervalsSummary(repeat('1', 48)));
+    }
+
+    @Test public void theOpenListMovesOnAtTheNextChangeAndAtMidnight() {
+        LocalDate d = LocalDate.of(2026, 11, 19);
+        long at0829 = Logic.slotStart(d, 16) + 29 * 60;
+        assertEquals(Logic.slotStart(d, 17), Logic.nextIntervalChange(TWO_OUTAGES, d, at0829));
+        long at2359 = Logic.slotStart(d, 47) + 29 * 60;
+        assertEquals(Logic.slotStart(d, 48), Logic.nextIntervalChange(TWO_OUTAGES, d, at2359));
+        // tomorrow's list: its "now" begins at its midnight
+        assertEquals(Logic.slotStart(d.plusDays(1), 0), Logic.nextIntervalChange(TWO_OUTAGES, d.plusDays(1), at0829));
+        // a day gone by has nothing to move
+        assertEquals(-1, Logic.nextIntervalChange(TWO_OUTAGES, d.minusDays(1), at0829));
+    }
+
+    @Test public void theRunningIntervalSaysHowLongItLasts() {
+        LocalDate d = LocalDate.of(2026, 11, 19);
+        long at0759 = Logic.slotStart(d, 15) + 29 * 60;
+        assertEquals("ще 31 хв", Logic.intervalLeft(Logic.slotStart(d, 17), at0759));
+        assertEquals("ще 1 год 31 хв", Logic.intervalLeft(Logic.slotStart(d, 19), at0759));
+        assertEquals("ще 1 хв", Logic.intervalLeft(Logic.slotStart(d, 17), Logic.slotStart(d, 17) - 20));
+    }
+
+    @Test public void theArrowStandsOnlyWhereTheClocksLeaveItRoom() {
+        // the circle at 50 with radius 10, 2 of air on each side: the clocks must end by 38 and start from 62
+        assertTrue(Logic.arrowFits(50, 10, 2, 38, 62));
+        assertFalse(Logic.arrowFits(50, 10, 2, 39, 62));
+        assertFalse(Logic.arrowFits(50, 10, 2, 38, 61));
+    }
+
+    @Test public void theWidgetKeepsAColumnForItsArrow() {
+        for (float s : new float[] {1f, 2.625f, 3.5f}) {
+            for (float room : new float[] {40, 60, 90, 140}) {
+                float[] a = Logic.paneArrow(s, room * s);
+                if (a[1] == 0) { assertEquals(0f, a[0], 0f); continue; }
+                float divider = 3.5f * s;  // from the end of the left column; the right one starts at 8 s
+                assertTrue(Logic.arrowFits(divider, a[1], s, -a[0], 8 * s + a[0]));
+            }
+        }
+        assertEquals(0f, Logic.paneArrow(1f, 30)[1], 0f);  // too low a widget: no arrow at all
+    }
+
+    @Test public void theSharedOutagesStandThreeARowWhileTheyFit() {
+        assertEquals(3, Logic.trayColumns(90, 300, 5, 3));   // 3 × 90 + 2 × 5 = 280
+        assertEquals(2, Logic.trayColumns(100, 300, 5, 3));  // 3 × 100 + 10 > 300
+        assertEquals(1, Logic.trayColumns(200, 300, 5, 3));
+        assertEquals(1, Logic.trayColumns(400, 300, 5, 3));  // never none
+    }
 }

@@ -272,8 +272,10 @@ final class WidgetArt {
         float s = box[4];
         float left = box[0];
         float centre = left / 2 + 2.5f * s;
-        String words = Panes.compactTitle(state);
-        Paint word = fit(text(Ui.heavy(c), box[3] * .92f, b.pal.status(state), Paint.Align.CENTER), words, left - 11 * s);
+        Paint word = text(Ui.heavy(c), box[3] * .92f, b.pal.status(state), Paint.Align.CENTER);
+        String full = Logic.title(state);  // the app's words while they stay readable, else the short ones
+        String words = Logic.stateWords(full, state, sizeToFit(word, full, left - 11 * s) >= box[3] * .92f * .8f);
+        fit(word, words, left - 11 * s);
         float room = box[2] - .74f * word.getTextSize() - box[1] - 5 * s;
         BulbView.plain(b, state, centre, box[1] + room / 2, Math.min(room / .66f, left * .92f));
         b.cv.drawText(words, centre, box[2], word);
@@ -395,6 +397,10 @@ final class WidgetArt {
         private final float rightSpare;
         private final boolean lit;
         private final Paint smallRight;
+        private final float reserve;   // what each clock gives up beside the divider for the arrow
+        private final float arrowR;
+        private final float[] clockEnds = new float[2];  // where the left clock ends and the right one starts
+        private final android.graphics.Rect glyph = new android.graphics.Rect();
         private float done = -1;
 
         Panes(Context c, Brush b, Model m, String[] next, float[] box, float headShare) {
@@ -414,13 +420,16 @@ final class WidgetArt {
             smallRight = text(Ui.bold(c), detail, lit ? onFill(b.pal, m.now.next) : b.pal.muted, Paint.Align.LEFT);
             leftSpare = spare(start[1]);
             rightSpare = spare(next[2]);
+            float[] arrow = lit ? new float[] {0, 0} : Logic.paneArrow(s, room);
+            reserve = arrow[0];
+            arrowR = arrow[1];
             boolean leftClock = start[0].contains(":");
             boolean rightClock = next[1].contains(":");
             Paint clock = text(Ui.display(c), 100, b.pal.text, Paint.Align.LEFT);
-            float beside = Math.min(room * .54f, Math.min(clockSize(clock, leftClock, start[0], leftSpare),
-                    clockSize(clock, rightClock, next[1], rightSpare)));
-            float stacked = Math.min(room * .42f, Math.min(clockSize(clock, leftClock, start[0], 0),
-                    clockSize(clock, rightClock, next[1], 0)));
+            float beside = Math.min(room * .54f, Math.min(clockSize(clock, leftClock, start[0], leftSpare + reserve),
+                    clockSize(clock, rightClock, next[1], rightSpare + reserve)));
+            float stacked = Math.min(room * .42f, Math.min(clockSize(clock, leftClock, start[0], reserve),
+                    clockSize(clock, rightClock, next[1], reserve)));
             inline = leftSpare + rightSpare == 0 || beside >= stacked || headShare == SECTION_HEAD;  // the card's own order
             float value = inline ? beside : stacked;
             float head = Math.min(value * .8f, room * (inline ? headShare : .24f));
@@ -474,7 +483,6 @@ final class WidgetArt {
                 b.cv.drawRoundRect(b.r2, 12 * s, 12 * s, b.p);
             }
             firstRow(y, first, rightX);
-            float titleCentre = y + first / 2;
             y += first + gap;
             float baseline = y + tall - Math.max(left.descent(), right.descent());
             clocks(baseline, rightX);
@@ -486,7 +494,12 @@ final class WidgetArt {
             if (lit) return;
             b.p.setColor(b.pal.line);
             b.cv.drawRect(rightX - 5 * s, top, rightX - 4 * s, top + room, b.p);
-            arrow(rightX - 4.5f * s, titleCentre, Math.min(first * .55f, 10 * s));
+            // between the clocks, as in the app; only where the clocks leave it room, never over a word
+            float cx = rightX - 4.5f * s;
+            if (arrowR > 0 && Logic.arrowFits(cx, arrowR, s * .5f, clockEnds[0], clockEnds[1])) {
+                left.getTextBounds("0", 0, 1, glyph);
+                arrow(cx, baseline + glyph.top / 2f, arrowR);
+            }
         }
 
         /** How much of the state now on has gone, under the left clock. */
@@ -538,7 +551,7 @@ final class WidgetArt {
         private void firstRow(float y, float rowHeight, float rightX) {
             float bulb = Math.min(rowHeight * 1.25f, room * .4f);
             float titleRoom = width - bulb * 1.16f;
-            String state = sizeToFit(title, now.title, titleRoom) >= 13 * s ? now.title : compactTitle(now.state);
+            String state = Logic.stateWords(now.title, now.state, sizeToFit(title, now.title, titleRoom) >= 13 * s);
             fit(title, state, titleRoom);
             float lx = x + (width - bulb * 1.16f - title.measureText(state)) / 2;  // the bulb and the state, centred in their half
             BulbView.plain(b, now.state, lx + bulb / 2, y + rowHeight / 2, bulb);
@@ -552,23 +565,20 @@ final class WidgetArt {
         }
 
         private void clocks(float baseline, float rightX) {
-            fit(left, start[0], width);
-            fit(right, next[1], width);
+            float span = width - reserve;
+            fit(left, start[0], span - (inline && leftSpare > 0 ? leftSpare : 0));
+            fit(right, next[1], span - (inline && rightSpare > 0 ? rightSpare : 0));
             float lw = left.measureText(start[0]) + (inline && leftSpare > 0 ? gapX + small.measureText(start[1]) : 0);
             float rw = right.measureText(next[1]) + (inline && rightSpare > 0 ? gapX + smallRight.measureText(next[2]) : 0);
-            float lx = x + Math.max(0, (width - lw) / 2);
-            float rx = rightX + Math.max(0, (width - rw) / 2);
+            float lx = x + Math.max(0, (span - lw) / 2);
+            float rx = rightX + reserve + Math.max(0, (span - rw) / 2);
+            clockEnds[0] = lx + lw;
+            clockEnds[1] = rx;
             b.cv.drawText(start[0], lx, baseline, left);
             b.cv.drawText(next[1], rx, baseline, right);
             if (!inline) return;
             if (leftSpare > 0) b.cv.drawText(start[1], lx + left.measureText(start[0]) + gapX, baseline, small);
             if (rightSpare > 0) b.cv.drawText(next[2], rx + right.measureText(next[1]) + gapX, baseline, smallRight);
-        }
-
-        private static String compactTitle(int state) {
-            if (state == Logic.ON) return "Є";
-            if (state == Logic.OFF) return "Немає";
-            return state == Logic.MAYBE ? "Можливо" : "Невідомо";
         }
 
         private static String compactEvent(Logic.Now now) {
@@ -577,8 +587,9 @@ final class WidgetArt {
         }
 
         private void details(float y, float rightX) {
-            if (leftSpare > 0) line(b, start[1], x + (width - fit(small, start[1], width).measureText(start[1])) / 2, y, small);
-            if (rightSpare > 0) line(b, next[2], rightX + (width - fit(smallRight, next[2], width).measureText(next[2])) / 2, y, smallRight);
+            float span = width - reserve;  // under its clock, which stands clear of the arrow
+            if (leftSpare > 0) line(b, start[1], x + (span - fit(small, start[1], span).measureText(start[1])) / 2, y, small);
+            if (rightSpare > 0) line(b, next[2], rightX + reserve + (span - fit(smallRight, next[2], span).measureText(next[2])) / 2, y, smallRight);
         }
         private static float height(Paint p) {
             return p.descent() - p.ascent();

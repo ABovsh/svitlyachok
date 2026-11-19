@@ -73,15 +73,34 @@ final class Share {
         Logic.Data d = Store.data(c, p.region);
         Logic.Region r = Logic.region(p.region);
 
-        float y = sh.pair("Черга " + Logic.queue(p.group), sh.text(Ui.display(c), 17, pal.text),
-                r == null ? "" : r.name, sh.text(Ui.body(c), 13, pal.muted), false, 14 * s);
+        String queue = "Черга " + Logic.queue(p.group);
+        String region = r == null ? "" : r.name;
+        Paint queueInk = sh.text(Ui.display(c), 17, pal.text);
+        Paint regionInk = sh.text(Ui.body(c), 13, pal.muted);
+        float y = sh.pair(queue, queueInk, region, regionInk, false, 14 * s);
         // the date in words: the picture is read later, when "today" is another day
         String date = Ui.date(day);
         boolean today = day.equals(Logic.today(now));
+        // the yellow frame of now means something to whoever gets the picture later only with its time
+        String stamp = today ? "станом на " + String.format(java.util.Locale.ROOT, "%02d:%02d", Logic.z(now).getHour(), Logic.z(now).getMinute()) : "";
+        boolean stampAbove = false;
+        if (today) {
+            Paint ink = sh.text(Ui.bold(c), 12, pal.muted);
+            float used = sh.left + queueInk.measureText(queue) + (region.isEmpty() ? 0 : 8 * s + regionInk.measureText(region));
+            if (y < 14 * s + 18 * s && used + 10 * s + ink.measureText(stamp) <= sh.right) {
+                cv.drawText(stamp, sh.right - ink.measureText(stamp), 14 * s + 17 * s * 0.8f, ink);
+                stampAbove = true;
+            }
+        }
         int cur = today ? Logic.index(day, now) : -1;
         float nowRel = today ? cur + (Logic.z(now).getMinute() % 30) / 30f : -1;
         y = sh.day(Character.toUpperCase(date.charAt(0)) + date.substring(1), Logic.day(d, p.group, day), cur, nowRel, y + 10 * s);
         y = sh.footer(y + 10 * s);
+        if (today && !stampAbove) {  // a long region name took the room beside the queue
+            Paint ink = sh.text(Ui.bold(c), 12, pal.muted);
+            cv.drawText(stamp, sh.left, y + 6 * s + 12 * s * 0.8f, ink);
+            y += 6 * s + 12 * s;
+        }
         // drawn on a tall sheet, then cut to what was used
         Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 12 * s)));
         tall.recycle();
@@ -133,55 +152,74 @@ final class Share {
             float y = pair(title, head, Logic.daySummaries(slots).get(0), text(Ui.heavy(c), 14, pal.onText), true, top);
             RectF cells = new RectF(left, y + 8 * S, right, y + 8 * S + 55 * S);
             BarView.grid(b, slots, nowRel, cells, text(Ui.heavy(c), 14, pal.text), -1, -1);
-            return chips(Logic.outages(slots, cur), cells.bottom + 8 * S, cells.bottom);
+            return tray(Logic.outages(slots, cur), cells.bottom + 8 * S);
         }
 
         /**
-         * The outages in one row: the one going on now filled, past ones faded. The font gets smaller
-         * to keep them on one line; what still does not fit is counted, "+2".
+         * The outages on a tray of their own under the grid, «Без світла» at its left and up to three
+         * a row, so none is ever hidden: over ones dark as the hours gone by, the one going on in the
+         * yellow frame of now, the coming ones in plain red.
          */
-        private float chips(List<Logic.Outage> list, float y, float none) {
-            if (list.isEmpty()) return none;
-            float size = 12;
-            Paint chip = text(Ui.heavy(c), size, pal.text);
-            while (size > 10 && rowWidth(list, list.size(), chip, size) > right - left) {
-                size -= 0.5f;
-                chip = text(Ui.heavy(c), size, pal.text);
+        private float tray(List<Logic.Outage> list, float top) {
+            if (list.isEmpty()) return top - 8 * S;
+            float pad = 6 * S;
+            float gap = 5 * S;
+            Paint head = text(Ui.heavy(c), 11.5f, pal.muted);
+            String[] words = {"Без", "світла"};
+            float headW = Math.max(head.measureText(words[0]), head.measureText(words[1]));
+            float x0 = left + pad + 3 * S + headW + gap + 2 * S;
+            float room = right - pad - x0;
+            float size = 12.5f;
+            Paint chip = text(Ui.heavy(c), size, pal.ink);
+            float widest = 0;
+            for (Logic.Outage o : list) widest = Math.max(widest, chip.measureText(Logic.shareChip(o)));
+            int columns = Logic.trayColumns(widest + 12 * S, room, gap, 3);
+            while (size > 10 && (widest + 8 * S) * columns + gap * (columns - 1) > room) {
+                size -= .5f;
+                chip = text(Ui.heavy(c), size, pal.ink);
+                widest = 0;
+                for (Logic.Outage o : list) widest = Math.max(widest, chip.measureText(Logic.shareChip(o)));
             }
-            int shown = list.size();
-            Paint more = text(Ui.heavy(c), size, pal.muted);
-            if (rowWidth(list, shown, chip, size) > right - left) {
-                while (shown > 1 && rowWidth(list, shown, chip, size) + 6 * S + more.measureText("+" + (list.size() - shown)) > right - left) shown--;
-            }
-            float ch = (size + 14) * S;
-            float x = left;
-            for (int i = 0; i < shown; i++) {
+            float cw = (room - gap * (columns - 1)) / columns;
+            float ch = (size + 13) * S;
+            int rows = (list.size() + columns - 1) / columns;
+            float bottom = top + pad * 2 + rows * ch + (rows - 1) * gap;
+            b.r.set(left, top, right, bottom);
+            b.p.setStyle(Paint.Style.FILL);
+            b.p.setColor(pal.raised);
+            b.cv.drawRoundRect(b.r, 12 * S, 12 * S, b.p);
+            float firstMid = top + pad + ch / 2;
+            float line = head.getTextSize() * 1.1f;
+            b.cv.drawText(words[0], left + pad + 3 * S, firstMid - line / 2 + head.getTextSize() * .36f, head);
+            b.cv.drawText(words[1], left + pad + 3 * S, firstMid + line / 2 + head.getTextSize() * .36f, head);
+            chip.setTextAlign(Paint.Align.CENTER);
+            for (int i = 0; i < list.size(); i++) {
                 Logic.Outage o = list.get(i);
-                boolean now = o.when == Logic.Outage.NOW;
-                String label = Logic.shareChip(o);
-                float cw = chip.measureText(label) + (size + 8) * S;
+                float x = x0 + (i % columns) * (cw + gap);
+                float y = top + pad + (i / columns) * (ch + gap);
                 b.r.set(x, y, x + cw, y + ch);
-                b.p.setColor(chipColour(o, now));
-                b.cv.drawRoundRect(b.r, ch / 2, ch / 2, b.p);
-                chip.setColor(now ? pal.ink : pal.text);
-                chip.setAlpha(o.when == Logic.Outage.PAST ? 120 : 255);
-                b.cv.drawText(label, x + (size + 8) * S / 2, y + ch / 2 + chip.getTextSize() * 0.36f, chip);
-                x += cw + 6 * S;
+                b.p.setStyle(Paint.Style.FILL);
+                b.p.setColor(chipColour(o));
+                b.cv.drawRoundRect(b.r, 9 * S, 9 * S, b.p);
+                if (o.when == Logic.Outage.NOW) {
+                    float stroke = 2.5f * S;
+                    b.p.setStyle(Paint.Style.STROKE);
+                    b.p.setStrokeWidth(stroke);
+                    b.p.setColor(Ui.Pal.MARKER);
+                    b.r.inset(stroke / 2, stroke / 2);
+                    b.cv.drawRoundRect(b.r, 9 * S - stroke / 2, 9 * S - stroke / 2, b.p);
+                    b.p.setStyle(Paint.Style.FILL);
+                }
+                chip.setColor(o.maybe && o.when != Logic.Outage.PAST ? pal.accentInk : (o.when == Logic.Outage.PAST ? 0xFFE9DCDF : pal.ink));
+                b.cv.drawText(Logic.shareChip(o), x + cw / 2, y + ch / 2 + chip.getTextSize() * .36f, chip);
             }
-            if (shown < list.size()) b.cv.drawText("+" + (list.size() - shown), x, y + ch / 2 + more.getTextSize() * 0.36f, more);
-            return y + ch;
+            return bottom;
         }
 
-        private float rowWidth(List<Logic.Outage> list, int count, Paint chip, float size) {
-            float sum = 0;
-            for (int i = 0; i < count; i++) sum += chip.measureText(Logic.shareChip(list.get(i))) + (size + 8) * S + (i > 0 ? 6 * S : 0);
-            return sum;
-        }
-
-        private int chipColour(Logic.Outage o, boolean now) {
-            if (now) return o.maybe ? pal.maybe : pal.off;
-            if (o.maybe) return Ui.fade(pal.maybe, 0.35f);
-            return Ui.blend(pal.card, Ui.fade(pal.off, pal.dark ? 0.24f : 0.14f));
+        /** As the grid draws them: a past run under the same veil, the rest in the colour of its state. */
+        private int chipColour(Logic.Outage o) {
+            int fill = o.maybe ? pal.maybe : pal.off;
+            return o.when == Logic.Outage.PAST ? Ui.blend(fill, Ui.fade(0xFF172428, BarView.PAST_VEIL)) : fill;
         }
 
         /** "Графік обленерго" and where the app is, on one line, smaller when the picture is narrow. */

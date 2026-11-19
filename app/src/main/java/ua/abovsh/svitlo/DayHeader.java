@@ -49,8 +49,17 @@ final class DayHeader extends ViewGroup {
         addView(share);
     }
 
-    /** The title opens the list while sharing and the summary keep their own targets. */
+    /**
+     * The whole row opens the list: the title, the summary and the room between them. Sharing keeps
+     * its own target; for TalkBack and keyboards the title stays the one button.
+     */
     void openIntervals(Ui.Pal pal, View.OnClickListener click) {
+        setOnClickListener(click);
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        android.util.TypedValue ripple = new android.util.TypedValue();
+        if (getContext().getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)) {
+            setForeground(getContext().getDrawable(ripple.resourceId));
+        }
         chevron = getContext().getDrawable(R.drawable.ic_chevron).mutate();
         chevron.setTint(pal.accentText);
         int size = Ui.dp(getContext(), 13);

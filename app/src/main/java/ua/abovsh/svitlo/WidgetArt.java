@@ -35,6 +35,8 @@ final class WidgetArt {
         boolean ahead;  // tomorrow is published while today is not
         boolean lit;  // the event is close: its half is filled with its colour, as on the card
         int notice = Logic.NOTICE_NONE;  // the oblenergo's notice of the region: a sign in a free corner
+        boolean waiting;  // no schedule of today yet: the firefly waits for it instead of an empty card
+        long checked;  // the last check of the source, said while waiting
     }
 
     /** The place chosen for one widget (by id; the first place when none was chosen). */
@@ -64,6 +66,8 @@ final class WidgetArt {
         }
         m.lit = Logic.highlight(m.now, Prefs.alerts(c, p.id), now);
         m.notice = data == null ? Logic.NOTICE_NONE : Logic.noticeLevel(data.notice);
+        m.waiting = Logic.waitingForToday(data, p.group, m.base);
+        m.checked = m.waiting ? Store.checkedAt(c, p.region) : 0;
         return m;
     }
 
@@ -83,7 +87,8 @@ final class WidgetArt {
         if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
         b.append('|').append(m.stale).append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
-                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay).append('|').append(m.ahead).append('|').append(m.notice);
+                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay).append('|').append(m.ahead).append('|').append(m.notice)
+                .append('|').append(m.waiting).append('|').append(m.checked > 0 ? Logic.hm(m.checked) : "");
         b.append('|').append(n.hint).append('|').append(Logic.dayPercent(dayOf(m.tl, 0))).append('|').append(n.next).append('|').append(n.change);
         if (Logic.widgetForm(wDp, hDp) != Logic.W_ROW) {  // the bar moves every half hour
             b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
@@ -95,11 +100,118 @@ final class WidgetArt {
         if (m == null) return "Світлячок: відкрийте застосунок і оберіть чергу";
         if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
+        if (m.waiting) {
+            String line = Logic.waitingLine(m.lastDay, m.ahead);
+            return m.place.name + ": графіка на сьогодні ще немає" + (line.isEmpty() ? "" : ", " + line);
+        }
         String notice = "";
         if (m.notice == Logic.NOTICE_EMERGENCY) notice = "Екстрені відключення в області. ";
         else if (m.notice == Logic.NOTICE_CALM) notice = "Є повідомлення обленерго. ";
         return notice + (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then) + ". " + Logic.widgetTomorrow(dayOf(m.tl, 48))[0];
+    }
+
+    /** No schedule of today: the firefly in a warm glow says so, calmly, with what there is instead. */
+    private static final class Waiting {
+        private Waiting() {}
+
+        static void draw(Context c, Brush b, Model m, Frame f, int form) {
+            if (form == Logic.W_FULL) large(c, b, m, f);
+            else small(c, b, m, f);
+        }
+
+        /** The app's own mark: the firefly on its gold square, in a soft glow of the same gold. */
+        private static void logo(Context c, Brush b, float cx, float cy, float size) {
+            float glow = size * 1.35f;
+            b.p.setShader(new android.graphics.RadialGradient(cx, cy, glow,
+                    new int[] {Ui.fade(b.pal.accent, b.pal.dark ? .42f : .5f), Ui.fade(b.pal.accent, 0f)}, null, Shader.TileMode.CLAMP));
+            b.cv.drawCircle(cx, cy, glow, b.p);
+            float h = size / 2f;
+            b.p.setShader(new LinearGradient(cx - h, cy - h, cx + h, cy + h, 0xFFFFDD7A, 0xFFF5A800, Shader.TileMode.CLAMP));
+            b.r.set(cx - h, cy - h, cx + h, cy + h);
+            b.cv.drawRoundRect(b.r, size * .3f, size * .3f, b.p);
+            b.p.setShader(null);
+            android.graphics.drawable.Drawable mark = c.getDrawable(R.drawable.ic_logo);
+            if (mark == null) return;
+            int inset = Math.round(size * .14f);
+            mark.setBounds(Math.round(cx - h) + inset, Math.round(cy - h) + inset, Math.round(cx + h) - inset, Math.round(cy + h) - inset);
+            mark.draw(b.cv);
+        }
+
+        private static void small(Context c, Brush b, Model m, Frame f) {
+            float s = f.s;
+            float pad = f.h * .13f;
+            float rowH = f.h - 2 * pad;
+            float left = Logic.widgetBulbSegment(Math.round(f.w / s)) * s;
+            logo(c, b, left / 2 + 2.5f * s, f.h / 2f, Math.min(rowH * .62f, left * .62f));
+            b.p.setColor(Ui.fade(b.pal.text, .18f));
+            b.cv.drawRect(left + 3 * s, pad, left + 4 * s, f.h - pad, b.p);
+            float tx = left + 11 * s;
+            float tw = f.w - tx - pad * .8f;
+            Paint main = text(Ui.heavy(c), rowH * .22f, b.pal.accentText, Paint.Align.LEFT);
+            if (!Logic.widgetSmallWords(rowH / s)) {  // too low for three lines: the words that matter
+                String only = "Графіка ще немає";
+                fit(main, only, tw).setTextSize(Math.min(main.getTextSize(), rowH * .42f));
+                b.cv.drawText(only, tx, f.h / 2f - (main.ascent() + main.descent()) / 2, main);
+                return;
+            }
+            Paint name = text(Ui.heavy(c), rowH * .27f, b.pal.text, Paint.Align.LEFT);
+            String place = readable(name, widgetName(m), tw, 9.5f * s);
+            fit(main, "Графіка ще немає", tw);
+            String line = Logic.waitingLine(m.lastDay, m.ahead);
+            Paint detail = fit(text(Ui.bold(c), rowH * .19f, b.pal.muted, Paint.Align.LEFT), line, tw);
+            float gap = rowH * .08f;
+            float block = -name.ascent() + gap + -main.ascent() + (line.isEmpty() ? 0 : gap - detail.ascent());
+            float y = (f.h - block) / 2f - name.ascent();
+            b.cv.drawText(place, tx, y, name);
+            y += gap - main.ascent();
+            b.cv.drawText("Графіка ще немає", tx, y, main);
+            if (!line.isEmpty()) b.cv.drawText(line, tx, y + gap - detail.ascent(), detail);
+        }
+
+        private static void large(Context c, Brush b, Model m, Frame f) {
+            float s = f.s;
+            float pad = 12 * s;
+            float hDp = f.h / s;
+            float size = Math.min(44, hDp * .26f) * s;
+            logo(c, b, pad + size / 2, pad + size / 2, size);
+            float tx = pad + size + 12 * s;
+            float tw = f.w - tx - pad - signRoom(m, s);
+            Paint where = fit(text(Ui.bold(c), 12.5f * s, b.pal.muted, Paint.Align.LEFT), Logic.withQueue(m.place, widgetName(m)), tw);
+            float y = pad - where.ascent();
+            b.cv.drawText(Logic.withQueue(m.place, widgetName(m)), tx, y, where);
+            // the main words in the display face: one line when they fit large enough, two otherwise
+            String whole = "Графік ще не опубліковано";
+            Paint title = text(Ui.display(c), 20 * s, b.pal.text, Paint.Align.LEFT);
+            boolean oneLine = sizeToFit(title, whole, tw) >= 15 * s;
+            if (oneLine) {
+                fit(title, whole, tw);
+                y += 6 * s - title.ascent();
+                b.cv.drawText(whole, tx, y, title);
+            } else {
+                fit(title, "опубліковано", tw);
+                y += 5 * s - title.ascent();
+                b.cv.drawText("Графік ще не", tx, y, title);
+                y += title.getFontSpacing() * .92f;
+                b.cv.drawText("опубліковано", tx, y, title);
+            }
+            String detail = Logic.waitingDetail(m.lastDay, m.ahead, m.checked);
+            Paint small = fit(text(Ui.bold(c), 12 * s, b.pal.muted, Paint.Align.LEFT), detail, f.w - 2 * pad);
+            float detailY = Math.max(y + 16 * s, pad + size + 18 * s) - small.ascent();
+            b.cv.drawText(detail, pad, detailY, small);
+            float cellsTop = detailY + 10 * s;
+            float cellsBottom = f.h - pad - 16 * s;
+            if (cellsBottom - cellsTop < 14 * s) return;  // a low widget: no room for the row of the day
+            float cell = (f.w - 2 * pad) / 24f;
+            b.p.setStyle(Paint.Style.FILL);
+            for (int i = 0; i < 24; i++) {
+                b.r.set(pad + i * cell + .8f * s, cellsTop, pad + (i + 1) * cell - .8f * s, Math.min(cellsBottom, cellsTop + 26 * s));
+                b.p.setColor(Ui.blend(b.pal.card, Ui.fade(b.pal.line, .35f)));
+                b.cv.drawRoundRect(b.r, 4 * s, 4 * s, b.p);
+            }
+            Paint label = text(Ui.heavy(c), 11 * s, b.pal.muted, Paint.Align.LEFT);
+            b.cv.drawText("Сьогодні · 00–23", pad, Math.min(cellsBottom, cellsTop + 26 * s) + 14 * s, label);
+        }
     }
 
     /** The size of the picture and its scale; `pad` is the margin inside the rounded card. */
@@ -126,8 +238,9 @@ final class WidgetArt {
         boolean live = m != null && !m.gone;
         int form = Logic.widgetForm(wDp, hDp);
         boolean halves = form != Logic.W_ROW;
-        int left = live ? pal.soft(m.now.state) : pal.card;
-        int right = live ? pal.soft(Logic.widgetRightState(m.now, future(m)[1])) : pal.card;
+        boolean colours = live && !m.waiting;
+        int left = colours ? pal.soft(m.now.state) : pal.card;
+        int right = colours ? pal.soft(Logic.widgetRightState(m.now, future(m)[1])) : pal.card;
         float centre = halves ? .5f : (Logic.widgetBulbSegment(wDp) + 3.5f) / wDp;
         Brush b = new Brush(pal, Logic.widgetGlow(left, right, pal.card, centre, halves ? .06f : centre * .5f)).on(new Canvas(bm));
         float r = Math.min(24 * s, f.h / 2.6f);
@@ -148,7 +261,8 @@ final class WidgetArt {
             b.cv.drawText(a, f.w / 2f, f.h / 2f - 2 * s, fit(t, a, f.w - 2 * f.pad));
             b.cv.drawText(hint, f.w / 2f, f.h / 2f + 14 * s, fit(u, hint, f.w - 2 * f.pad));
         } else {
-            one(c, b, m, now, f, form);
+            if (m.waiting) Waiting.draw(c, b, m, f, form);
+            else one(c, b, m, now, f, form);
             if (m.notice != Logic.NOTICE_NONE) {
                 float[] at = signAt(form, (float) f.w, s, m.notice);
                 Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);

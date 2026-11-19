@@ -16,64 +16,33 @@ import android.widget.TextView;
 final class Notices {
     private Notices() {}
 
-    /** The line for one region, or null when its file has no notice. */
-    static View strip(Base a, Logic.Data d, String region, boolean manyRegions, long now) {
+    /** One line under the places for the region of the chosen place, or null when its file has no notice. */
+    static View strip(Base a, Logic.Data d, String region) {
         if (d == null || d.notice.isEmpty()) return null;
         boolean emergency = Logic.noticeLevel(d.notice) == Logic.NOTICE_EMERGENCY;
-        String title = Logic.noticeTitle(d.notice, region, manyRegions);
-        String meta = Logic.noticeMeta(d, region, now);
-        LinearLayout row = emergency ? redLine(a, title, meta) : quietLine(a, title, meta);
+        Ui.Pal pal = a.pal;
+        String title = Logic.noticeTitle(d.notice, region);
+        int ink = emergency ? pal.ink : pal.maybeText;
+        LinearLayout row = Ui.row(a);
+        row.setPadding(Ui.dp(a, 10), Ui.dp(a, 6), Ui.dp(a, 10), Ui.dp(a, 6));
+        row.setMinimumHeight(Ui.dp(a, 40));
+        android.graphics.drawable.GradientDrawable bg = Ui.round(emergency ? pal.off : pal.soft(Logic.MAYBE), Ui.px(a, 100));
+        if (!emergency) bg.setStroke(Ui.dp(a, 1), Ui.fade(pal.maybe, .6f));
+        row.setBackground(bg);
+        SignView sign = emergency ? new SignView(a, pal.ink, pal.off) : new SignView(a, pal.maybe, pal.accentInk);
+        row.addView(sign, sign(a, 20, 10));
+        // one line; a large font wraps it rather than cutting it
+        TextView line = Ui.text(a, 14.5f, Ui.heavy(a), ink);
+        line.setText(title);
+        row.addView(line, Base.weight());
         ImageView more = new ImageView(a);
         more.setImageResource(R.drawable.ic_chevron);
-        more.setColorFilter(emergency ? a.pal.ink : a.pal.maybeText, android.graphics.PorterDuff.Mode.SRC_IN);
+        more.setColorFilter(ink, android.graphics.PorterDuff.Mode.SRC_IN);
         row.addView(more, new LinearLayout.LayoutParams(Ui.dp(a, 18), Ui.dp(a, 18)));
-        row.setContentDescription(title + ". " + meta + ". Відкрити повний текст");
+        row.setContentDescription(title + ". Відкрити повний текст");
         for (int i = 0; i < row.getChildCount(); i++) row.getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         row.setFocusable(true);
         row.setOnClickListener(v -> show(a, region));
-        return row;
-    }
-
-    /** Stabilisation and other notices: one amber line that wraps at a large font, who and when lighter. */
-    private static LinearLayout quietLine(Base a, String title, String meta) {
-        Ui.Pal pal = a.pal;
-        LinearLayout row = Ui.row(a);
-        row.setPadding(Ui.dp(a, 10), Ui.dp(a, 6), Ui.dp(a, 8), Ui.dp(a, 6));
-        row.setMinimumHeight(Ui.dp(a, 40));
-        android.graphics.drawable.GradientDrawable bg = Ui.round(pal.soft(Logic.MAYBE), Ui.px(a, 100));
-        bg.setStroke(Ui.dp(a, 1), Ui.fade(pal.maybe, .6f));
-        row.setBackground(bg);
-        row.addView(new SignView(a, pal.maybe, pal.accentInk), sign(a, 18, 8));
-        TextView line = Ui.text(a, 13.5f, Ui.heavy(a), pal.maybeText);
-        android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder(title);
-        if (!meta.isEmpty()) {
-            int from = s.length();
-            s.append("  ·  ").append(meta);
-            s.setSpan(new android.text.style.ForegroundColorSpan(pal.muted), from, s.length(), 0);
-            s.setSpan(new android.text.style.RelativeSizeSpan(.9f), from, s.length(), 0);
-        }
-        line.setText(s);
-        row.addView(line, Base.weight());
-        return row;
-    }
-
-    /** Emergency outages: a red line in two rows, what it means for the schedule under the title. */
-    private static LinearLayout redLine(Base a, String title, String meta) {
-        Ui.Pal pal = a.pal;
-        LinearLayout row = Ui.row(a);
-        row.setPadding(Ui.dp(a, 12), Ui.dp(a, 9), Ui.dp(a, 8), Ui.dp(a, 9));
-        row.setMinimumHeight(Ui.dp(a, 52));
-        row.setBackground(Ui.round(pal.off, Ui.px(a, 18)));
-        row.addView(new SignView(a, pal.ink, pal.off), sign(a, 24, 10));
-        LinearLayout words = Ui.column(a);
-        TextView head = Ui.text(a, 15, Ui.heavy(a), pal.ink);
-        head.setText(title);
-        words.addView(head, Base.fill());
-        TextView sub = Ui.text(a, 12.5f, Ui.bold(a), pal.ink);
-        sub.setText(meta);
-        sub.setPadding(0, Ui.dp(a, 2), 0, 0);
-        words.addView(sub, Base.fill());
-        row.addView(words, Base.weight());
         return row;
     }
 

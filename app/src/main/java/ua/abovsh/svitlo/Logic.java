@@ -711,31 +711,19 @@ public final class Logic {
         return dtek(region) ? "ДТЕК" : "обленерго";
     }
 
-    /** "Екстрені відключення в області"; with places in several regions the region is named. */
-    public static String noticeTitle(String text, String region, boolean manyRegions) {
-        Region r = region(region);
-        String where = manyRegions && r != null ? " · " + r.name : "";
+    /** "Екстрені відключення в області": the line under the places, for the region of the chosen one. */
+    public static String noticeTitle(String text, String region) {
         if (noticeLevel(text) == NOTICE_EMERGENCY) {
-            if (!where.isEmpty()) return "Екстрені відключення" + where;
             return "kyiv".equals(region) ? "Екстрені відключення в місті" : "Екстрені відключення в області";
         }
-        if (text.toLowerCase(Locale.ROOT).contains("стабілізаційн")) return "Стабілізаційні відключення" + where;
-        return "Повідомлення " + noticeSource(region) + where;
+        if (text.toLowerCase(Locale.ROOT).contains("стабілізаційн")) return "Стабілізаційні відключення";
+        return "Повідомлення " + noticeSource(region);
     }
 
     /** The level in one word, for the chip of the panel. */
     public static String noticeChip(String text) {
         if (noticeLevel(text) == NOTICE_EMERGENCY) return "Екстрені";
         return text.toLowerCase(Locale.ROOT).contains("стабілізаційн") ? "Стабілізаційні" : "Повідомлення";
-    }
-
-    /** Beside the title: what it means for the schedule, whose words they are, and as of when. */
-    public static String noticeMeta(Data d, String region, long now) {
-        List<String> parts = new ArrayList<>();
-        if (noticeLevel(d.notice) == NOTICE_EMERGENCY) parts.add("Графіки можуть не діяти");
-        if (!noticeTitle(d.notice, region, false).endsWith(noticeSource(region))) parts.add(noticeSource(region));
-        if (d.sourceTime > 0) parts.add(dayDiff(d.sourceTime, now) == 0 ? hm(d.sourceTime) : dayWord(d.sourceTime, now) + " " + hm(d.sourceTime));
-        return String.join(" · ", parts);
     }
 
     /** "Київська область · станом на 19:26": the text was on the site then. */
@@ -754,13 +742,6 @@ public final class Logic {
         if ("kyiv".equals(region)) return "https://www.dtek-kem.com.ua/ua/shutdowns";
         Region r = region(region);
         return r == null ? "" : r.dso;
-    }
-
-    /** The regions of the places, each once, in the order of the places. */
-    public static List<String> placeRegions(List<Place> places) {
-        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
-        for (Place p : places) out.add(p.region);
-        return new ArrayList<>(out);
     }
 
     // ---- time words ------------------------------------------------------------
@@ -2360,6 +2341,26 @@ public final class Logic {
         if (n.state != UNKNOWN) return new String[0];
         if (ahead) return new String[] {TOMORROW, "Графік є", ""};
         return lastDay.isEmpty() ? new String[0] : new String[] {"Останній графік", lastDay, ""};
+    }
+
+    /** The schedule is loaded, but not today's of this queue: no state card, the widget waits for it. */
+    static boolean waitingForToday(Data d, String group, LocalDate today) {
+        return d != null && day(d, group, today) == null;
+    }
+
+    /** Under "Графіка ще немає" on a small widget: what there is instead. */
+    static String waitingLine(String lastDay, boolean ahead) {
+        if (ahead) return "на завтра графік є";
+        return lastDay.isEmpty() ? "" : "останній — " + lastDay;
+    }
+
+    /** The same on a large widget, with the time of the last check. */
+    static String waitingDetail(String lastDay, boolean ahead, long checked) {
+        String first = "";
+        if (ahead) first = "На завтра графік є";
+        else if (!lastDay.isEmpty()) first = "Останній — " + lastDay;
+        if (checked <= 0) return first;
+        return first.isEmpty() ? "Перевірено " + hm(checked) : first + " · перевірено " + hm(checked);
     }
 
     /** Whether tomorrow of this queue is published. */

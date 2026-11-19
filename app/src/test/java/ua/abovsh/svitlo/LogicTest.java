@@ -1852,25 +1852,12 @@ public class LogicTest {
     }
 
     @Test
-    public void theLineOfANoticeSaysWhatItIsWhoAndWhen() {
+    public void theLineOfANoticeSaysOnlyWhatItIs() {
         long now = kyiv(11, 19, 21, 0);
-        Logic.Data d = new Logic.Data();
-        d.sourceTime = kyiv(11, 19, 19, 26);
-        d.notice = KYIV_REGION_NOTICE;
-        assertEquals("Стабілізаційні відключення", Logic.noticeTitle(d.notice, "kyiv_region", false));
-        assertEquals("Стабілізаційні відключення · Київська область", Logic.noticeTitle(d.notice, "kyiv_region", true));
-        assertEquals("ДТЕК · 19:26", Logic.noticeMeta(d, "kyiv_region", now));
-        d.notice = DNIPRO_NOTICE;
-        assertEquals("Екстрені відключення в області", Logic.noticeTitle(d.notice, "dnipro", false));
-        assertEquals("Екстрені відключення в місті", Logic.noticeTitle(d.notice, "kyiv", false));
-        assertEquals("Екстрені відключення · Дніпропетровська область", Logic.noticeTitle(d.notice, "dnipro", true));
-        assertEquals("Графіки можуть не діяти · ДТЕК · 19:26", Logic.noticeMeta(d, "dnipro", now));
-        d.notice = "Шановні споживачі! Сайт працює в штатному режимі.";
-        assertEquals("Повідомлення ДТЕК", Logic.noticeTitle(d.notice, "odesa", false));
-        assertEquals("19:26", Logic.noticeMeta(d, "odesa", now));
-        assertEquals("вчора 19:26", Logic.noticeMeta(d, "odesa", kyiv(11, 20, 8, 0)));
-        d.sourceTime = 0;
-        assertEquals("", Logic.noticeMeta(d, "odesa", now));
+        assertEquals("Стабілізаційні відключення", Logic.noticeTitle(KYIV_REGION_NOTICE, "kyiv_region"));
+        assertEquals("Екстрені відключення в області", Logic.noticeTitle(DNIPRO_NOTICE, "dnipro"));
+        assertEquals("Екстрені відключення в місті", Logic.noticeTitle(DNIPRO_NOTICE, "kyiv"));
+        assertEquals("Повідомлення ДТЕК", Logic.noticeTitle("Шановні споживачі! Сайт працює в штатному режимі.", "odesa"));
         assertEquals("Київська область · станом на 19:26", Logic.noticeWhere("kyiv_region", kyiv(11, 19, 19, 26), now));
         assertEquals("Київська область · станом на 18.11, 19:26", Logic.noticeWhere("kyiv_region", kyiv(11, 18, 19, 26), now));
         assertEquals("https://www.dtek-kem.com.ua/ua/shutdowns", Logic.noticeSite("kyiv"));
@@ -1881,15 +1868,23 @@ public class LogicTest {
     }
 
     @Test
-    public void theNoticesOnScreenGoOncePerRegionInTheOrderOfThePlaces() {
-        List<Logic.Place> places = Arrays.asList(placeIn("kyiv_region"), placeIn("dnipro"), placeIn("kyiv_region"), placeIn("odesa"));
-        assertEquals(Arrays.asList("kyiv_region", "dnipro", "odesa"), Logic.placeRegions(places));
+    public void aPlaceWithoutTodaysScheduleWaitsForIt() throws Exception {
+        Logic.Data d = data(TODAY_ONLY);
+        assertFalse(Logic.waitingForToday(d, "GPV1.1", OCT30));
+        assertTrue(Logic.waitingForToday(d, "GPV1.1", OCT30.plusDays(1)));
+        assertTrue(Logic.waitingForToday(d, "GPV9.9", OCT30));  // the region has no schedule of this queue today
+        assertFalse(Logic.waitingForToday(null, "GPV1.1", OCT30));  // nothing loaded yet: the card says why
     }
 
-    static Logic.Place placeIn(String region) {
-        Logic.Place p = home();
-        p.region = region;
-        return p;
+    @Test
+    public void aWaitingWidgetSaysWhatThereIsInstead() {
+        assertEquals("на завтра графік є", Logic.waitingLine("19.11", true));
+        assertEquals("останній — 19.11", Logic.waitingLine("19.11", false));
+        assertEquals("", Logic.waitingLine("", false));
+        assertEquals("Останній — 19.11 · перевірено 08:15", Logic.waitingDetail("19.11", false, kyiv(11, 20, 8, 15)));
+        assertEquals("На завтра графік є · перевірено 08:15", Logic.waitingDetail("19.11", true, kyiv(11, 20, 8, 15)));
+        assertEquals("Перевірено 08:15", Logic.waitingDetail("", false, kyiv(11, 20, 8, 15)));
+        assertEquals("", Logic.waitingDetail("", false, 0));
     }
 
     @Test

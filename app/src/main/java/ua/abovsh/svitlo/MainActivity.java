@@ -271,16 +271,15 @@ public class MainActivity extends Base {
 
         clockUpdates.clear();
         body.removeAllViews();
-        List<String> regions = Logic.placeRegions(places);
-        for (String region : regions) {
-            View notice = Notices.strip(this, Store.data(this, region), region, regions.size() > 1, now);
-            if (notice != null) body.addView(notice, gap(10));
-        }
         Logic.Release update = Updates.offered(this);
         if (update != null) body.addView(updateCard(update), gap(8));
+        // the notice of the chosen place's region only, right under the places
+        View notice = Notices.strip(this, d, p.region);
         boolean many = places.size() > 1;
-        if (many) body.addView(tiles(places, p, base, now), gap(16));
-        body.addView(hero(p, d, tl, base, now), gap(6));
+        if (many) body.addView(tiles(places, p, base, now), gap(notice == null ? 16 : 10));
+        if (notice != null) body.addView(notice, gap(10));
+        // no schedule of today: the card of the state would only repeat the grid below it
+        if (!Logic.waitingForToday(d, p.group, base)) body.addView(hero(p, d, tl, base, now), gap(6));
         View stale = stale(p, d, now);
         if (stale != null) body.addView(stale, gap(8));
         body.addView(schedule(p, d, base, cur, nowRel), gap(8));

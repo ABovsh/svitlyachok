@@ -25,20 +25,35 @@ final class BottomSheet {
     }
 
     static Dialog show(Base a, LinearLayout col, Runnable closed) {
+        return show(a, null, col, closed);
+    }
+
+    /** `top`, when given, stays in place above the scrolling `col`: a title and its close button never scroll away. */
+    static Dialog show(Base a, LinearLayout top, LinearLayout col, Runnable closed) {
         Dialog d = new Dialog(a);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
         ScrollView sv = new ScrollView(a);
         sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
         int side = Ui.dp(a, 16);
-        col.setPadding(side, Ui.dp(a, 10), side, Ui.dp(a, 18));
+        col.setPadding(side, top == null ? Ui.dp(a, 10) : 0, side, Ui.dp(a, 18));
         sv.addView(col);
+        View root = sv;
+        if (top != null) {
+            top.setPadding(side, Ui.dp(a, 10), side, 0);
+            LinearLayout frame = new LinearLayout(a);
+            frame.setOrientation(LinearLayout.VERTICAL);
+            frame.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            // after the top: the scroll gets the height that is left, never more
+            frame.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            root = frame;
+        }
         if (Build.VERSION.SDK_INT >= 30) {  // above the navigation bar, not under it
-            sv.setOnApplyWindowInsetsListener((v, in) -> {
+            root.setOnApplyWindowInsetsListener((v, in) -> {
                 v.setPadding(0, 0, 0, in.getInsets(WindowInsets.Type.navigationBars()).bottom);
                 return in;
             });
         }
-        d.setContentView(sv);
+        d.setContentView(root);
         Window w = d.getWindow();
         if (w != null) {
             float r = Ui.px(a, 28);

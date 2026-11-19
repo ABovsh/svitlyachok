@@ -6,12 +6,19 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-/** A compact place has its own width budget; the state card cannot change its grid. */
+/**
+ * A compact place has its own width budget; the state card cannot change its grid. A name whose longest
+ * word does not fit beside the bulb and the share takes the whole width above them, so a word never
+ * breaks in its middle; the share then stands after its last line, or under it.
+ */
 final class PlaceTile extends ViewGroup {
     private final FitText status;
     private int wordsLeft;
     private int wordsRoom;
     private int headerBaseline;
+    private boolean stacked;
+    private boolean shareBeside;
+    private int stackedHead;
     private final BulbView bulb;
     private final FitText name;
     private final TextView queue;
@@ -79,6 +86,11 @@ final class PlaceTile extends ViewGroup {
         int nameRoom = Math.max(1, wordsRoom - percent.getMeasuredWidth() - Ui.dp(c, 4));
         android.graphics.Paint label = labelMeasure; label.set(name.getPaint());
         label.setTextSize(Ui.compactSp(c, 14, 1));
+        stacked = longestWord(label, name.getText().toString()) + 1 > nameRoom;
+        if (stacked) {
+            measureStacked(c, px, width, height, icon);
+            return;
+        }
         boolean showQueue = namedQueue && Math.ceil(label.measureText(name.getText().toString())) + 1
                 + queue.getMeasuredWidth() + Ui.dp(c, 4) <= nameRoom;
         queue.setVisibility(showQueue ? VISIBLE : GONE);
@@ -95,12 +107,57 @@ final class PlaceTile extends ViewGroup {
         setMeasuredDimension(resolveSize(px, width), resolveSize(natural, height));
     }
 
+    private static float longestWord(android.graphics.Paint paint, String text) {
+        float longest = 0;
+        for (String word : text.trim().split("\\s+")) longest = Math.max(longest, paint.measureText(word));
+        return longest;
+    }
+
+    /** The name over the whole width; the bulb and the state under it, as in a row of their own. */
+    private void measureStacked(Context c, int px, int width, int height, int icon) {
+        queue.setVisibility(GONE);
+        int full = Math.max(1, px - Ui.dp(c, 6) - Ui.dp(c, 4));
+        measureText(name, full);
+        measureText(status, wordsRoom);
+        android.text.Layout lines = name.getLayout();
+        float lastLine = lines == null ? full : lines.getLineWidth(lines.getLineCount() - 1);
+        shareBeside = lastLine + Ui.dp(c, 6) + percent.getMeasuredWidth() <= full;
+        stackedHead = name.getMeasuredHeight() + (shareBeside ? 0 : Ui.dp(c, 2) + percent.getMeasuredHeight());
+        int natural = Ui.dp(c, 6) + stackedHead + Ui.dp(c, 4) + Math.max(icon, status.getMeasuredHeight()) + Ui.dp(c, 6);
+        setMeasuredDimension(resolveSize(px, width), resolveSize(Math.max(Ui.dp(c, 56), natural), height));
+    }
+
+    private void layoutStacked() {
+        Context c = getContext();
+        int x = Ui.dp(c, 6);
+        int top = Ui.dp(c, 6);
+        name.layout(x, top, x + name.getMeasuredWidth(), top + name.getMeasuredHeight());
+        int right = getWidth() - Ui.dp(c, 4);
+        int shareTop = top + name.getMeasuredHeight() + Ui.dp(c, 2);
+        android.text.Layout lines = name.getLayout();
+        if (shareBeside && lines != null) {
+            shareTop = top + lines.getLineBaseline(lines.getLineCount() - 1) - percent.getBaseline();
+        }
+        percent.layout(right - percent.getMeasuredWidth(), shareTop, right, shareTop + percent.getMeasuredHeight());
+        int rowHeight = Math.max(bulb.getMeasuredHeight(), status.getMeasuredHeight());
+        // at the bottom, level with the state of a neighbour of the same height
+        int rowTop = Math.max(top + stackedHead + Ui.dp(c, 4), getHeight() - Ui.dp(c, 6) - rowHeight);
+        int bulbTop = rowTop + (rowHeight - bulb.getMeasuredHeight()) / 2;
+        bulb.layout(x, bulbTop, x + bulb.getMeasuredWidth(), bulbTop + bulb.getMeasuredHeight());
+        int statusTop = rowTop + (rowHeight - status.getMeasuredHeight()) / 2;
+        status.layout(wordsLeft, statusTop, wordsLeft + wordsRoom, statusTop + status.getMeasuredHeight());
+    }
+
     private void layoutHeader(TextView text, int x) {
         int top = Ui.dp(getContext(), 6) + headerBaseline - text.getBaseline();
         text.layout(x, top, x + text.getMeasuredWidth(), top + text.getMeasuredHeight());
     }
 
     @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        if (stacked) {
+            layoutStacked();
+            return;
+        }
         int x = Ui.dp(getContext(), 6);
         int y = (getHeight() - bulb.getMeasuredHeight()) / 2;
         bulb.layout(x, y, x + bulb.getMeasuredWidth(), y + bulb.getMeasuredHeight());

@@ -405,22 +405,24 @@ public final class Logic {
         return a != null && (b == null || !a.isBefore(b));
     }
 
-    /** "17.10": the last day the source has a schedule for, empty when it has none. */
-    public static String lastScheduleDay(Data d) {
+    /**
+     * "17.10": the last day before `today` the source has a schedule for, empty when it has none. A
+     * schedule of today or tomorrow is not "the last one": it is on the screen as its own day.
+     */
+    public static String lastScheduleDay(Data d, LocalDate today) {
         LocalDate last = latestDay(d);
-        return last == null ? "" : String.format(Locale.ROOT, "%d.%02d", last.getDayOfMonth(), last.getMonthValue());
-    }
-
-    static String missingSchedule(Data d) {
-        LocalDate last = latestDay(d);
-        return last == null ? "Нового графіка немає" : "Нового графіка немає · останній був " + lastScheduleDay(d);
+        return last == null || !last.isBefore(today) ? ""
+                : String.format(Locale.ROOT, "%d.%02d", last.getDayOfMonth(), last.getMonthValue());
     }
 
     /** What to say about a day without a schedule: a queue the region does not have is not "no schedule yet". */
-    static String missingSchedule(Data d, String group) {
+    static String missingSchedule(Data d, String group, LocalDate today) {
         boolean absent = d != null && !d.none && !d.groups.isEmpty() && !d.groups.contains(group);
-        return absent ? "Черги " + queue(group) + " немає в останньому графіку області. Перевірте чергу в налаштуваннях."
-                : missingSchedule(d) + ".";
+        if (absent) return "Черги " + queue(group) + " немає в останньому графіку області. Перевірте чергу в налаштуваннях.";
+        LocalDate latest = latestDay(d);
+        if (latest != null && latest.isAfter(today)) return "Графіка на сьогодні немає.";  // a later day is published
+        String last = lastScheduleDay(d, today);
+        return last.isEmpty() ? "Нового графіка немає." : "Нового графіка немає · останній був " + last + ".";
     }
 
     /** Whether a chosen queue stays chosen once the region's list is known; `saved`: the place's own. */
@@ -2190,7 +2192,42 @@ public final class Logic {
         if (now < start) return start;
         int at = index(date, now);
         if (at >= 48) return -1;
-        return slotStart(date, barRun(day, at)[1]);
+        return intervalEnd(date, barRun(day, at)[1], now);
+    }
+
+    /**
+     * The instant an interval going on at `now` ends at the wall-clock slot `idx`: a time the spring
+     * change skips ends it at the jump; a time the autumn change repeats ends it at its next coming.
+     */
+    public static long intervalEnd(LocalDate base, int idx, long now) {
+        LocalDateTime local = base.plusDays(idx / 48).atTime((idx % 48) / 2, (idx % 2) * 30);
+        List<java.time.ZoneOffset> offsets = KYIV.getRules().getValidOffsets(local);
+        if (offsets.isEmpty()) return local.atZone(KYIV).toEpochSecond();
+        long last = 0;
+        for (java.time.ZoneOffset o : offsets) {
+            last = local.atOffset(o).toEpochSecond();
+            if (last > now) return last;
+        }
+        return last;
+    }
+
+    /** Today has no schedule: tomorrow's below it, or the last one before it; null otherwise. */
+    static String[] unknownFuture(Now n, String lastDay, boolean ahead) {
+        if (n.state != UNKNOWN) return null;
+        if (ahead) return new String[] {TOMORROW, "Графік є", ""};
+        return lastDay.isEmpty() ? null : new String[] {"Останній графік", lastDay, ""};
+    }
+
+    /** Whether tomorrow of this queue is published. */
+    static boolean scheduleAhead(Data d, String group, LocalDate today) {
+        return day(d, group, today.plusDays(1)) != null;
+    }
+
+    /** Where an open list of `date` stands at `now`: its slot today, 48 for a day gone by, -1 for one to come. */
+    public static int listNow(LocalDate date, long now) {
+        LocalDate today = today(now);
+        if (date.isBefore(today)) return 48;
+        return date.equals(today) ? index(date, now) : -1;
     }
 
     /** "ще 31 хв": what is left of the interval going on, whole minutes rounded up. */
@@ -2247,7 +2284,13 @@ public final class Logic {
 
     /** What the right half says: the widget's words, and a day with no schedule names the last one known. */
     public static String[] heroFuture(Now n, String lastDay) {
-        if (n.state == UNKNOWN && !lastDay.isEmpty()) return new String[] {"Останній графік", lastDay, ""};
+        return heroFuture(n, lastDay, false);
+    }
+
+    /** `ahead`: tomorrow of this queue is published while today is not. */
+    public static String[] heroFuture(Now n, String lastDay, boolean ahead) {
+        String[] unknown = unknownFuture(n, lastDay, ahead);
+        if (unknown != null) return unknown;
         String[] next = widgetFuture(n);
         // only the clock: the end of the window is on the grid right below
         next[2] = "";

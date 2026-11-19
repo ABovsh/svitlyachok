@@ -60,13 +60,22 @@ final class Share {
 
     /**
      * One day of one place on a picture 1080 px wide, as compact as the main screen: the queue and its
-     * region on one line, the day and its light, the grid, the outages in one row, and a footer.
+     * region on one line, the day and its light, the grid, its outages on a tray as tall as they need, and a footer.
      */
     static Bitmap draw(Context c, Logic.Place p, LocalDate day, long now) {
-        Ui.Pal pal = Ui.pal(c);
         int w = Math.round(W * Sheet.S);
-        Bitmap tall = Bitmap.createBitmap(w, Math.round(420 * Sheet.S), Bitmap.Config.ARGB_8888);
-        Canvas cv = new Canvas(tall);
+        // a first pass on a single pixel only measures: a long tray of outages makes the picture taller
+        Bitmap probe = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        int height = Math.round(paint(c, new Canvas(probe), w, p, day, now));
+        probe.recycle();
+        Bitmap out = Bitmap.createBitmap(w, Math.max(1, height), Bitmap.Config.ARGB_8888);
+        paint(c, new Canvas(out), w, p, day, now);
+        return out;
+    }
+
+    /** Draws the picture `w` pixels wide on `cv`; returns the height it needs. */
+    private static float paint(Context c, Canvas cv, int w, Logic.Place p, LocalDate day, long now) {
+        Ui.Pal pal = Ui.pal(c);
         cv.drawColor(pal.card);
         Sheet sh = new Sheet(c, new Brush(pal, pal.card).on(cv), w);
         float s = Sheet.S;
@@ -101,10 +110,7 @@ final class Share {
             cv.drawText(stamp, sh.left, y + 6 * s + 12 * s * 0.8f, ink);
             y += 6 * s + 12 * s;
         }
-        // drawn on a tall sheet, then cut to what was used
-        Bitmap out = Bitmap.createBitmap(tall, 0, 0, w, Math.min(tall.getHeight(), Math.round(y + 12 * s)));
-        tall.recycle();
-        return out;
+        return y + 12 * s;
     }
 
     /** The picture being drawn: its canvas and margins, at 3 pixels to a dp. */

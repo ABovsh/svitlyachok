@@ -32,6 +32,7 @@ final class WidgetArt {
         String tl;
         Logic.Now now;
         String lastDay = "";  // the last day with a schedule, for a widget without one
+        boolean ahead;  // tomorrow is published while today is not
         boolean lit;  // the event is close: its half is filled with its colour, as on the card
     }
 
@@ -52,7 +53,8 @@ final class WidgetArt {
         Logic.Data data = Store.data(c, p.region);
         m.stale = !dataFresh(c, p, data, now);
         m.tl = Logic.timeline(data, p.group, m.base);
-        m.lastDay = Logic.lastScheduleDay(data);
+        m.lastDay = Logic.lastScheduleDay(data, m.base);
+        m.ahead = Logic.scheduleAhead(data, p.group, m.base);
         m.now = Logic.nowWithHistory(m.tl, m.base, now, data != null && data.none, Prefs.knownHistory(c, p, data));
         if (data == null) {
             m.now.title = "Немає графіка";
@@ -79,7 +81,7 @@ final class WidgetArt {
         if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
         b.append('|').append(m.stale).append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
-                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay);
+                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay).append('|').append(m.ahead);
         b.append('|').append(n.hint).append('|').append(Logic.dayPercent(dayOf(m.tl, 0))).append('|').append(n.next).append('|').append(n.change);
         if (Logic.widgetForm(wDp, hDp) != Logic.W_ROW) {  // the bar moves every half hour
             b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
@@ -286,8 +288,8 @@ final class WidgetArt {
     /** What comes next, for both forms of the widget: a day of no schedule names the last one it knows. */
     private static String[] future(Model m) {
         if (m.now.big.equals("відкрийте застосунок")) return new String[] {m.now.title, m.now.big, ""};
-        if (m.now.state == Logic.UNKNOWN && !m.lastDay.isEmpty()) return new String[] {"Останній графік", m.lastDay, ""};
-        return Logic.widgetFuture(m.now);
+        String[] unknown = Logic.unknownFuture(m.now, m.lastDay, m.ahead);
+        return unknown != null ? unknown : Logic.widgetFuture(m.now);
     }
 
     /** A line whose capitals start at y, measured by the size it was meant to have; returns its baseline. */

@@ -1135,11 +1135,12 @@ public class LogicTest {
     @Test
     public void aWidgetWithoutAScheduleNamesTheDayOfTheLastOne() {
         Logic.Data d = new Logic.Data();
-        assertEquals("", Logic.lastScheduleDay(d));
-        assertEquals("", Logic.lastScheduleDay(null));
+        LocalDate today = LocalDate.of(2026, 10, 20);
+        assertEquals("", Logic.lastScheduleDay(d, today));
+        assertEquals("", Logic.lastScheduleDay(null, today));
         d.days.put(LocalDate.of(2026, 10, 3), new java.util.HashMap<>());
         d.days.put(LocalDate.of(2026, 10, 17), new java.util.HashMap<>());
-        assertEquals("17.10", Logic.lastScheduleDay(d));
+        assertEquals("17.10", Logic.lastScheduleDay(d, today));
     }
 
     @Test
@@ -1818,8 +1819,8 @@ public class LogicTest {
     @Test
     public void aQueueTheScheduleDoesNotHaveIsNamed() throws Exception {
         Logic.Data d = Logic.parse(feed("{\"" + D30 + "\":{\"GPV1.1\":" + HOURS_11 + "}}"));
-        assertEquals("Черги 5.2 немає в останньому графіку області. Перевірте чергу в налаштуваннях.", Logic.missingSchedule(d, "GPV5.2"));
-        assertEquals("Нового графіка немає · останній був 30.10.", Logic.missingSchedule(d, "GPV1.1"));
+        assertEquals("Черги 5.2 немає в останньому графіку області. Перевірте чергу в налаштуваннях.", Logic.missingSchedule(d, "GPV5.2", OCT30.plusDays(2)));
+        assertEquals("Нового графіка немає · останній був 30.10.", Logic.missingSchedule(d, "GPV1.1", OCT30.plusDays(2)));
     }
 
     private static Logic.Place place(String name, String group) {
@@ -2672,5 +2673,64 @@ public class LogicTest {
         assertEquals(2, Logic.trayColumns(100, 300, 5, 3));  // 3 × 100 + 10 > 300
         assertEquals(1, Logic.trayColumns(200, 300, 5, 3));
         assertEquals(1, Logic.trayColumns(400, 300, 5, 3));  // never none
+    }
+
+    @Test public void aScheduleOfTomorrowIsNeverCalledTheLastOneBefore() throws Exception {
+        // today, 30.10, has nothing; tomorrow, 31.10, is published
+        Logic.Data d = Logic.parse(feed("{\"" + D31 + "\":{\"GPV1.1\":" + HOURS_11 + "}}"));
+        assertEquals("", Logic.lastScheduleDay(d, OCT30));
+        assertEquals("", Logic.lastScheduleDay(d, OCT30.plusDays(1)));  // today's own is not "the last one" either
+        assertEquals("Графіка на сьогодні немає.", Logic.missingSchedule(d, "GPV1.1", OCT30));
+        // two days later 31.10 is the past
+        assertEquals("31.10", Logic.lastScheduleDay(d, OCT30.plusDays(2)));
+        assertEquals("Нового графіка немає · останній був 31.10.", Logic.missingSchedule(d, "GPV1.1", OCT30.plusDays(2)));
+    }
+
+    @Test public void aListOfADayGoneByHasEveryIntervalOver() {
+        LocalDate d = LocalDate.of(2026, 11, 1);
+        long at1000 = Logic.slotStart(d, 20);
+        assertEquals(20, Logic.listNow(d, at1000));
+        assertEquals(48, Logic.listNow(d, Logic.slotStart(d, 48) + 60));  // past midnight the whole day is over
+        assertEquals(-1, Logic.listNow(d.plusDays(1), at1000));          // tomorrow has not begun
+    }
+
+    @Test public void theRunningIntervalEndsAtTheRealInstantAcrossClockChanges() {
+        // 29.03.2026: the clocks go from 03:00 straight to 04:00
+        LocalDate spring = LocalDate.of(2026, 3, 29);
+        long at0245 = java.time.ZonedDateTime.of(2026, 3, 29, 2, 45, 0, 0, Logic.KYIV).toEpochSecond();
+        long jump = java.time.ZonedDateTime.of(2026, 3, 29, 4, 0, 0, 0, Logic.KYIV).toEpochSecond();
+        assertEquals(at0245 + 15 * 60, jump);
+        assertEquals(jump, Logic.intervalEnd(spring, 6, at0245));
+        assertEquals(jump, Logic.nextIntervalChange(repeat('0', 6) + repeat('1', 42), spring, at0245));
+        assertEquals("ще 15 хв", Logic.intervalLeft(Logic.intervalEnd(spring, 6, at0245), at0245));
+        // 25.10.2026: 03:00–04:00 comes twice; each 03:15 has 15 minutes to its own 03:30
+        LocalDate autumn = LocalDate.of(2026, 10, 25);
+        java.time.ZonedDateTime first = java.time.ZonedDateTime.of(2026, 10, 25, 3, 15, 0, 0, Logic.KYIV).withEarlierOffsetAtOverlap();
+        long firstAt = first.toEpochSecond();
+        long secondAt = first.withLaterOffsetAtOverlap().toEpochSecond();
+        assertEquals(firstAt + 3600, secondAt);
+        String run = repeat('1', 7) + repeat('0', 41);  // light until 03:30
+        for (long at : new long[] {firstAt, secondAt}) {
+            assertEquals(at + 15 * 60, Logic.intervalEnd(autumn, 7, at));
+            assertEquals(at + 15 * 60, Logic.nextIntervalChange(run, autumn, at));
+            assertEquals("ще 15 хв", Logic.intervalLeft(Logic.intervalEnd(autumn, 7, at), at));
+        }
+        // an ordinary day is unchanged
+        LocalDate d = LocalDate.of(2026, 11, 19);
+        assertEquals(Logic.slotStart(d, 17), Logic.intervalEnd(d, 17, Logic.slotStart(d, 16)));
+    }
+
+    @Test public void anUnknownTodayPointsToTheScheduleOfTomorrow() {
+        Logic.Now n = Logic.now(repeat('2', 48) + DAY_11, OCT30, at(10, 0), false);
+        assertEquals(Arrays.asList("Завтра", "Графік є", ""), Arrays.asList(Logic.heroFuture(n, "", true)));
+        assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.heroFuture(n, "", false)));
+        Logic.Data d = new Logic.Data();
+        java.util.Map<String, String> queues = new java.util.HashMap<>();
+        queues.put("GPV1.1", DAY_11);
+        d.days.put(OCT30.plusDays(1), queues);
+        assertTrue(Logic.scheduleAhead(d, "GPV1.1", OCT30));
+        assertFalse(Logic.scheduleAhead(d, "GPV2.1", OCT30));  // another queue's tomorrow is not this one's
+        assertFalse(Logic.scheduleAhead(d, "GPV1.1", OCT30.plusDays(1)));
+        assertFalse(Logic.scheduleAhead(null, "GPV1.1", OCT30));
     }
 }

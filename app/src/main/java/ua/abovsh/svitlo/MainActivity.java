@@ -34,6 +34,7 @@ public class MainActivity extends Base {
     private String shown = "";
     private View addWidget;
     private LinearLayout body;
+    private Runnable openList;  // follows a new schedule while a list of a day is open
     private boolean loading;
     private final List<Runnable> clockUpdates = new ArrayList<>();
     private final BarTips tips = new BarTips(this);
@@ -280,6 +281,7 @@ public class MainActivity extends Base {
         boolean offer = android.appwidget.AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported();
         addWidget.setVisibility(offer ? View.VISIBLE : View.GONE);
         addWidget.setContentDescription("Додати віджет «" + p.name + "» на головний екран");
+        if (openList != null) openList.run();
     }
 
     /** A newer version on GitHub: what it is, and two ways on. The user decides; "later" hides it. */
@@ -369,7 +371,7 @@ public class MainActivity extends Base {
             state.title = loading ? "Завантажую графік" : "Графіка немає"; state.big = "";
             state.hint = "Інтернет потрібен для першого завантаження"; state.hintIn = "";
         }
-        String[] next = d == null ? new String[] {"", state.hint, ""} : Logic.heroFuture(state, Logic.lastScheduleDay(d));
+        String[] next = d == null ? new String[] {"", state.hint, ""} : Logic.heroFuture(state, Logic.lastScheduleDay(d, base), Logic.scheduleAhead(d, p.group, base));
         String label = Logic.autoNamed(p) ? where(p) : p.name + " · " + where(p);
         HeroCard card = new HeroCard(this, pal, label, state, next, Logic.highlight(state, Prefs.alerts(this, p.id), now));
         clockUpdates.add(() -> card.update(currentNow()));
@@ -481,16 +483,20 @@ public class MainActivity extends Base {
     }
 
     /** The name of a published day opens its intervals; closing them gives the focus back to the name. */
-    private void intervals(DayHeader head, Logic.Place p, LocalDate date, String slots) {
+    private void intervals(DayHeader head, Logic.Place p, LocalDate date) {
         head.setTag(date);
         head.openIntervals(pal, trigger -> {
             tips.hide();
             boolean keyboard = trigger.isFocused();
-            DayIntervals.show(this, p, date, slots, () -> body.post(() -> {
+            // the list reads its day anew from the stored schedule: a sync while it is open changes it too
+            Runnable[] list = new Runnable[1];
+            list[0] = DayIntervals.show(this, p, date, () -> Logic.day(Store.data(this, p.region), p.group, date), () -> body.post(() -> {
+                if (openList == list[0]) openList = null;
                 // The visible header may have been rebuilt by a sync while the panel was open.
                 DayHeader visible = body.findViewWithTag(date);
                 if (keyboard && visible != null) visible.restoreKeyboardFocus();
             }));
+            openList = list[0];
         });
     }
 
@@ -506,7 +512,7 @@ public class MainActivity extends Base {
         DayHeader head = new DayHeader(this, pal, title, slots != null ? Logic.daySummaries(slots)
                 : java.util.Collections.singletonList(noSchedule), slots != null ? pal.onText : pal.muted, share);
         if (slots == null) head.setContentDescription(Logic.describe(title, null));
-        else intervals(head, p, date, slots);
+        else intervals(head, p, date);
         android.widget.FrameLayout section = new android.widget.FrameLayout(this);
         LinearLayout inner = Ui.column(this);
         inner.addView(head, fill());
@@ -530,7 +536,7 @@ public class MainActivity extends Base {
     }
 
     private String notPublished(Logic.Place p) {
-        return Logic.missingSchedule(Store.data(this, p.region), p.group);
+        return Logic.missingSchedule(Store.data(this, p.region), p.group, Logic.today(Sync.now()));
     }
 
     /** Right under the bars: when the schedule was published and when it was checked. */

@@ -113,6 +113,8 @@ final class WidgetArt {
 
     /** No schedule of today: the firefly in a warm glow says so, calmly, with what there is instead. */
     private static final class Waiting {
+        private static final String NONE_YET = "Графіка ще немає";
+
         private Waiting() {}
 
         static void draw(Context c, Brush b, Model m, Frame f, int form) {
@@ -150,14 +152,14 @@ final class WidgetArt {
             float tw = f.w - tx - pad * .8f;
             Paint main = text(Ui.heavy(c), rowH * .22f, b.pal.accentText, Paint.Align.LEFT);
             if (!Logic.widgetSmallWords(rowH / s)) {  // too low for three lines: the words that matter
-                String only = "Графіка ще немає";
+                String only = NONE_YET;
                 fit(main, only, tw).setTextSize(Math.min(main.getTextSize(), rowH * .42f));
                 b.cv.drawText(only, tx, f.h / 2f - (main.ascent() + main.descent()) / 2, main);
                 return;
             }
             Paint name = text(Ui.heavy(c), rowH * .27f, b.pal.text, Paint.Align.LEFT);
             String place = readable(name, widgetName(m), tw, 9.5f * s);
-            fit(main, "Графіка ще немає", tw);
+            fit(main, NONE_YET, tw);
             String line = Logic.waitingLine(m.lastDay, m.ahead);
             Paint detail = fit(text(Ui.bold(c), rowH * .19f, b.pal.muted, Paint.Align.LEFT), line, tw);
             float gap = rowH * .08f;
@@ -165,7 +167,7 @@ final class WidgetArt {
             float y = (f.h - block) / 2f - name.ascent();
             b.cv.drawText(place, tx, y, name);
             y += gap - main.ascent();
-            b.cv.drawText("Графіка ще немає", tx, y, main);
+            b.cv.drawText(NONE_YET, tx, y, main);
             if (!line.isEmpty()) b.cv.drawText(line, tx, y + gap - detail.ascent(), detail);
         }
 

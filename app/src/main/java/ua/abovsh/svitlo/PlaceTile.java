@@ -147,8 +147,10 @@ final class PlaceTile extends ViewGroup {
         measureText(name, full);
         measureText(status, wordsRoom);
         android.text.Layout lines = name.getLayout();
-        float lastLine = lines == null ? full : lines.getLineWidth(lines.getLineCount() - 1);
-        shareBeside = lastLine + Ui.dp(c, 6) + percent.getMeasuredWidth() <= full;
+        // beside a name of one line only, and that name as wide as its words: the two never share a box
+        float ink = lines == null || lines.getLineCount() != 1 ? full : lines.getLineWidth(0);
+        shareBeside = ink + Ui.dp(c, 6) + percent.getMeasuredWidth() <= full;
+        if (shareBeside) measureText(name, (int) Math.ceil(ink) + 1 + name.getCompoundPaddingLeft() + name.getCompoundPaddingRight());
         stackedHead = name.getMeasuredHeight() + (shareBeside ? 0 : Ui.dp(c, 2) + percent.getMeasuredHeight());
         int natural = Ui.dp(c, 6) + stackedHead + Ui.dp(c, 4) + Math.max(icon, status.getMeasuredHeight()) + Ui.dp(c, 6);
         setMeasuredDimension(resolveSize(px, width), resolveSize(Math.max(Ui.dp(c, 56), natural), height));

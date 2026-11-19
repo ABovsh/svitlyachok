@@ -95,8 +95,9 @@ final class WidgetArt {
         if (m == null) return "Світлячок: відкрийте застосунок і оберіть чергу";
         if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
-        String notice = m.notice == Logic.NOTICE_EMERGENCY ? "Екстрені відключення в області. "
-                : m.notice == Logic.NOTICE_CALM ? "Є повідомлення обленерго. " : "";
+        String notice = "";
+        if (m.notice == Logic.NOTICE_EMERGENCY) notice = "Екстрені відключення в області. ";
+        else if (m.notice == Logic.NOTICE_CALM) notice = "Є повідомлення обленерго. ";
         return notice + (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then) + ". " + Logic.widgetTomorrow(dayOf(m.tl, 48))[0];
     }
@@ -149,7 +150,7 @@ final class WidgetArt {
         } else {
             one(c, b, m, now, f, form);
             if (m.notice != Logic.NOTICE_NONE) {
-                float[] at = signAt(form, f.w, s, m.notice);
+                float[] at = signAt(form, (float) f.w, s, m.notice);
                 Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);
                 sign.setTypeface(Ui.heavy(c));
                 Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);
@@ -167,7 +168,8 @@ final class WidgetArt {
 
     /** The room the sign of a large widget takes from its name. */
     private static float signRoom(Model m, float s) {
-        return m.notice == Logic.NOTICE_NONE ? 0 : (m.notice == Logic.NOTICE_EMERGENCY ? 24 : 20) * s;
+        if (m.notice == Logic.NOTICE_NONE) return 0;
+        return (m.notice == Logic.NOTICE_EMERGENCY ? 24 : 20) * s;
     }
 
     /** What is now glows from the left edge, what comes next from the right, the card between them. */
@@ -311,7 +313,7 @@ final class WidgetArt {
     private static String[] future(Model m) {
         if (m.now.big.equals("відкрийте застосунок")) return new String[] {m.now.title, m.now.big, ""};
         String[] unknown = Logic.unknownFuture(m.now, m.lastDay, m.ahead);
-        return unknown != null ? unknown : Logic.widgetFuture(m.now);
+        return unknown.length > 0 ? unknown : Logic.widgetFuture(m.now);
     }
 
     /** A line whose capitals start at y, measured by the size it was meant to have; returns its baseline. */

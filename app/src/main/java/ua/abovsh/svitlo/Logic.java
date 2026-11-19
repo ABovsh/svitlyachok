@@ -211,14 +211,19 @@ public final class Logic {
             JSONObject meta = file.optJSONObject("meta");
             String hash = meta == null ? "" : meta.optString(CONTENT_HASH, "");
             d.hash = hash.matches(HASH) ? hash : "";
-            JSONObject attention = file.optJSONObject(ATTENTION);
-            d.notice = attention == null ? "" : cleanNotice(attention.optString("text", ""));
-            String noticeHash = meta == null ? "" : meta.optString(ATTENTION_HASH, "");
-            d.noticeHash = noticeHash.matches(HASH) ? noticeHash : "";
+            readNotice(file, meta, d);
             return d;
         } catch (JSONException e) {
             throw new BadFile("not a schedule: " + e.getMessage());
         }
+    }
+
+    /** The oblenergo's notice and its hash; empty when the file has none. */
+    private static void readNotice(JSONObject file, JSONObject meta, Data d) {
+        JSONObject attention = file.optJSONObject(ATTENTION);
+        d.notice = attention == null ? "" : cleanNotice(attention.optString("text", ""));
+        String noticeHash = meta == null ? "" : meta.optString(ATTENTION_HASH, "");
+        d.noticeHash = noticeHash.matches(HASH) ? noticeHash : "";
     }
 
     private static final String CONTENT_HASH = "contentHash";
@@ -654,7 +659,7 @@ public final class Logic {
         for (String line : raw.replace('\r', '\n').split("\n")) {
             String words = line.replaceAll("[\\p{Cntrl}&&[^\n]]", " ").replaceAll("\\s+", " ").trim();
             if (words.isEmpty()) continue;
-            if (out.length() > 0) out.append('\n');
+            if (!out.isEmpty()) out.append('\n');
             out.append(words);
         }
         if (out.length() <= NOTICE_MAX) return out.toString();
@@ -663,17 +668,23 @@ public final class Logic {
     }
 
     private static final java.util.regex.Pattern EMERGENCY_OUTAGES =
-            java.util.regex.Pattern.compile("(екстрен|аварійн)\\p{L}*\\s+(відключен|вимкнен|знеструмлен)");
+            java.util.regex.Pattern.compile("(екстрен|аварійн)\\p{L}*\\s+(відключен|вимкнен|знеструмлен)", java.util.regex.Pattern.CANON_EQ);
     /** Words that make a sentence about emergency outages say they are not on now. */
-    private static final java.util.regex.Pattern NOT_ON = java.util.regex.Pattern.compile(
-            "уникн|запобіг|не допуст|скасов|відмін|припин|завершен|можуть|може бути|можлив|ймовірн|загроз|у разі|в разі"
-            + "|\\bне\\s+(діють|діє|застосов|запровадж|введ|вводит)");
+    private static final List<String> NOT_ON = Arrays.asList("уникн", "запобіг", "не допуст", "скасов", "відмін", "припин",
+            "завершен", "можуть", "може бути", "можлив", "ймовірн", "загроз", "у разі", "в разі");
+    private static final java.util.regex.Pattern NOT_APPLIED = java.util.regex.Pattern.compile(
+            "\\bне\\s+(діють|діє|застосов|запровадж|введ|вводит)", java.util.regex.Pattern.CANON_EQ);
+
+    private static boolean saysNotOn(String sentence) {
+        for (String word : NOT_ON) if (sentence.contains(word)) return true;
+        return NOT_APPLIED.matcher(sentence).find();
+    }
 
     /** Emergency only when a sentence says emergency outages are on, never for "to avoid emergency outages". */
     public static int noticeLevel(String text) {
         if (text == null || text.isEmpty()) return NOTICE_NONE;
         for (String sentence : text.toLowerCase(Locale.ROOT).replace('ʼ', '\'').split("[.!?;\n]+")) {
-            if (EMERGENCY_OUTAGES.matcher(sentence).find() && !NOT_ON.matcher(sentence).find()) return NOTICE_EMERGENCY;
+            if (EMERGENCY_OUTAGES.matcher(sentence).find() && !saysNotOn(sentence)) return NOTICE_EMERGENCY;
         }
         return NOTICE_CALM;
     }
@@ -692,7 +703,8 @@ public final class Logic {
         Region r = region(region);
         String where = manyRegions && r != null ? " · " + r.name : "";
         if (noticeLevel(text) == NOTICE_EMERGENCY) {
-            return "Екстрені відключення" + (where.isEmpty() ? ("kyiv".equals(region) ? " в місті" : " в області") : where);
+            if (!where.isEmpty()) return "Екстрені відключення" + where;
+            return "kyiv".equals(region) ? "Екстрені відключення в місті" : "Екстрені відключення в області";
         }
         if (text.toLowerCase(Locale.ROOT).contains("стабілізаційн")) return "Стабілізаційні відключення" + where;
         return "Повідомлення " + noticeSource(region) + where;
@@ -2330,11 +2342,11 @@ public final class Logic {
         return last;
     }
 
-    /** Today has no schedule: tomorrow's below it, or the last one before it; null otherwise. */
+    /** Today has no schedule: tomorrow's below it, or the last one before it; empty otherwise. */
     static String[] unknownFuture(Now n, String lastDay, boolean ahead) {
-        if (n.state != UNKNOWN) return null;
+        if (n.state != UNKNOWN) return new String[0];
         if (ahead) return new String[] {TOMORROW, "Графік є", ""};
-        return lastDay.isEmpty() ? null : new String[] {"Останній графік", lastDay, ""};
+        return lastDay.isEmpty() ? new String[0] : new String[] {"Останній графік", lastDay, ""};
     }
 
     /** Whether tomorrow of this queue is published. */
@@ -2409,7 +2421,7 @@ public final class Logic {
     /** `ahead`: tomorrow of this queue is published while today is not. */
     public static String[] heroFuture(Now n, String lastDay, boolean ahead) {
         String[] unknown = unknownFuture(n, lastDay, ahead);
-        if (unknown != null) return unknown;
+        if (unknown.length > 0) return unknown;
         String[] next = widgetFuture(n);
         // only the clock: the end of the window is on the grid right below
         next[2] = "";

@@ -88,8 +88,8 @@ final class PlaceTile extends ViewGroup {
     @Override protected void dispatchDraw(android.graphics.Canvas cv) {
         super.dispatchDraw(cv);
         if (!emergency) return;
-        float r = Ui.dp(getContext(), 7);
-        float at = Ui.dp(getContext(), 3) + r;
+        float r = (float) Ui.dp(getContext(), 7);
+        float at = (float) Ui.dp(getContext(), 3) + r;
         signPaint.setTypeface(Ui.heavy(getContext()));
         signCircle[0] = at;
         signCircle[1] = at;

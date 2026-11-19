@@ -159,20 +159,25 @@ final class DayIntervals {
             return tag instanceof String spoken ? spoken : "";
         }
 
+        /** What is over is paler, but its words keep their full colour: no fading of the whole row. */
+        private GradientDrawable background(int state, boolean running, boolean past) {
+            Ui.Pal pal = page.pal;
+            boolean light = state == Logic.ON;
+            int fill = light ? pal.card : pal.soft(state);
+            if (past) fill = light ? pal.bg : Ui.blend(pal.bg, Ui.fade(pal.soft(state), .5f));
+            GradientDrawable bg = Ui.round(fill, Ui.px(page, 12));
+            if (running) bg.setStroke(Ui.dp(page, 2) + Ui.dp(page, 1) / 2, Ui.Pal.MARKER);
+            else if (light) bg.setStroke(Ui.dp(page, 1), pal.line);
+            return bg;
+        }
+
         private View row(int state, int from, int to, boolean running, boolean past, long now) {
             Ui.Pal pal = page.pal;
             LinearLayout line = Ui.row(page);
             line.setGravity(Gravity.CENTER_VERTICAL);
             line.setMinimumHeight(Ui.dp(page, 46));
             line.setPadding(Ui.dp(page, 6), Ui.dp(page, 7), Ui.dp(page, 10), Ui.dp(page, 7));
-            boolean light = state == Logic.ON;
-            // what is over is paler, but its words keep their full colour: no fading of the whole row
-            int fill = light ? pal.card : pal.soft(state);
-            if (past) fill = light ? pal.bg : Ui.blend(pal.bg, Ui.fade(pal.soft(state), .5f));
-            GradientDrawable bg = Ui.round(fill, Ui.px(page, 12));
-            if (running) bg.setStroke(Ui.dp(page, 2) + Ui.dp(page, 1) / 2, Ui.Pal.MARKER);
-            else if (light) bg.setStroke(Ui.dp(page, 1), pal.line);
-            line.setBackground(bg);
+            line.setBackground(background(state, running, past));
 
             View rail = new View(page);
             rail.setBackground(Ui.round(pal.fill(state), Ui.px(page, 2)));

@@ -192,8 +192,7 @@ final class HeroCard extends ViewGroup {
         int clockStep = Math.round(Ui.compactSp(c, 13.5f, 1.1f));
         int detailStep = Math.round(Ui.compactSp(c, 9.5f, 1.1f));
         int[] gaps = horizontal ? wideGaps : narrowGaps;
-        // above the name only a little air, but never less than its own line keeps over its capitals
-        gaps[0] = Math.max(Math.round(Ui.compactSp(c, 3.5f, 1.1f)), label.getBaseline() - cap(label));
+        gaps[0] = Math.round(Ui.compactSp(c, 3.5f, 1.1f));
         for (int i = 1; i < gaps.length - 1; i++) {
             int step = i % 3;
             if (step == 1) gaps[i] = gap;
@@ -216,7 +215,25 @@ final class HeroCard extends ViewGroup {
             }
         }
         if (!horizontal) before[4] = Ui.dp(getContext(), 8);  // the second panel of a narrow card stands apart
+        clear(rows, caps, gaps);
         for (int i = 0; i < rows.length; i++) if (caps[i] == 0) before[i] = -gaps[i];
+    }
+
+    /** A row never comes so close that its line reaches into the line above it, nor the name past the top. */
+    private void clear(TextView[][] rows, int[] caps, int[] gaps) {
+        int under = 0;
+        for (int i = 0; i < rows.length; i++) {
+            if (caps[i] == 0) continue;
+            int over = 0;
+            int below = 0;
+            for (TextView t : rows[i]) {
+                if (t.getVisibility() == GONE) continue;
+                over = Math.max(over, t.getBaseline() - cap(t));
+                below = Math.max(below, t.getMeasuredHeight() - t.getBaseline() - lastLine(t));
+            }
+            gaps[i] = Math.max(gaps[i], under + over);
+            under = below;
+        }
     }
 
     /** The height of a capital in this text's font: what the eye takes for the top of a row. */

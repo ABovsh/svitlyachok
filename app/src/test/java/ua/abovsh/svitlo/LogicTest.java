@@ -1782,6 +1782,116 @@ public class LogicTest {
         assertEquals(later - 60, d.sourceTime);
     }
 
+    // ---- the oblenergo's own notice -------------------------------------------------
+
+    static final String KYIV_REGION_NOTICE = "За наказом НЕК Укренерго 19.11 з 6:00 до 23:59 діють стабілізаційні відключення електроенергії.\n"
+            + "Будь ласка, розумно споживайте електроенергію — це допоможе зменшити навантаження на мережу та уникнути екстрених відключень.";
+    static final String DNIPRO_NOTICE = "За наказом НЕК Укренерго в м. Дніпро, Кам'янське, Самар, Павлоград, Дніпровський, Самарівський, "
+            + "Павлоградський, Солонянський, Царичанський р-ни діють екстрені відключення.";
+    static final String NOTICE_HASH = "10b3b79505da495769ee25ebcb5f3dc2c20b397c3d2763b5471451d4ae46e885";
+
+    static String withNotice(String file, String attention, String hash) {
+        return file.replace("  \"lastUpdateStatus\"", "  \"attention\": " + attention + ",\n  \"lastUpdateStatus\"")
+                .replace("\"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\"",
+                        "\"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\", \"attentionHash\": " + hash);
+    }
+
+    @Test
+    public void theNoticeOfTheOblenergoIsKeptWithItsHash() throws Exception {
+        String raw = withNotice(FULL_FILE, "{\"text\": " + org.json.JSONObject.quote(KYIV_REGION_NOTICE) + "}", "\"" + NOTICE_HASH + "\"");
+        Logic.Data d = Logic.parse(Logic.compactFile(raw));
+        assertEquals(KYIV_REGION_NOTICE, d.notice);
+        assertEquals(NOTICE_HASH, d.noticeHash);
+        // the schedule's own hash does not change with the notice
+        assertEquals("1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5", d.hash);
+        assertEquals(KYIV_REGION_NOTICE, Logic.withoutDraft(d, "odesa", kyiv(11, 19, 20, 0)).notice);
+    }
+
+    @Test
+    public void noNoticeIsAnEmptyOne() throws Exception {
+        Logic.Data none = Logic.parse(Logic.compactFile(withNotice(FULL_FILE, "null", "null")));
+        assertEquals("", none.notice);
+        assertEquals("", none.noticeHash);
+        Logic.Data old = Logic.parse(Logic.compactFile(FULL_FILE));  // a collector without notices
+        assertEquals("", old.notice);
+        assertEquals(Logic.NOTICE_NONE, Logic.noticeLevel(old.notice));
+        Logic.Data blank = Logic.parse(Logic.compactFile(withNotice(FULL_FILE, "{\"text\": \"  \\n \"}", "\"" + NOTICE_HASH + "\"")));
+        assertEquals("", blank.notice);
+    }
+
+    @Test
+    public void aNoticeIsPlainTextOfABoundedLength() {
+        assertEquals("Перший рядок.\nДругий рядок.", Logic.cleanNotice("  Перший \t рядок.\u0007\r\n\n\n\n  Другий рядок.  "));
+        String longOne = Logic.cleanNotice("слово ".repeat(1000));
+        assertTrue(longOne.length() <= Logic.NOTICE_MAX + 1);
+        assertTrue(longOne.endsWith("слово…"));
+    }
+
+    @Test
+    public void theEndOfAFileSaysWhetherTheNoticeChanged() {
+        String tail = TAIL_B42.replace("\"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\"",
+                "\"contentHash\": \"1489d8de74b14ccd4e2fe88c34c4287b3069d136612e2a8fe96ab46c3f55c7f5\",\n    \"attentionHash\": \"" + NOTICE_HASH + "\"");
+        assertEquals(NOTICE_HASH, Logic.tail(tail).noticeHash);
+        assertEquals("", Logic.tail(tail.replace("\"" + NOTICE_HASH + "\"", "null")).noticeHash);
+        assertEquals("", Logic.tail(TAIL_B42).noticeHash);
+    }
+
+    @Test
+    public void onlyANoticeThatSaysEmergencyOutagesAreOnIsAnEmergency() {
+        assertEquals(Logic.NOTICE_CALM, Logic.noticeLevel(KYIV_REGION_NOTICE));  // "to avoid emergency outages"
+        assertEquals(Logic.NOTICE_EMERGENCY, Logic.noticeLevel(DNIPRO_NOTICE));
+        assertEquals(Logic.NOTICE_EMERGENCY, Logic.noticeLevel("В Білоцерківському, Бучанському, Фастівському та Обухівському районах введені екстрені відключення. "
+                + "В інших районах області діють стабілізаційні відключення електроенергії."));
+        assertEquals(Logic.NOTICE_EMERGENCY, Logic.noticeLevel("У зв'язку з атакою застосовано графіки аварійних відключень."));
+        assertEquals(Logic.NOTICE_EMERGENCY, Logic.noticeLevel("Екстрені відключення застосовуються в Києві."));
+        assertEquals(Logic.NOTICE_CALM, Logic.noticeLevel("Екстрені відключення скасовано. Діють графіки стабілізаційних відключень."));
+        assertEquals(Logic.NOTICE_CALM, Logic.noticeLevel("Увечері можуть бути застосовані екстрені відключення."));
+        assertEquals(Logic.NOTICE_CALM, Logic.noticeLevel("Екстрені відключення не застосовуються."));
+        assertEquals(Logic.NOTICE_CALM, Logic.noticeLevel("Тривають аварійно-відновлювальні роботи."));
+        assertEquals(Logic.NOTICE_NONE, Logic.noticeLevel(""));
+    }
+
+    @Test
+    public void theLineOfANoticeSaysWhatItIsWhoAndWhen() {
+        long now = kyiv(11, 19, 21, 0);
+        Logic.Data d = new Logic.Data();
+        d.sourceTime = kyiv(11, 19, 19, 26);
+        d.notice = KYIV_REGION_NOTICE;
+        assertEquals("Стабілізаційні відключення", Logic.noticeTitle(d.notice, "kyiv_region", false));
+        assertEquals("Стабілізаційні відключення · Київська область", Logic.noticeTitle(d.notice, "kyiv_region", true));
+        assertEquals("ДТЕК · 19:26", Logic.noticeMeta(d, "kyiv_region", now));
+        d.notice = DNIPRO_NOTICE;
+        assertEquals("Екстрені відключення в області", Logic.noticeTitle(d.notice, "dnipro", false));
+        assertEquals("Екстрені відключення в місті", Logic.noticeTitle(d.notice, "kyiv", false));
+        assertEquals("Екстрені відключення · Дніпропетровська область", Logic.noticeTitle(d.notice, "dnipro", true));
+        assertEquals("Графіки можуть не діяти · ДТЕК · 19:26", Logic.noticeMeta(d, "dnipro", now));
+        d.notice = "Шановні споживачі! Сайт працює в штатному режимі.";
+        assertEquals("Повідомлення ДТЕК", Logic.noticeTitle(d.notice, "odesa", false));
+        assertEquals("19:26", Logic.noticeMeta(d, "odesa", now));
+        assertEquals("вчора 19:26", Logic.noticeMeta(d, "odesa", kyiv(11, 20, 8, 0)));
+        d.sourceTime = 0;
+        assertEquals("", Logic.noticeMeta(d, "odesa", now));
+        assertEquals("Київська область · станом на 19:26", Logic.noticeWhere("kyiv_region", kyiv(11, 19, 19, 26), now));
+        assertEquals("Київська область · станом на 18.11, 19:26", Logic.noticeWhere("kyiv_region", kyiv(11, 18, 19, 26), now));
+        assertEquals("https://www.dtek-kem.com.ua/ua/shutdowns", Logic.noticeSite("kyiv"));
+        assertEquals("https://www.dtek-dnem.com.ua/ua/shutdowns", Logic.noticeSite("dnipro"));
+        assertEquals("Екстрені", Logic.noticeChip(DNIPRO_NOTICE));
+        assertEquals("Стабілізаційні", Logic.noticeChip(KYIV_REGION_NOTICE));
+        assertEquals("Повідомлення", Logic.noticeChip("Сайт працює в штатному режимі."));
+    }
+
+    @Test
+    public void theNoticesOnScreenGoOncePerRegionInTheOrderOfThePlaces() {
+        List<Logic.Place> places = Arrays.asList(placeIn("kyiv_region"), placeIn("dnipro"), placeIn("kyiv_region"), placeIn("odesa"));
+        assertEquals(Arrays.asList("kyiv_region", "dnipro", "odesa"), Logic.placeRegions(places));
+    }
+
+    static Logic.Place placeIn(String region) {
+        Logic.Place p = home();
+        p.region = region;
+        return p;
+    }
+
     @Test
     public void theEndOfAFileIsEnoughOnlyWithAHashAndNotForLong() {
         long now = 1_793_700_000L;

@@ -23,7 +23,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Bounded requests. A check costs little while the schedule stands: the end of a file shows the source's
- * hash of it, and the file comes only when that changes. The schedule is written then too; everything a
+ * hashes of it and of the oblenergo's notice, and the file comes only when one of them changes. The schedule is written then too; everything a
  * check updates lives apart, in a small file. An obsolete primary source never hides a usable fallback.
  */
 final class Store {
@@ -149,7 +149,9 @@ final class Store {
             call.conn.setRequestProperty("Range", "bytes=-" + TAIL_BYTES);
             if (call.conn.getResponseCode() != HttpURLConnection.HTTP_PARTIAL) return false;
             Logic.Tail tail = Logic.tail(call.body(end));
-            if (tail == null || !tail.hash.equals(cached.hash) || expired(request, end)) return false;
+            // a new notice of the oblenergo comes with the whole file, though the schedule stands
+            if (tail == null || !tail.hash.equals(cached.hash) || !tail.noticeHash.equals(cached.noticeHash)
+                    || expired(request, end)) return false;
             SharedPreferences.Editor e = state(c).edit().putLong(CHECKED + region, Sync.now());
             // a failed attempt keeps the time of the last one that got the schedule
             if (tail.ok) e.putLong(SOURCE + region, tail.at).remove(DOWN + region);

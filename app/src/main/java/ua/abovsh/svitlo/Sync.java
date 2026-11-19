@@ -479,9 +479,25 @@ final class Sync {
             if (model != null && model.place != null) open.putExtra(MainActivity.EXTRA_PLACE, model.place.id);
             v.setOnClickPendingIntent(R.id.w_root, PendingIntent.getActivity(c, 10_000 + id, open,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+            noticeTouch(c, v, id, model, Logic.widgetForm(wDp, hDp));
             m.updateAppWidget(id, v);
             drawn.put(id, key);
         }
+    }
+
+    /** The corner with the sign of a notice opens that notice; the rest of the widget opens the app. */
+    private static void noticeTouch(Context c, RemoteViews v, int id, WidgetArt.Model model, int form) {
+        boolean shown = model != null && model.place != null && model.notice != Logic.NOTICE_NONE;
+        int corner = form == Logic.W_FULL ? R.id.w_notice_end : R.id.w_notice_start;
+        v.setViewVisibility(R.id.w_notice_start, shown && corner == R.id.w_notice_start ? android.view.View.VISIBLE : android.view.View.GONE);
+        v.setViewVisibility(R.id.w_notice_end, shown && corner == R.id.w_notice_end ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (!shown) return;
+        Intent notice = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(MainActivity.EXTRA_PLACE, model.place.id).putExtra(MainActivity.EXTRA_NOTICE, model.place.region);
+        v.setOnClickPendingIntent(corner, PendingIntent.getActivity(c, 20_000 + id, notice,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        v.setContentDescription(corner, model.notice == Logic.NOTICE_EMERGENCY
+                ? "Екстрені відключення в області: відкрити повідомлення" : "Відкрити повідомлення обленерго");
     }
 
     /** The launcher asked again (a resize, a restart of the launcher): draw anew. */

@@ -133,6 +133,8 @@ public final class Logic {
         private String draftKey = "";
         public long updated;          // when the oblenergo last changed it, 0 unknown
         public String hash = "";      // the source's own hash of its schedule, empty when it has none
+        public String notice = "";    // the oblenergo's own notice above its schedule, as plain text
+        public String noticeHash = "";  // the source's hash of that notice, empty when it has none
         public List<String> groups = new ArrayList<>();
     }
 
@@ -209,6 +211,10 @@ public final class Logic {
             JSONObject meta = file.optJSONObject("meta");
             String hash = meta == null ? "" : meta.optString(CONTENT_HASH, "");
             d.hash = hash.matches(HASH) ? hash : "";
+            JSONObject attention = file.optJSONObject(ATTENTION);
+            d.notice = attention == null ? "" : cleanNotice(attention.optString("text", ""));
+            String noticeHash = meta == null ? "" : meta.optString(ATTENTION_HASH, "");
+            d.noticeHash = noticeHash.matches(HASH) ? noticeHash : "";
             return d;
         } catch (JSONException e) {
             throw new BadFile("not a schedule: " + e.getMessage());
@@ -216,6 +222,8 @@ public final class Logic {
     }
 
     private static final String CONTENT_HASH = "contentHash";
+    private static final String ATTENTION = "attention";
+    private static final String ATTENTION_HASH = "attentionHash";
     private static final String HASH = "[0-9a-f]{16,128}";
     private static final String LAST_UPDATED = "lastUpdated";
     private static final String STATUS = "lastUpdateStatus";
@@ -232,8 +240,15 @@ public final class Logic {
             if (file.has(STATUS)) out.put(STATUS, file.get(STATUS));
             JSONObject preset = file.optJSONObject(PRESET);
             if (preset != null && preset.has(SCH_NAMES)) out.put(PRESET, new JSONObject().put(SCH_NAMES, preset.get(SCH_NAMES)));
+            JSONObject attention = file.optJSONObject(ATTENTION);
+            if (attention != null && attention.has("text")) out.put(ATTENTION, new JSONObject().put("text", attention.get("text")));
             JSONObject meta = file.optJSONObject("meta");
-            if (meta != null && meta.has(CONTENT_HASH)) out.put("meta", new JSONObject().put(CONTENT_HASH, meta.get(CONTENT_HASH)));
+            if (meta != null) {
+                JSONObject kept = new JSONObject();
+                if (meta.has(CONTENT_HASH)) kept.put(CONTENT_HASH, meta.get(CONTENT_HASH));
+                if (meta.has(ATTENTION_HASH)) kept.put(ATTENTION_HASH, meta.get(ATTENTION_HASH));
+                if (kept.length() > 0) out.put("meta", kept);
+            }
             return out.toString();
         } catch (JSONException e) {
             throw new BadFile("not a schedule: " + e.getMessage());
@@ -243,12 +258,15 @@ public final class Logic {
     /** What the last bytes of a source file prove: its schedule's hash, and that the source answered when. */
     public static final class Tail {
         public String hash = "";
+        /** The hash of the oblenergo's notice; empty when the file has none. */
+        public String noticeHash = "";
         public long at;
         /** False: the collector's last attempt got no schedule from the site; the stored one stays. */
         public boolean ok = true;
     }
 
     private static final java.util.regex.Pattern TAIL_HASH = java.util.regex.Pattern.compile("\"" + CONTENT_HASH + "\"\\s*:\\s*\"(" + HASH + ")\"");
+    private static final java.util.regex.Pattern TAIL_NOTICE = java.util.regex.Pattern.compile("\"" + ATTENTION_HASH + "\"\\s*:\\s*(?:\"(" + HASH + ")\"|null)");
     private static final java.util.regex.Pattern TAIL_OK = java.util.regex.Pattern.compile("\"ok\"\\s*:\\s*(true|false)");
     private static final java.util.regex.Pattern TAIL_AT = java.util.regex.Pattern.compile("\"at\"\\s*:\\s*\"?([0-9TZ:.\\-]+)\"?");
 
@@ -269,6 +287,8 @@ public final class Logic {
         t.hash = hash;
         t.at = sourceTime(at);
         t.ok = "true".equals(ok);
+        String notice = lastMatch(TAIL_NOTICE, end);
+        t.noticeHash = notice == null ? "" : notice;
         return t.at > 0 ? t : null;
     }
 
@@ -282,8 +302,7 @@ public final class Logic {
 
     /** Since the last attempt that got the schedule, and what may come late: tomorrow, or changes. */
     static String siteDownText(Data d, String region, boolean tomorrowKnown, long now) {
-        Region r = region(region);
-        boolean dtek = r != null && r.urls.length > 0 && r.urls[0].startsWith(B42);
+        boolean dtek = dtek(region);
         long since = d.sourceTime;
         String day = dayDiff(since, now) == 0 ? "" : " " + dayWord(since, now);
         return (dtek ? "Сайт ДТЕК" : "Сайт обленерго") + " не віддає графік з " + hm(since) + day + ". "
@@ -332,7 +351,8 @@ public final class Logic {
         if (d == null || !d.none || noneFresh(d, now)) return d;
         if (d.expiredView == null) {
             Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
-            out.sourceOk = d.sourceOk; out.groups = d.groups; out.hash = d.hash; d.expiredView = out;
+            out.sourceOk = d.sourceOk; out.groups = d.groups; out.hash = d.hash;
+            out.notice = d.notice; out.noticeHash = d.noticeHash; d.expiredView = out;
         }
         return d.expiredView;
     }
@@ -366,7 +386,7 @@ public final class Logic {
             out.days = new HashMap<>(d.days);
             for (LocalDate day : drafts) out.days.remove(day);
             out.updated = d.updated; out.sourceTime = d.sourceTime; out.sourceOk = d.sourceOk;
-            out.groups = d.groups; out.hash = d.hash;
+            out.groups = d.groups; out.hash = d.hash; out.notice = d.notice; out.noticeHash = d.noticeHash;
             d.draftView = out; d.draftKey = key;
         }
         return d.draftView;
@@ -617,6 +637,105 @@ public final class Logic {
             }
         }
         return out;
+    }
+
+    // ---- the oblenergo's notice -----------------------------------------------------
+
+    public static final int NOTICE_NONE = 0;
+    /** Any other notice: stabilisation outages are announced almost every day. */
+    public static final int NOTICE_CALM = 1;
+    /** The notice says emergency outages are on somewhere in the region: the schedule may not hold. */
+    public static final int NOTICE_EMERGENCY = 2;
+    static final int NOTICE_MAX = 1200;
+
+    /** The text as the oblenergo wrote it, without control characters, empty lines or runs of spaces. */
+    static String cleanNotice(String raw) {
+        StringBuilder out = new StringBuilder();
+        for (String line : raw.replace('\r', '\n').split("\n")) {
+            String words = line.replaceAll("[\\p{Cntrl}&&[^\n]]", " ").replaceAll("\\s+", " ").trim();
+            if (words.isEmpty()) continue;
+            if (out.length() > 0) out.append('\n');
+            out.append(words);
+        }
+        if (out.length() <= NOTICE_MAX) return out.toString();
+        int cut = out.lastIndexOf(" ", NOTICE_MAX);
+        return out.substring(0, cut > 0 ? cut : NOTICE_MAX) + "…";
+    }
+
+    private static final java.util.regex.Pattern EMERGENCY_OUTAGES =
+            java.util.regex.Pattern.compile("(екстрен|аварійн)\\p{L}*\\s+(відключен|вимкнен|знеструмлен)");
+    /** Words that make a sentence about emergency outages say they are not on now. */
+    private static final java.util.regex.Pattern NOT_ON = java.util.regex.Pattern.compile(
+            "уникн|запобіг|не допуст|скасов|відмін|припин|завершен|можуть|може бути|можлив|ймовірн|загроз|у разі|в разі"
+            + "|\\bне\\s+(діють|діє|застосов|запровадж|введ|вводит)");
+
+    /** Emergency only when a sentence says emergency outages are on, never for "to avoid emergency outages". */
+    public static int noticeLevel(String text) {
+        if (text == null || text.isEmpty()) return NOTICE_NONE;
+        for (String sentence : text.toLowerCase(Locale.ROOT).replace('ʼ', '\'').split("[.!?;\n]+")) {
+            if (EMERGENCY_OUTAGES.matcher(sentence).find() && !NOT_ON.matcher(sentence).find()) return NOTICE_EMERGENCY;
+        }
+        return NOTICE_CALM;
+    }
+
+    static boolean dtek(String region) {
+        Region r = region(region);
+        return r != null && r.urls.length > 0 && r.urls[0].startsWith(B42);
+    }
+
+    static String noticeSource(String region) {
+        return dtek(region) ? "ДТЕК" : "обленерго";
+    }
+
+    /** "Екстрені відключення в області"; with places in several regions the region is named. */
+    public static String noticeTitle(String text, String region, boolean manyRegions) {
+        Region r = region(region);
+        String where = manyRegions && r != null ? " · " + r.name : "";
+        if (noticeLevel(text) == NOTICE_EMERGENCY) {
+            return "Екстрені відключення" + (where.isEmpty() ? ("kyiv".equals(region) ? " в місті" : " в області") : where);
+        }
+        if (text.toLowerCase(Locale.ROOT).contains("стабілізаційн")) return "Стабілізаційні відключення" + where;
+        return "Повідомлення " + noticeSource(region) + where;
+    }
+
+    /** The level in one word, for the chip of the panel. */
+    public static String noticeChip(String text) {
+        if (noticeLevel(text) == NOTICE_EMERGENCY) return "Екстрені";
+        return text.toLowerCase(Locale.ROOT).contains("стабілізаційн") ? "Стабілізаційні" : "Повідомлення";
+    }
+
+    /** Beside the title: what it means for the schedule, whose words they are, and as of when. */
+    public static String noticeMeta(Data d, String region, long now) {
+        List<String> parts = new ArrayList<>();
+        if (noticeLevel(d.notice) == NOTICE_EMERGENCY) parts.add("Графіки можуть не діяти");
+        if (!noticeTitle(d.notice, region, false).endsWith(noticeSource(region))) parts.add(noticeSource(region));
+        if (d.sourceTime > 0) parts.add(dayDiff(d.sourceTime, now) == 0 ? hm(d.sourceTime) : dayWord(d.sourceTime, now) + " " + hm(d.sourceTime));
+        return String.join(" · ", parts);
+    }
+
+    /** "Київська область · станом на 19:26": the text was on the site then. */
+    public static String noticeWhere(String region, long asOf, long now) {
+        Region r = region(region);
+        String name = r == null ? "" : r.name;
+        if (asOf <= 0) return name;
+        ZonedDateTime z = z(asOf);
+        String when = dayDiff(asOf, now) == 0 ? hm(asOf)
+                : String.format(Locale.ROOT, "%02d.%02d, %s", z.getDayOfMonth(), z.getMonthValue(), hm(asOf));
+        return name + " · станом на " + when;
+    }
+
+    /** The page of the oblenergo where the notice stands; the city of Kyiv is served by DTEK too. */
+    public static String noticeSite(String region) {
+        if ("kyiv".equals(region)) return "https://www.dtek-kem.com.ua/ua/shutdowns";
+        Region r = region(region);
+        return r == null ? "" : r.dso;
+    }
+
+    /** The regions of the places, each once, in the order of the places. */
+    public static List<String> placeRegions(List<Place> places) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (Place p : places) out.add(p.region);
+        return new ArrayList<>(out);
     }
 
     // ---- time words ------------------------------------------------------------

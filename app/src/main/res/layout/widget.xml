@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The whole widget is one bitmap drawn by WidgetArt: RemoteViews cannot set our fonts. -->
+<!-- The whole widget is one bitmap drawn by WidgetArt: RemoteViews cannot set our fonts. The sign of an
+     oblenergo notice is drawn there too; the views over its corner only give it its own touch. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
@@ -11,4 +12,16 @@
         android:contentDescription="@string/widget_desc"
         android:scaleType="fitCenter"
         android:src="@drawable/widget_preview" />
+    <FrameLayout
+        android:id="@+id/w_notice_start"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|start"
+        android:visibility="gone" />
+    <FrameLayout
+        android:id="@+id/w_notice_end"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end"
+        android:visibility="gone" />
 </FrameLayout>

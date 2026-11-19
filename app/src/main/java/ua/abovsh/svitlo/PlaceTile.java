@@ -25,11 +25,18 @@ final class PlaceTile extends ViewGroup {
     private final TextView percent;
     private final boolean namedQueue;
     private final android.graphics.Paint labelMeasure = new android.graphics.Paint();
+    private final Ui.Pal pal;
+    private final int fill;
+    private boolean emergency;
+    private final android.graphics.Paint signPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    private final float[] signCircle = new float[3];
 
     PlaceTile(Context c, Ui.Pal pal, Logic.Place place, Logic.Now now, boolean chosen,
             boolean soon, String share) {
         super(c);
-        GradientDrawable bg = Ui.round(pal.soft(now.state), Ui.px(c, 15));
+        this.pal = pal;
+        fill = pal.soft(now.state);
+        GradientDrawable bg = Ui.round(fill, Ui.px(c, 15));
         bg.setStroke(Ui.dp(c, chosen ? 2 : 1), chosen ? pal.accentText : pal.line);
         setBackground(bg);
         // The selection stroke must not alter the content width.
@@ -68,6 +75,26 @@ final class PlaceTile extends ViewGroup {
                 + (chosen ? ", вибрано" : ", показати графік"));
         for (int i = 0; i < getChildCount(); i++) getChildAt(i).setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         setFocusable(true);
+    }
+
+    /** Emergency outages somewhere in its region: a red sign in the free top corner, the tile as it is. */
+    void emergency() {
+        emergency = true;
+        setWillNotDraw(false);
+        setContentDescription(getContentDescription() + ". Екстрені відключення в області");
+        invalidate();
+    }
+
+    @Override protected void dispatchDraw(android.graphics.Canvas cv) {
+        super.dispatchDraw(cv);
+        if (!emergency) return;
+        float r = Ui.dp(getContext(), 7);
+        float at = Ui.dp(getContext(), 3) + r;
+        signPaint.setTypeface(Ui.heavy(getContext()));
+        signCircle[0] = at;
+        signCircle[1] = at;
+        signCircle[2] = r;
+        Notices.sign(cv, signPaint, pal, Logic.NOTICE_EMERGENCY, signCircle, fill);
     }
 
     private void measureText(TextView text, int room) {

@@ -34,6 +34,7 @@ final class WidgetArt {
         String lastDay = "";  // the last day with a schedule, for a widget without one
         boolean ahead;  // tomorrow is published while today is not
         boolean lit;  // the event is close: its half is filled with its colour, as on the card
+        int notice = Logic.NOTICE_NONE;  // the oblenergo's notice of the region: a sign in a free corner
     }
 
     /** The place chosen for one widget (by id; the first place when none was chosen). */
@@ -62,6 +63,7 @@ final class WidgetArt {
             m.now.then = "";
         }
         m.lit = Logic.highlight(m.now, Prefs.alerts(c, p.id), now);
+        m.notice = data == null ? Logic.NOTICE_NONE : Logic.noticeLevel(data.notice);
         return m;
     }
 
@@ -81,7 +83,7 @@ final class WidgetArt {
         if (m.gone) return b.append("|gone").toString();
         Logic.Now n = m.now;
         b.append('|').append(m.stale).append('|').append(m.many).append('|').append(m.place.name).append('|').append(m.place.group).append('|').append(n.state).append('|')
-                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay).append('|').append(m.ahead);
+                .append(n.title).append('|').append(n.big).append('|').append(n.then).append('|').append(n.soon).append('|').append(m.lit).append('|').append(m.lastDay).append('|').append(m.ahead).append('|').append(m.notice);
         b.append('|').append(n.hint).append('|').append(Logic.dayPercent(dayOf(m.tl, 0))).append('|').append(n.next).append('|').append(n.change);
         if (Logic.widgetForm(wDp, hDp) != Logic.W_ROW) {  // the bar moves every half hour
             b.append('|').append(m.tl).append('|').append(Logic.index(m.base, now)).append('|').append(n.since);
@@ -93,7 +95,9 @@ final class WidgetArt {
         if (m == null) return "Світлячок: відкрийте застосунок і оберіть чергу";
         if (m.gone) return "Світлячок: місце цього віджета видалено. Утримуйте віджет, щоб обрати інше";
         Logic.Now n = m.now;
-        return (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
+        String notice = m.notice == Logic.NOTICE_EMERGENCY ? "Екстрені відключення в області. "
+                : m.notice == Logic.NOTICE_CALM ? "Є повідомлення обленерго. " : "";
+        return notice + (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then) + ". " + Logic.widgetTomorrow(dayOf(m.tl, 48))[0];
     }
 
@@ -144,8 +148,26 @@ final class WidgetArt {
             b.cv.drawText(hint, f.w / 2f, f.h / 2f + 14 * s, fit(u, hint, f.w - 2 * f.pad));
         } else {
             one(c, b, m, now, f, form);
+            if (m.notice != Logic.NOTICE_NONE) {
+                float[] at = signAt(form, f.w, s, m.notice);
+                Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);
+                sign.setTypeface(Ui.heavy(c));
+                Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);
+            }
         }
         return bm;
+    }
+
+    /** Centre and radius of the sign: above the bulb of a small widget, right of the name of a large one. */
+    static float[] signAt(int form, float width, float s, int level) {
+        float r = (level == Logic.NOTICE_EMERGENCY ? 8.5f : 6.5f) * s;
+        float inset = 3.5f * s + r;
+        return new float[] {form == Logic.W_FULL ? width - inset : inset, inset, r};
+    }
+
+    /** The room the sign of a large widget takes from its name. */
+    private static float signRoom(Model m, float s) {
+        return m.notice == Logic.NOTICE_NONE ? 0 : (m.notice == Logic.NOTICE_EMERGENCY ? 24 : 20) * s;
     }
 
     /** What is now glows from the left edge, what comes next from the right, the card between them. */
@@ -313,7 +335,7 @@ final class WidgetArt {
         boolean split = Logic.widgetSplitTomorrow(Math.round(f.h / s), dayOf(m.tl, 48), hourSlot);
         boolean oneRow = Logic.widgetOneRow(Math.round(f.h / s), split);  // two rows would not read: now's half
         float[] layout = Logic.widgetGridLayout(Math.round(f.h / s), split, oneRow);
-        header(c, b, m, new float[] {pad, pad, width, 13 * s});
+        header(c, b, m, new float[] {pad, pad, width - signRoom(m, s), 13 * s});
         new Panes(c, b, m, future(m), new float[] {pad, layout[0] * s, (width - 8 * s) / 2, layout[1] * s, s}, .30f).at(now).draw();
         float first = (layout[0] + layout[1]) * s;
         int half = split || (oneRow && hourSlot >= 24) ? 12 : 0;

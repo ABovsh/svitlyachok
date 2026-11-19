@@ -27,6 +27,8 @@ public class MainActivity extends Base {
     /** A widget or a notification names the place to open. */
     static final String EXTRA_PLACE = "place";
     static final String EXTRA_OFFER_WIDGET = "offer_widget";
+    /** The sign on a widget opens the oblenergo's notice of this region. */
+    static final String EXTRA_NOTICE = "notice";
     /** The version being downloaded now, and how far; the card shows it after a re-render too. */
 
     private static final int HERO_BUTTON = 48;
@@ -98,6 +100,11 @@ public class MainActivity extends Base {
         if (!loading && Logic.dueOnOpen(Sync.checkedAt(this), Sync.now())) refresh();
         else onTick();
         offerWidgetOfNewPlace();
+        String notice = getIntent().getStringExtra(EXTRA_NOTICE);
+        if (notice != null) {
+            getIntent().removeExtra(EXTRA_NOTICE);
+            Notices.show(this, notice);
+        }
         Updates.checkIfDue(this, () -> runOnUiThread(() -> {
             if (!isFinishing()) render();
         }));
@@ -264,6 +271,11 @@ public class MainActivity extends Base {
 
         clockUpdates.clear();
         body.removeAllViews();
+        List<String> regions = Logic.placeRegions(places);
+        for (String region : regions) {
+            View notice = Notices.strip(this, Store.data(this, region), region, regions.size() > 1, now);
+            if (notice != null) body.addView(notice, gap(10));
+        }
         Logic.Release update = Updates.offered(this);
         if (update != null) body.addView(updateCard(update), gap(8));
         boolean many = places.size() > 1;
@@ -359,6 +371,7 @@ public class MainActivity extends Base {
             boolean soon = Logic.highlight(state, Prefs.alerts(this, place.id), now);
             String dayShare = Logic.dayPercent(Logic.day(data, place.group, base));
             PlaceTile tile = new PlaceTile(this, pal, place, state, place.id.equals(chosen.id), soon, dayShare);
+            if (emergency(data)) tile.emergency();
             tile.setOnClickListener(v -> { Prefs.setCurrent(this, place.id); render(); scroll.smoothScrollTo(0, 0); });
             grid.addView(tile);
         }
@@ -471,7 +484,10 @@ public class MainActivity extends Base {
     private View schedule(Logic.Place p, Logic.Data d, LocalDate base, int cur, float nowRel) {
         LinearLayout card = Ui.column(this);
         card.setPadding(Ui.dp(this, 11), Ui.dp(this, 2), Ui.dp(this, 11), Ui.dp(this, 3));
-        card.setBackground(Ui.card(this, pal, 0));
+        android.graphics.drawable.Drawable bg = Ui.card(this, pal, 0);
+        // emergency outages somewhere in the region: the schedule stays, only its edge is red
+        if (emergency(d) && bg instanceof android.graphics.drawable.GradientDrawable g) g.setStroke(Ui.dp(this, 1.5f), Ui.fade(pal.off, .75f));
+        card.setBackground(bg);
         card.setOnClickListener(v -> tips.hide());  // a touch beside the bars takes the hint away
         day(card, p, base, "Сьогодні", Logic.day(d, p.group, base), cur, nowRel);
         LinearLayout.LayoutParams line = fill(); line.height = Ui.dp(this, 1); line.topMargin = Ui.dp(this, 2);
@@ -480,6 +496,10 @@ public class MainActivity extends Base {
         day(card, p, tomorrow, "Завтра, " + tomorrow.getDayOfMonth() + "." + tomorrow.getMonthValue(),
                 Logic.day(d, p.group, tomorrow), -1, -1);
         return card;
+    }
+
+    private static boolean emergency(Logic.Data d) {
+        return d != null && Logic.noticeLevel(d.notice) == Logic.NOTICE_EMERGENCY;
     }
 
     /** The name of a published day opens its intervals; closing them gives the focus back to the name. */

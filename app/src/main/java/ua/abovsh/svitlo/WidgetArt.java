@@ -118,8 +118,16 @@ final class WidgetArt {
         private Waiting() {}
 
         static void draw(Context c, Brush b, Model m, Frame f, int form) {
+            // the glow stays inside the rounded card: its corners are the launcher's
+            float corner = Math.min(24 * f.s, f.h / 2.6f);
+            b.path.reset();
+            b.r.set(0f, 0f, (float) f.w, (float) f.h);
+            b.path.addRoundRect(b.r, corner, corner, android.graphics.Path.Direction.CW);
+            b.cv.save();
+            b.cv.clipPath(b.path);
             if (form == Logic.W_FULL) large(c, b, m, f);
             else small(c, b, m, f);
+            b.cv.restore();
         }
 
         /** The app's own mark: the firefly on its gold square, in a soft glow of the same gold. */
@@ -175,7 +183,7 @@ final class WidgetArt {
             float s = f.s;
             float pad = 12 * s;
             float hDp = f.h / s;
-            float size = Math.min(44, hDp * .26f) * s;
+            float size = Math.min(48, hDp * .27f) * s;
             logo(c, b, pad + size / 2, pad + size / 2, size);
             float tx = pad + size + 12 * s;
             float tw = f.w - tx - pad - signRoom(m, s);
@@ -185,7 +193,9 @@ final class WidgetArt {
             // the main words in the display face: one line when they fit large enough, two otherwise
             String whole = "Графік ще не опубліковано";
             Paint title = text(Ui.display(c), 20 * s, b.pal.text, Paint.Align.LEFT);
-            boolean oneLine = sizeToFit(title, whole, tw) >= 15 * s;
+            // a tall widget has room for the words in two large lines; a low one keeps them on one
+            boolean oneLine = hDp < 140 ? sizeToFit(title, whole, tw) >= 15 * s : sizeToFit(title, whole, tw) >= 22 * s;
+            if (!oneLine) title.setTextSize(Math.min(26, hDp * .14f) * s);
             if (oneLine) {
                 fit(title, whole, tw);
                 y += 6 * s - title.ascent();

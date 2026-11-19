@@ -196,7 +196,8 @@ final class Share {
             for (int i = 0; i < list.size(); i++) {
                 Logic.Outage o = list.get(i);
                 float x = x0 + (i % columns) * (cw + gap);
-                float y = top + pad + (float) (i / columns) * (ch + gap);  // whole rows
+                int row = i / columns;  // whole rows
+                float y = top + pad + row * (ch + gap);
                 b.r.set(x, y, x + cw, y + ch);
                 b.p.setStyle(Paint.Style.FILL);
                 b.p.setColor(chipColour(o));

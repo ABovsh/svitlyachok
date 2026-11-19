@@ -655,14 +655,13 @@ public final class Logic {
 
     /** The text as the oblenergo wrote it, without control characters, empty lines or runs of spaces. */
     static String cleanNotice(String raw) {
-        StringBuilder out = new StringBuilder();
+        List<String> lines = new ArrayList<>();
         for (String line : raw.replace('\r', '\n').split("\n")) {
             String words = line.replaceAll("[\\p{Cntrl}&&[^\n]]", " ").replaceAll("\\s+", " ").trim();
-            if (words.isEmpty()) continue;
-            if (!out.isEmpty()) out.append('\n');
-            out.append(words);
+            if (!words.isEmpty()) lines.add(words);
         }
-        if (out.length() <= NOTICE_MAX) return out.toString();
+        String out = String.join("\n", lines);
+        if (out.length() <= NOTICE_MAX) return out;
         int cut = out.lastIndexOf(" ", NOTICE_MAX);
         return out.substring(0, cut > 0 ? cut : NOTICE_MAX) + "…";
     }

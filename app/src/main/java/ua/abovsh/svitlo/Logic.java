@@ -865,7 +865,7 @@ public final class Logic {
     /** "без світла", "світло", "можливе вимкнення": what comes after a change. */
     private static String coming(char slot) {
         if (slot == '0') return "без світла";
-        return slot == '1' ? "світло" : "можливе вимкнення";
+        return slot == '1' ? "світло" : possible(false);
     }
 
     public static Now now(String tl, LocalDate base, long now, boolean none) {
@@ -2435,7 +2435,7 @@ public final class Logic {
         switch (state(c)) {
             case ON: return "зі світлом";
             case OFF: return "без світла";
-            case MAYBE: return "можливе вимкнення";
+            case MAYBE: return possible(false);
             default: return "графіка немає";
         }
     }

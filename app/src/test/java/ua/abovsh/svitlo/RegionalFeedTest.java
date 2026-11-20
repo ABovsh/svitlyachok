@@ -17,6 +17,17 @@ public class RegionalFeedTest {
         assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));
     }
 
+    @Test public void rejectsOldDatesAndAcceptsPublishedTomorrow() throws Exception {
+        LocalDate today = LocalDate.parse("2026-11-20");
+        java.util.Set<String> chosen = java.util.Collections.singleton("1.1");
+        JSONObject row = new JSONObject().put("1.1","1".repeat(48));
+        JSONObject days = new JSONObject().put(today.minusDays(1).toString(), row);
+        assertFalse(RegionalFeed.covers(days, chosen, today));
+        days.put(today.plusDays(1).toString(),row);
+        assertTrue(RegionalFeed.covers(days, chosen, today));
+        assertFalse(RegionalFeed.covers(days, java.util.Collections.singleton("2.2"), today));
+    }
+
     @Test public void officialIntervalsUseTheSavedQueueIdAndMidnight() throws Exception {
         JSONObject days = new JSONObject();
         String queue = RegionalFeed.queue(11);

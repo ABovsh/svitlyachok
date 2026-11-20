@@ -8,7 +8,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.ResolverStyle;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /** Regional feeds retain the operator's dates and every published half hour. */
@@ -34,22 +37,35 @@ final class RegionalFeed {
             LocalDate day;
             try { day = LocalDate.parse(key); }
             catch (java.time.DateTimeException e) { throw new Logic.BadFile("invalid date"); }
-            JSONObject rows = days.getJSONObject(key);
-            java.util.Map<String, String> slots = new java.util.HashMap<>();
-            for (int i = 0; i < 12; i++) {
-                String group = queue(i);
-                if (!rows.has(group)) continue;
-                String value = rows.getString(group);
-                if (!value.matches("[013]{48}")) throw new Logic.BadFile("invalid half hours");
-                String id = "GPV" + group;
-                groups.add(id);
-                slots.put(id, value);
-            }
-            if (slots.isEmpty() || slots.size() != rows.length()) throw new Logic.BadFile("invalid groups");
-            data.days.put(day, slots);
+            data.days.put(day, readGroups(days.getJSONObject(key), groups));
         }
         data.groups.addAll(groups);
         return data;
+    }
+
+    private static Map<String, String> readGroups(JSONObject rows, Set<String> groups)
+            throws JSONException, Logic.BadFile {
+        Map<String, String> slots = new HashMap<>();
+        for (Iterator<String> it = rows.keys(); it.hasNext();) {
+            String group = it.next();
+            String value = rows.getString(group);
+            if (!group.matches("[1-6]\\.[12]") || !value.matches("[013]{48}"))
+                throw new Logic.BadFile("invalid queue or half hours");
+            String id = "GPV" + group;
+            groups.add(id);
+            slots.put(id, value);
+        }
+        if (slots.isEmpty()) throw new Logic.BadFile("empty day");
+        return slots;
+    }
+
+    static boolean covers(JSONObject days, Set<String> queues, LocalDate today) {
+        for (String group : queues) {
+            JSONObject current = days.optJSONObject(today.toString());
+            JSONObject next = days.optJSONObject(today.plusDays(1).toString());
+            if ((current == null || !current.has(group)) && (next == null || !next.has(group))) return false;
+        }
+        return !queues.isEmpty();
     }
 
     static String queue(int i) { return (1 + i / 2) + "." + (1 + i % 2); }
@@ -79,7 +95,7 @@ final class RegionalFeed {
     }
 
     private static int halfHour(String time) throws JSONException {
-        if (!time.matches("(?:[01][0-9]|2[0-3]):[03]0")) throw new JSONException("Invalid time");
+        if (!time.matches("(?:[01]\\d|2[0-3]):[03]0")) throw new JSONException("Invalid time");
         return Integer.parseInt(time.substring(0, 2)) * 2 + (time.endsWith("30") ? 1 : 0);
     }
 }

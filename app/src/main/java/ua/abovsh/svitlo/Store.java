@@ -213,9 +213,7 @@ final class Store {
                     RegionalFeed.addQueue(days, queue, call.body(end));
                 }
             }
-            String today = Logic.today(Sync.now()).toString();
-            org.json.JSONObject current = days.optJSONObject(today);
-            if (current == null || current.length() != queues.size()) return FAILED;
+            if (!RegionalFeed.covers(days, queues, Logic.today(Sync.now()))) return FAILED;
             String raw = new org.json.JSONObject().put("region", region).put("days", days)
                     .put("updated", Long.toString(Sync.now())).toString();
             return save(c, region, RegionalFeed.API, raw, null, end, request);
@@ -232,7 +230,7 @@ final class Store {
                             long end, Request request) throws Logic.BadFile {
         Logic.Data candidate = Logic.parse(raw);
         if (expired(request, end)) return FAILED;
-        if (RegionalFeed.IF.equals(region) && !hasToday(candidate)) return FAILED;
+        if (RegionalFeed.IF.equals(region) && !RegionalFeed.API.equals(url) && !hasToday(candidate)) return FAILED;
         Logic.Data previous = data(c, region);
         if (RegionalFeed.API.equals(url) && url.equals(saved(c, URL_OF + region))
                 && previous != null && candidate.days.equals(previous.days)) {

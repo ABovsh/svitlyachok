@@ -6,16 +6,14 @@ import java.time.LocalDate;
 import static org.junit.Assert.*;
 
 public class RegionalFeedTest {
-    @Test public void numberedGroupsKeepAllHalfHours() throws Exception {
-        String slots = "013".repeat(16);
-        JSONObject rows = new JSONObject();
-        for (int i = 1; i <= 12; i++) rows.put(Integer.toString(i), slots);
-        JSONObject file = new JSONObject().put("region", "chernivtsi").put("updated","2026-11-20T08:00:00Z")
+    @Test public void invalidRegionalCacheIsRejected() throws Exception {
+        JSONObject rows = new JSONObject().put("1.1", "1");
+        JSONObject file = new JSONObject().put("region", RegionalFeed.IF).put("updated","2026-11-20T08:00:00Z")
                 .put("days",new JSONObject().put("2026-11-20",rows));
-        Logic.Data data = Logic.parse(Logic.compactFile(file.toString()));
-        assertEquals("12", data.groups.get(11));
-        assertEquals(slots, Logic.day(data, "12", LocalDate.parse("2026-11-20")));
-        rows.remove("6");
+        assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));
+        rows.put("1.1", "1".repeat(48));
+        assertEquals(1, Logic.parse(Logic.compactFile(file.toString())).groups.size());
+        rows.put("other", "1".repeat(48));
         assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));
     }
 

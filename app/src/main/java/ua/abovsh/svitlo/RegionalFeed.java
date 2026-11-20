@@ -13,7 +13,6 @@ import java.util.TreeSet;
 
 /** Regional feeds retain the operator's dates and every published half hour. */
 final class RegionalFeed {
-    static final String CV = "chernivtsi";
     static final String IF = "ivano_frankivsk";
     static final String API = "https://be-svitlo.oe.if.ua/schedule-by-queue?queue=";
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.uuuu")
@@ -23,8 +22,7 @@ final class RegionalFeed {
 
     static Logic.Data parse(JSONObject file) throws JSONException, Logic.BadFile {
         String region = file.getString("region");
-        boolean numbered = CV.equals(region);
-        if (!numbered && !IF.equals(region)) throw new Logic.BadFile("unknown region");
+        if (!IF.equals(region)) throw new Logic.BadFile("unknown region");
         Logic.Data data = new Logic.Data();
         data.updated = Logic.sourceTime(file.getString("updated"));
         data.sourceTime = data.updated;
@@ -39,11 +37,11 @@ final class RegionalFeed {
             JSONObject rows = days.getJSONObject(key);
             java.util.Map<String, String> slots = new java.util.HashMap<>();
             for (int i = 0; i < 12; i++) {
-                String group = numbered ? Integer.toString(i + 1) : queue(i);
-                if (!numbered && !rows.has(group)) continue;
+                String group = queue(i);
+                if (!rows.has(group)) continue;
                 String value = rows.getString(group);
                 if (!value.matches("[013]{48}")) throw new Logic.BadFile("invalid half hours");
-                String id = numbered ? group : "GPV" + group;
+                String id = "GPV" + group;
                 groups.add(id);
                 slots.put(id, value);
             }

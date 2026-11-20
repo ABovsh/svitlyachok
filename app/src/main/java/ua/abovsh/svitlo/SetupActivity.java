@@ -256,15 +256,10 @@ public class SetupActivity extends Base {
         else nameValue.setText("за чергою");
     }
 
-    private List<String> defaultGroups() {
-        if (RegionalFeed.CV.equals(region)) return java.util.Arrays.asList("1","2","3","4","5","6","7","8","9","10","11","12");
-        return java.util.Arrays.asList(DEFAULT_GROUPS);
-    }
-
     private void fillQueues() {
         queues.removeAllViews();
         Logic.Data d = Store.data(this, region);
-        List<String> groups = !RegionalFeed.IF.equals(region) && d != null && !d.groups.isEmpty() ? d.groups : defaultGroups();
+        List<String> groups = !RegionalFeed.IF.equals(region) && d != null && !d.groups.isEmpty() ? d.groups : java.util.Arrays.asList(DEFAULT_GROUPS);
         LinearLayout row = null;
         for (int i = 0; i < groups.size(); i++) {
             if (i % 4 == 0) {

@@ -108,8 +108,6 @@ public final class Logic {
         new Region("khmelnytskyi", "Хмельницька область", "https://hoe.com.ua/", Y29 + "Khmelnytskoblenerho.json"),
         new Region("cherkasy", "Черкаська область", "https://www.cherkasyoblenergo.com/", Y29 + "Cherkasyoblenergo.json"),
         new Region("kharkiv", "Харківська область", "https://oblenergo.kharkiv.ua/uk", Y29 + "Kharkivoblenerho.json"),
-        new Region(RegionalFeed.CV, "Чернівецька область", "https://oblenergo.cv.ua/shutdowns/",
-                "https://raw.githubusercontent.com/ABovsh/svitlyachok-data/main/data/chernivtsi.json"),
         new Region("chernihiv", "Чернігівська область", "https://chernihivoblenergo.com.ua/", Y29 + "Chernihivoblenergo.json"),
     };
 

@@ -50,6 +50,7 @@ final class Store {
     /** A job owns its cancellation; stopping one job cannot disconnect another caller. */
     static final class Request {
         volatile boolean stopped;
+        boolean allQueues;  // The setup screen previews any queue in the region.
         private final java.util.concurrent.atomic.AtomicReference<Thread> worker = new java.util.concurrent.atomic.AtomicReference<>();
         private final java.util.concurrent.atomic.AtomicReference<HttpURLConnection> connection = new java.util.concurrent.atomic.AtomicReference<>();
         void cancel() {
@@ -135,6 +136,7 @@ final class Store {
     }
     private static int fetchFrom(Context c, String region, String url, long end, Request request) {
         if (!url.startsWith("https://")) return FAILED;
+        if (RegionalFeed.API.equals(url)) return official(c, end, request);
         return unchanged(c, region, url, end, request) ? SAME : download(c, region, url, end, request);
     }
 
@@ -150,6 +152,7 @@ final class Store {
             if (call.conn.getResponseCode() != HttpURLConnection.HTTP_PARTIAL) return false;
             Logic.Tail tail = Logic.tail(call.body(end));
             // a new notice of the oblenergo comes with the whole file, though the schedule stands
+            if (RegionalFeed.IF.equals(region) && !hasToday(cached)) return false;
             if (tail == null || !tail.hash.equals(cached.hash) || !tail.noticeHash.equals(cached.noticeHash)
                     || expired(request, end)) return false;
             SharedPreferences.Editor e = state(c).edit().putLong(CHECKED + region, Sync.now());
@@ -173,27 +176,79 @@ final class Store {
             int code = call.conn.getResponseCode();
             if (expired(request, end)) return FAILED;
             if (code == 304 && validCache) {
+                if (RegionalFeed.IF.equals(region) && !hasToday(data(c, region))) return FAILED;
                 call.finishEmpty();
                 state(c).edit().putLong(CHECKED + region, Sync.now()).apply();
                 return SAME;
             }
             if (code != 200) return FAILED;
             String raw = call.body(end);
-            Logic.Data candidate = Logic.parse(raw);
-            if (expired(request, end)) return FAILED;
-            if (!Logic.preferData(candidate, data(c, region), Sync.now())) {
-                state(c).edit().putLong(CHECKED + region, Sync.now()).apply();
-                return SAME;
-            }
-            String kept = Logic.compactFile(raw);
-            boolean same = kept.equals(prefs(c).getString(JSON + region, null));
-            if (!same) prefs(c).edit().putString(JSON + region, kept).remove(CHECKED + region).remove(ETAG + region).remove(URL_OF + region).apply();
-            state(c).edit().putString(ETAG + region, call.conn.getHeaderField("ETag")).putString(URL_OF + region, url)
-                    .putLong(CHECKED + region, Sync.now()).putLong(WHOLE + region, Sync.now()).remove(SOURCE + region).remove(DOWN + region).apply();
-            return same ? SAME : NEW;
+            return save(c, region, url, raw, call.conn.getHeaderField("ETag"), end, request);
         } catch (IOException | Logic.BadFile | RuntimeException e) {
             return FAILED;
         }
+    }
+
+    private static Set<String> officialQueues(Context c, boolean all) {
+        Set<String> queues = new java.util.LinkedHashSet<>();
+        for (Logic.Place place : Prefs.places(c)) {
+            String queue = Logic.queue(place.group);
+            if (RegionalFeed.IF.equals(place.region) && queue.matches("[1-6]\\.[12]")) queues.add(queue);
+        }
+        if (all || queues.isEmpty()) {
+            for (int i = 0; i < 12; i++) queues.add(RegionalFeed.queue(i));
+        }
+        return queues;
+    }
+
+    private static int official(Context c, long end, Request request) {
+        String region = RegionalFeed.IF;
+        Set<String> queues = officialQueues(c, request.allQueues);
+        org.json.JSONObject days = new org.json.JSONObject();
+        try {
+            for (String queue : queues) {
+                if (expired(request, end)) return FAILED;
+                try (Call call = new Call(RegionalFeed.API + queue, end, request)) {
+                    if (call.conn.getResponseCode() != 200) return FAILED;
+                    RegionalFeed.addQueue(days, queue, call.body(end));
+                }
+            }
+            String today = Logic.today(Sync.now()).toString();
+            org.json.JSONObject current = days.optJSONObject(today);
+            if (current == null || current.length() != queues.size()) return FAILED;
+            String raw = new org.json.JSONObject().put("region", region).put("days", days)
+                    .put("updated", Long.toString(Sync.now())).toString();
+            return save(c, region, RegionalFeed.API, raw, null, end, request);
+        } catch (IOException | org.json.JSONException | Logic.BadFile | RuntimeException e) {
+            return FAILED;
+        }
+    }
+
+    private static boolean hasToday(Logic.Data data) {
+        return data != null && data.days.containsKey(Logic.today(Sync.now()));
+    }
+
+    private static int save(Context c, String region, String url, String raw, String etag,
+                            long end, Request request) throws Logic.BadFile {
+        Logic.Data candidate = Logic.parse(raw);
+        if (expired(request, end)) return FAILED;
+        if (RegionalFeed.IF.equals(region) && !hasToday(candidate)) return FAILED;
+        Logic.Data previous = data(c, region);
+        if (RegionalFeed.API.equals(url) && url.equals(saved(c, URL_OF + region))
+                && previous != null && candidate.days.equals(previous.days)) {
+            state(c).edit().putLong(CHECKED + region, Sync.now()).putLong(SOURCE + region, Sync.now()).apply();
+            return SAME;
+        }
+        if (!Logic.preferData(candidate, data(c, region), Sync.now())) {
+            state(c).edit().putLong(CHECKED + region, Sync.now()).apply();
+            return SAME;
+        }
+        String kept = Logic.compactFile(raw);
+        boolean same = kept.equals(prefs(c).getString(JSON + region, null));
+        if (!same) prefs(c).edit().putString(JSON + region, kept).remove(CHECKED + region).remove(ETAG + region).remove(URL_OF + region).apply();
+        state(c).edit().putString(ETAG + region, etag).putString(URL_OF + region, url)
+                .putLong(CHECKED + region, Sync.now()).putLong(WHOLE + region, Sync.now()).remove(SOURCE + region).remove(DOWN + region).apply();
+        return same ? SAME : NEW;
     }
 
     /** One request within its deadline. A connection read to its end stays open for the next region. */

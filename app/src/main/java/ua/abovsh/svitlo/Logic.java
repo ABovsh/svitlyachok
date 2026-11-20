@@ -99,7 +99,7 @@ public final class Logic {
         new Region("zaporizhzhia", "Запорізька область", "https://www.zoe.com.ua/",
                 "https://raw.githubusercontent.com/milkmann/gpv-zoe-zaporizhzhia/main/data/Zaporizhzhiaoblenergo.json",
                 Y29 + "Zaporizhzhiaoblenergo.json"),
-        new Region("ivano_frankivsk", "Івано-Франківська область", "https://www.oe.if.ua/", Y29 + "Prykarpattiaoblenerho.json"),
+        new Region(RegionalFeed.IF, "Івано-Франківська область", "https://www.oe.if.ua/", RegionalFeed.API, Y29 + "Prykarpattiaoblenerho.json"),
         new Region("lviv", "Львівська область", "https://loe.lviv.ua/", Y29 + "Lvivoblenerho.json"),
         new Region("odesa", "Одеська область", "https://www.dtek-oem.com.ua/ua/shutdowns", B42 + "odesa.json"),
         new Region("poltava", "Полтавська область", "https://www.poe.pl.ua/", Y29 + "Poltavaoblenergo.json"),
@@ -108,6 +108,8 @@ public final class Logic {
         new Region("khmelnytskyi", "Хмельницька область", "https://hoe.com.ua/", Y29 + "Khmelnytskoblenerho.json"),
         new Region("cherkasy", "Черкаська область", "https://www.cherkasyoblenergo.com/", Y29 + "Cherkasyoblenergo.json"),
         new Region("kharkiv", "Харківська область", "https://oblenergo.kharkiv.ua/uk", Y29 + "Kharkivoblenerho.json"),
+        new Region(RegionalFeed.CV, "Чернівецька область", "https://oblenergo.cv.ua/shutdowns/",
+                "https://raw.githubusercontent.com/ABovsh/svitlyachok-data/main/data/chernivtsi.json"),
         new Region("chernihiv", "Чернігівська область", "https://chernihivoblenergo.com.ua/", Y29 + "Chernihivoblenergo.json"),
     };
 
@@ -188,6 +190,7 @@ public final class Logic {
         if (nesting(raw) > MAX_NESTING) throw new BadFile("nested too deep");
         try {
             JSONObject file = new JSONObject(raw);
+            if (file.has("days")) return RegionalFeed.parse(file);
             JSONObject fact = file.getJSONObject("fact");
             Data d = new Data();
             TreeSet<String> groups = new TreeSet<>(Logic::compareGroups);
@@ -240,6 +243,7 @@ public final class Logic {
     public static String compactFile(String raw) throws BadFile {
         try {
             JSONObject file = new JSONObject(raw);
+            if (file.has("days")) return file.toString();
             JSONObject out = new JSONObject().put("fact", file.getJSONObject("fact"));
             if (file.has(LAST_UPDATED)) out.put(LAST_UPDATED, file.get(LAST_UPDATED));
             if (file.has(STATUS)) out.put(STATUS, file.get(STATUS));

@@ -65,7 +65,8 @@ final class WidgetArt {
             m.now.then = "";
         }
         m.lit = Logic.highlight(m.now, Prefs.alerts(c, p.id), now);
-        m.notice = data == null ? Logic.NOTICE_NONE : Logic.noticeLevel(data.notice);
+        m.notice = data != null && Logic.noticeLevel(data.notice) == Logic.NOTICE_EMERGENCY
+                ? Logic.NOTICE_EMERGENCY : Logic.NOTICE_NONE;
         m.waiting = Logic.waitingForToday(data, p.group, m.base);
         m.checked = m.waiting ? Store.checkedAt(c, p.region) : 0;
         return m;
@@ -106,7 +107,6 @@ final class WidgetArt {
         }
         String notice = "";
         if (m.notice == Logic.NOTICE_EMERGENCY) notice = "Екстрені відключення в області. ";
-        else if (m.notice == Logic.NOTICE_CALM) notice = "Є повідомлення обленерго. ";
         return notice + (m.stale ? "Дані можуть бути застарілі. " : "") + m.place.name + ", зараз за графіком: " + n.title + (n.since.isEmpty() ? "" : ", " + n.since) + (n.big.isEmpty() ? "" : ", " + n.big)
                 + (n.then.isEmpty() ? "" : ", " + n.then) + ". " + Logic.widgetTomorrow(dayOf(m.tl, 48))[0];
     }

@@ -56,7 +56,8 @@ final class Sync {
      */
     static int fetchRegion(Context c, String region, Store.Request request) {
         Logic.Data before = Store.data(c, region);
-        int r = Store.fetch(c, region, Long.MAX_VALUE, false, request);
+        request.allQueues = RegionalFeed.IF.equals(region);
+        int r = Store.fetch(c, region, Long.MAX_VALUE, request.allQueues, request);
         if (r == Store.NEW) {
             reconcile(c, region);
             notifyNotes(c, region, before, Store.data(c, region), now());

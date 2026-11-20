@@ -256,10 +256,15 @@ public class SetupActivity extends Base {
         else nameValue.setText("за чергою");
     }
 
+    private List<String> defaultGroups() {
+        if (RegionalFeed.CV.equals(region)) return java.util.Arrays.asList("1","2","3","4","5","6","7","8","9","10","11","12");
+        return java.util.Arrays.asList(DEFAULT_GROUPS);
+    }
+
     private void fillQueues() {
         queues.removeAllViews();
         Logic.Data d = Store.data(this, region);
-        List<String> groups = d != null && !d.groups.isEmpty() ? d.groups : java.util.Arrays.asList(DEFAULT_GROUPS);
+        List<String> groups = !RegionalFeed.IF.equals(region) && d != null && !d.groups.isEmpty() ? d.groups : defaultGroups();
         LinearLayout row = null;
         for (int i = 0; i < groups.size(); i++) {
             if (i % 4 == 0) {
@@ -381,7 +386,7 @@ public class SetupActivity extends Base {
 
     /** Picked from the usual list while the region's own was coming, and the region does not have it. */
     private void dropQueueNotOffered(Logic.Data d) {
-        if (d == null || d.groups.isEmpty()) return;
+        if (RegionalFeed.IF.equals(region) || d == null || d.groups.isEmpty()) return;
         String saved = editing != null && editing.region.equals(region) ? editing.group : "";
         if (!Logic.queueOffered(group, d.groups, saved)) group = "";
     }

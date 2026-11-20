@@ -1398,7 +1398,7 @@ public class LogicTest {
         assertEquals(e.change,Logic.eventText(e,tl(TODAY_ONLY),OCT30).until);
     }
     @Test public void supportedRegionsIncludeCherkasyAndKharkiv() {
-        assertEquals(17,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);
+        assertEquals(18,Logic.regions().size());assertTrue(Logic.region("cherkasy")!=null);assertTrue(Logic.region("kharkiv")!=null);
         assertEquals("Місто Київ",Logic.regions().get(0).name);assertEquals("kyiv",Logic.regions().get(0).id);
     }
 

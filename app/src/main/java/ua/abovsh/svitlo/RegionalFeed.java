@@ -5,6 +5,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.ResolverStyle;
 import java.util.Arrays;
@@ -16,19 +17,32 @@ import java.util.TreeSet;
 
 /** Regional feeds retain the operator's dates and every published half hour. */
 final class RegionalFeed {
+    static final String CV = "chernivtsi";
     static final String IF = "ivano_frankivsk";
     static final String API = "https://be-svitlo.oe.if.ua/schedule-by-queue?queue=";
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
 
+    /** Our collector refreshes "checked" at least hourly; half an hour more covers its cadence and caches. */
+    static final long CV_DOWN_S = 90 * 60L;
+
     private RegionalFeed() {}
 
     static Logic.Data parse(JSONObject file) throws JSONException, Logic.BadFile {
         String region = file.getString("region");
-        if (!IF.equals(region)) throw new Logic.BadFile("unknown region");
+        boolean numbered = CV.equals(region);
+        if (!numbered && !IF.equals(region)) throw new Logic.BadFile("unknown region");
         Logic.Data data = new Logic.Data();
-        data.updated = Logic.sourceTime(file.getString("updated"));
-        data.sourceTime = data.updated;
+        if (numbered) {
+            // our collector: "updated" is the last change, "checked" its last successful look at the site
+            data.updated = time(file.getString("updated"));
+            data.sourceTime = time(file.getString("checked"));
+            data.sourceOk = false;
+            data.downAfter = CV_DOWN_S;
+        } else {
+            data.updated = Logic.sourceTime(file.getString("updated"));
+            data.sourceTime = data.updated;
+        }
         JSONObject days = file.getJSONObject("days");
         if (days.length() == 0 || days.length() > Logic.MAX_DAYS) throw new Logic.BadFile("invalid dates");
         TreeSet<String> groups = new TreeSet<>(Logic::compareGroups);
@@ -37,26 +51,32 @@ final class RegionalFeed {
             LocalDate day;
             try { day = LocalDate.parse(key); }
             catch (java.time.DateTimeException e) { throw new Logic.BadFile("invalid date"); }
-            data.days.put(day, readGroups(days.getJSONObject(key), groups));
+            data.days.put(day, readGroups(days.getJSONObject(key), groups, numbered));
         }
         data.groups.addAll(groups);
         return data;
     }
 
-    private static Map<String, String> readGroups(JSONObject rows, Set<String> groups)
+    private static Map<String, String> readGroups(JSONObject rows, Set<String> groups, boolean numbered)
             throws JSONException, Logic.BadFile {
         Map<String, String> slots = new HashMap<>();
         for (Iterator<String> it = rows.keys(); it.hasNext();) {
             String group = it.next();
             String value = rows.getString(group);
-            if (!group.matches("[1-6]\\.[12]") || !value.matches("[013]{48}"))
+            if (!group.matches(numbered ? "[1-9]|1[0-2]" : "[1-6]\\.[12]") || !value.matches("[013]{48}"))
                 throw new Logic.BadFile("invalid queue or half hours");
-            String id = "GPV" + group;
+            String id = numbered ? group : "GPV" + group;
             groups.add(id);
             slots.put(id, value);
         }
-        if (slots.isEmpty()) throw new Logic.BadFile("empty day");
+        // the collector publishes a day only with all twelve groups; fewer is a broken file
+        if (slots.isEmpty() || (numbered && slots.size() != 12)) throw new Logic.BadFile("incomplete day");
         return slots;
+    }
+
+    private static long time(String value) throws Logic.BadFile {
+        try { return OffsetDateTime.parse(value).toEpochSecond(); }
+        catch (java.time.DateTimeException e) { throw new Logic.BadFile("invalid time"); }
     }
 
     /** Every queue asked for has today: tomorrow alone would hide a missing today from the reserve file. */

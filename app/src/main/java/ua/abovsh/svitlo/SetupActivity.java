@@ -18,8 +18,6 @@ import java.util.List;
 
 /** A place: its region, its queue, a name. Also the first screen of the app. */
 public class SetupActivity extends Base {
-    private static final String[] DEFAULT_GROUPS = {"GPV1.1", "GPV1.2", "GPV2.1", "GPV2.2", "GPV3.1", "GPV3.2",
-        "GPV4.1", "GPV4.2", "GPV5.1", "GPV5.2", "GPV6.1", "GPV6.2"};
     private static final String[] NAMES = {"Дім", "Дача", "Робота", "Батьки"};
     private static final int MAX_NAME = 24;
 
@@ -259,7 +257,7 @@ public class SetupActivity extends Base {
     private void fillQueues() {
         queues.removeAllViews();
         Logic.Data d = Store.data(this, region);
-        List<String> groups = !RegionalFeed.IF.equals(region) && d != null && !d.groups.isEmpty() ? d.groups : java.util.Arrays.asList(DEFAULT_GROUPS);
+        List<String> groups = !RegionalFeed.IF.equals(region) && d != null && !d.groups.isEmpty() ? d.groups : Logic.defaultGroups(region);
         LinearLayout row = null;
         for (int i = 0; i < groups.size(); i++) {
             if (i % 4 == 0) {

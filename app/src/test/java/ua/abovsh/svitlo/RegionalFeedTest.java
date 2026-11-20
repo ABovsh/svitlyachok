@@ -54,4 +54,50 @@ public class RegionalFeedTest {
         assertEquals(20_000, RegionalFeed.officialEnd(0, 30_000));
         assertEquals(1_020_000, RegionalFeed.officialEnd(1_000_000, 1_030_000));
     }
+    private static JSONObject chernivtsi(JSONObject rows) throws Exception {
+        return new JSONObject().put("region", RegionalFeed.CV).put("updated", "2026-11-20T08:00:00+02:00")
+                .put("checked", "2026-11-20T21:00:00+02:00").put("days", new JSONObject().put("2026-11-20", rows));
+    }
+
+    @Test public void chernivtsiKeepsAllTwelveNumberedGroups() throws Exception {
+        String slots = "013".repeat(16);
+        JSONObject rows = new JSONObject();
+        for (int i = 1; i <= 12; i++) rows.put(Integer.toString(i), slots);
+        JSONObject file = chernivtsi(rows);
+        Logic.Data data = Logic.parse(Logic.compactFile(file.toString()));
+        assertEquals(12, data.groups.size());
+        assertEquals("1", data.groups.get(0));
+        assertEquals("12", data.groups.get(11));
+        assertEquals(slots, Logic.day(data, "12", LocalDate.parse("2026-11-20")));
+        rows.remove("6");
+        assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));  // a day misses a group
+        rows.put("6", slots).put("1.1", slots);
+        assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));  // queues are not Chernivtsi groups
+        rows.remove("1.1");
+        file.remove("checked");
+        assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));  // the collector's check time is required
+    }
+
+    @Test public void prykarpattiaDoesNotTakeNumberedGroups() throws Exception {
+        JSONObject file = new JSONObject().put("region", RegionalFeed.IF).put("updated","2026-11-20T08:00:00Z")
+                .put("days",new JSONObject().put("2026-11-20",new JSONObject().put("1", "1".repeat(48))));
+        assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));
+    }
+
+    @Test public void chernivtsiTellsWhenTheCollectorStopped() throws Exception {
+        JSONObject rows = new JSONObject();
+        for (int i = 1; i <= 12; i++) rows.put(Integer.toString(i), "1".repeat(48));
+        Logic.Data data = Logic.parse(chernivtsi(rows).toString());
+        long checked = java.time.OffsetDateTime.parse("2026-11-20T21:00:00+02:00").toEpochSecond();
+        assertEquals(java.time.OffsetDateTime.parse("2026-11-20T08:00:00+02:00").toEpochSecond(), data.updated);
+        // the collector refreshes its check time hourly: a quiet day is not a site that is down
+        assertFalse(Logic.siteDown(data, checked + 89 * 60));
+        assertTrue(Logic.siteDown(data, checked + 90 * 60));
+    }
+
+    @Test public void chernivtsiOffersItsTwelveGroupsBeforeTheFileArrives() {
+        assertEquals(java.util.Arrays.asList("1","2","3","4","5","6","7","8","9","10","11","12"), Logic.defaultGroups(RegionalFeed.CV));
+        assertEquals("GPV1.1", Logic.defaultGroups("kyiv").get(0));
+        assertEquals(12, Logic.defaultGroups("kyiv").size());
+    }
 }

@@ -110,8 +110,21 @@ public final class Logic {
         new Region("khmelnytskyi", "Хмельницька область", "https://hoe.com.ua/", Y29 + "Khmelnytskoblenerho.json"),
         new Region("cherkasy", "Черкаська область", "https://www.cherkasyoblenergo.com/", Y29 + "Cherkasyoblenergo.json"),
         new Region("kharkiv", "Харківська область", "https://oblenergo.kharkiv.ua/uk", Y29 + "Kharkivoblenerho.json"),
+        new Region(RegionalFeed.CV, "Чернівецька область", "https://oblenergo.cv.ua/shutdowns/",
+                "https://raw.githubusercontent.com/ABovsh/svitlyachok-data/main/data/chernivtsi.json"),
         new Region("chernihiv", "Чернігівська область", "https://chernihivoblenergo.com.ua/", Y29 + "Chernihivoblenergo.json"),
     };
+
+    private static final List<String> QUEUES = java.util.Arrays.asList("GPV1.1", "GPV1.2", "GPV2.1", "GPV2.2",
+            "GPV3.1", "GPV3.2", "GPV4.1", "GPV4.2", "GPV5.1", "GPV5.2", "GPV6.1", "GPV6.2");
+
+    private static final List<String> CV_GROUPS = java.util.Arrays.asList("1", "2", "3", "4", "5", "6",
+            "7", "8", "9", "10", "11", "12");
+
+    /** The queues offered while the region's own file is still coming. */
+    public static List<String> defaultGroups(String region) {
+        return RegionalFeed.CV.equals(region) ? CV_GROUPS : QUEUES;
+    }
 
     public static List<Region> regions() {
         return java.util.Collections.unmodifiableList(java.util.Arrays.asList(REGIONS));
@@ -130,6 +143,7 @@ public final class Logic {
         public boolean none;          // "data": [] — no outages published at all
         public long sourceTime;
         public boolean sourceOk = true;
+        public long downAfter = SITE_DOWN_S;  // how long without the site before the app says so
         private Data expiredView;
         private Data draftView;
         private String draftKey = "";
@@ -306,7 +320,7 @@ public final class Logic {
 
     /** The collector has not got the schedule from the site for a while; the one shown is its last. */
     static boolean siteDown(Data d, long now) {
-        return d != null && !d.sourceOk && d.sourceTime > 0 && now - d.sourceTime >= SITE_DOWN_S;
+        return d != null && !d.sourceOk && d.sourceTime > 0 && now - d.sourceTime >= d.downAfter;
     }
 
     /** Since the last attempt that got the schedule, and what may come late: tomorrow, or changes. */
@@ -360,7 +374,7 @@ public final class Logic {
         if (d == null || !d.none || noneFresh(d, now)) return d;
         if (d.expiredView == null) {
             Data out = new Data(); out.updated = d.updated; out.sourceTime = d.sourceTime;
-            out.sourceOk = d.sourceOk; out.groups = d.groups; out.hash = d.hash;
+            out.sourceOk = d.sourceOk; out.downAfter = d.downAfter; out.groups = d.groups; out.hash = d.hash;
             out.notice = d.notice; out.noticeHash = d.noticeHash; d.expiredView = out;
         }
         return d.expiredView;
@@ -394,7 +408,7 @@ public final class Logic {
             Data out = new Data();
             out.days = new HashMap<>(d.days);
             for (LocalDate day : drafts) out.days.remove(day);
-            out.updated = d.updated; out.sourceTime = d.sourceTime; out.sourceOk = d.sourceOk;
+            out.updated = d.updated; out.sourceTime = d.sourceTime; out.sourceOk = d.sourceOk; out.downAfter = d.downAfter;
             out.groups = d.groups; out.hash = d.hash; out.notice = d.notice; out.noticeHash = d.noticeHash;
             d.draftView = out; d.draftKey = key;
         }

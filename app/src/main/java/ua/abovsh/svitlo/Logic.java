@@ -987,17 +987,14 @@ public final class Logic {
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
-            String what = next == '3' && c == '0' ? "можливе увімкнення" : coming(next);
+            String what = next == '3' ? possible(c == '0') : coming(next);
             n.then = "потім " + what + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
         if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
         // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
         String when = n.tomorrow ? " завтра о " + hm(change) : " о " + at;
-        if (next == '0') n.hint = "Вимкнуть" + when;
-        else if (next == '3') n.hint = (c == '0' ? "Можливо увімкнуть" : "Можливо вимкнуть") + when;
-        else if (c == '0' || n.afterOff) n.hint = "Увімкнуть" + when;
-        else n.hint = "Буде світло" + when;
+        n.hint = event(n) + when;
         n.hintIn = "(" + comingIn(change - now) + ")";
     }
 
@@ -2580,24 +2577,32 @@ public final class Logic {
         String text = n.hintIn;
         if (text.startsWith("(") && text.endsWith(")")) text = text.substring(1, text.length() - 1);
         int end = n.then.lastIndexOf(" до ");
-        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? (n.state == OFF ? "можливе увімкнення " : "можливе вимкнення ") : "світла не буде ") + n.then.substring(end + 1);
+        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? possible(n.state == OFF) + " " : "світла не буде ") + n.then.substring(end + 1);
         return text;
     }
 
     /** Label, exact clock (including tomorrow), and known end; no countdown on a widget. */
     public static String[] widgetNext(Now n) {
         if (n.next == UNKNOWN || n.change <= 0) return new String[] {"", "", ""};
-        String event = "Буде світло";
-        if (n.next == OFF) event = "Вимкнуть";
-        else if (n.next == MAYBE) event = n.state == OFF ? "Можливо увімкнуть" : "Можливо вимкнуть";
-        else if (n.state == OFF || n.afterOff) event = "Увімкнуть";
-        return new String[] {event + (n.tomorrow ? " завтра" : ""), n.changeClock.isEmpty() ? hm(n.change) : n.changeClock, n.endDetail};
+        return new String[] {event(n) + (n.tomorrow ? " завтра" : ""), n.changeClock.isEmpty() ? hm(n.change) : n.changeClock, n.endDetail};
     }
 
     /** The event in a word or two, when the widget has no room for its full name. */
     static String compactEvent(Now now) {
-        if (now.next == ON) return now.state == OFF || now.afterOff ? "Увімкнуть" : "Буде світло";
-        return now.next == OFF ? "Вимкнуть" : "Можливо";
+        return now.next == MAYBE ? "Можливо" : event(now);
+    }
+
+    /** The coming change by name. After an outage, possible or not, power can only come back. */
+    private static String event(Now n) {
+        if (n.next == OFF) return "Вимкнуть";
+        boolean dark = n.state == OFF || n.afterOff;
+        if (n.next == MAYBE) return n.state == OFF ? "Можливо увімкнуть" : "Можливо вимкнуть";
+        return dark ? "Увімкнуть" : "Буде світло";
+    }
+
+    /** A possible window: after an outage it can only bring power back. */
+    private static String possible(boolean afterOff) {
+        return afterOff ? "можливе увімкнення" : "можливе вимкнення";
     }
 
     /** The state the title on the right is coloured by: what comes, or the state that lasts to midnight. */

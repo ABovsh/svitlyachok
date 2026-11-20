@@ -136,7 +136,7 @@ final class Store {
     }
     private static int fetchFrom(Context c, String region, String url, long end, Request request) {
         if (!url.startsWith("https://")) return FAILED;
-        if (RegionalFeed.API.equals(url)) return official(c, end, request);
+        if (RegionalFeed.API.equals(url)) return official(c, RegionalFeed.officialEnd(SystemClock.elapsedRealtime(), end), request);
         return unchanged(c, region, url, end, request) ? SAME : download(c, region, url, end, request);
     }
 

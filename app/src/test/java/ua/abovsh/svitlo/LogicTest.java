@@ -1199,7 +1199,7 @@ public class LogicTest {
         assertEquals(Arrays.asList("з 00:00", ""), Arrays.asList(Logic.widgetStart(n)));
         assertEquals(Arrays.asList("Сьогодні й завтра", "Без вимкнень", ""), Arrays.asList(Logic.widgetFuture(n)));
         n = Logic.now(repeat('1',48) + repeat('2',48), OCT30, at(12,0), false);
-        assertEquals(Arrays.asList("Завтра", "Графіка ще немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        assertEquals(Arrays.asList("Без вимкнень", "до 24:00", ""), Arrays.asList(Logic.widgetFuture(n)));
         n = Logic.now(repeat('2',96), OCT30, at(12,0), false);
         assertEquals(Arrays.asList("Далі", "Графіка немає", ""), Arrays.asList(Logic.widgetFuture(n)));
         n.since = "з 22:00 учора";
@@ -2837,5 +2837,68 @@ public class LogicTest {
         assertFalse(Logic.scheduleAhead(d, "GPV2.1", OCT30));  // another queue's tomorrow is not this one's
         assertFalse(Logic.scheduleAhead(d, "GPV1.1", OCT30.plusDays(1)));
         assertFalse(Logic.scheduleAhead(null, "GPV1.1", OCT30));
+    }
+
+    // ---- 1.11: a possible window after an outage, the colour of the right, a day without tomorrow ----
+
+    @Test public void possibleWindowAfterAnOutageIsAPossibleSwitchOn() {
+        // no power till 12:00, possible 12:00-15:00, power after
+        String tl = repeat('0', 24) + repeat('3', 6) + repeat('1', 66);
+        Logic.Now before = Logic.now(tl, OCT30, at(11, 0), false);
+        assertEquals("Можливо увімкнуть о 12:00", before.hint);
+        assertEquals(Arrays.asList("Можливо увімкнуть", "12:00", "до 15:00"), Arrays.asList(Logic.widgetNext(before)));
+        assertEquals("через 1 год 00 хв · можливе увімкнення до 15:00", Logic.nextDetail(before));
+        assertEquals("потім можливе увімкнення до 15:00", before.then);
+        assertEquals("Можливо", Logic.compactEvent(before));
+        Logic.Now during = Logic.now(tl, OCT30, at(13, 0), false);
+        assertEquals(Logic.MAYBE, during.state);
+        assertEquals("Можливе увімкнення", during.title);
+        assertEquals("Увімкнуть о 15:00", during.hint);
+        assertEquals("Увімкнуть", Logic.widgetNext(during)[0]);
+        assertEquals("Увімкнуть", Logic.compactEvent(during));
+        assertTrue(Logic.heroDescription(during).contains("Можливе увімкнення"));
+        // the window began at midnight, after yesterday's outage
+        Logic.Now midnight = Logic.now(repeat('3', 6) + repeat('1', 90), OCT30, at(1, 0), false, repeat('0', 48));
+        assertEquals("Можливе увімкнення", midnight.title);
+        assertEquals("Увімкнуть о 03:00", midnight.hint);
+    }
+
+    @Test public void possibleWindowWithPowerKeepsItsWords() {
+        String tl = repeat('1', 24) + repeat('3', 6) + repeat('1', 66);
+        assertEquals("Можливо вимкнуть о 12:00", Logic.now(tl, OCT30, at(11, 0), false).hint);
+        Logic.Now during = Logic.now(tl, OCT30, at(13, 0), false);
+        assertEquals("Можливе вимкнення", during.title);
+        assertEquals("Буде світло о 15:00", during.hint);
+        assertEquals("Буде світло", Logic.compactEvent(during));
+        Logic.Now unknown = Logic.now(repeat('3', 6) + repeat('1', 90), OCT30, at(1, 0), false);
+        assertEquals("Можливе вимкнення", unknown.title);
+        assertEquals("Вимкнуть", Logic.compactEvent(Logic.now(repeat('1', 24) + repeat('0', 72), OCT30, at(11, 0), false)));
+    }
+
+    @Test public void dayWithoutTomorrowSaysNoChangeUntilMidnight() {
+        String on = repeat('1', 48) + repeat('2', 48);
+        Logic.Now n = Logic.now(on, OCT30, at(12, 0), false);
+        // the widget has no room for the reason; the card says it under the clock
+        assertEquals(Arrays.asList("Без вимкнень", "до 24:00", ""), Arrays.asList(Logic.widgetFuture(n)));
+        assertEquals(Arrays.asList("Без вимкнень", "до 24:00", "графіка на завтра ще немає"), Arrays.asList(Logic.heroFuture(n, "", false)));
+        assertEquals(Logic.ON, Logic.widgetRightState(n, "до 24:00"));
+        assertEquals(Logic.ON, Logic.futureTitleState(n));
+        assertTrue(Logic.heroDescription(n).contains("Без вимкнень до 24:00, графіка на завтра ще немає"));
+        Logic.Now off = Logic.now(repeat('0', 48) + repeat('2', 48), OCT30, at(12, 0), false);
+        assertEquals(Arrays.asList("Без увімкнень", "до 24:00", ""), Arrays.asList(Logic.widgetFuture(off)));
+        assertEquals(Logic.OFF, Logic.widgetRightState(off, "до 24:00"));
+        Logic.Now maybe = Logic.now(repeat('3', 48) + repeat('2', 48), OCT30, at(12, 0), false);
+        assertEquals(Arrays.asList("Без змін", "до 24:00", ""), Arrays.asList(Logic.widgetFuture(maybe)));
+    }
+
+    @Test public void unknownIsGreyOnTheRightEvenWithPower() {
+        // known till 18:00, nothing after: the words about the unknown stay grey
+        Logic.Now n = Logic.now(repeat('1', 36) + repeat('2', 60), OCT30, at(12, 0), false);
+        assertEquals(Arrays.asList("Після 18:00", "Графіка немає", ""), Arrays.asList(Logic.widgetFuture(n)));
+        assertEquals(Logic.UNKNOWN, Logic.widgetRightState(n, "Графіка немає"));
+        assertEquals(Logic.UNKNOWN, Logic.futureTitleState(n));
+        Logic.Now none = Logic.now(repeat('1', 96), OCT30, at(12, 0), false);
+        assertEquals(Logic.UNKNOWN, Logic.futureTitleState(none));  // "Сьогодні й завтра" names no state
+        assertEquals(Logic.ON, Logic.widgetRightState(none, "Без вимкнень"));
     }
 }

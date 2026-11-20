@@ -52,6 +52,7 @@ final class HeroCard extends ViewGroup {
     private final String currentEnd;
     private boolean currentMoved;
     private Logic.Now last;
+    private final String note;  // under the right clock when no countdown stands there
 
     HeroCard(Context c, Ui.Pal colours, String name, Logic.Now now, String[] next, boolean lit) {
         super(c); pal = colours; location = name; initial = now; highlighted = lit;
@@ -60,17 +61,21 @@ final class HeroCard extends ViewGroup {
         if (Build.VERSION.SDK_INT >= 28) setScreenReaderFocusable(true);
         String[] start = Logic.widgetStart(now);
         currentEnd = start[1]; last = now;
-        int nextInk = now.next == Logic.UNKNOWN ? pal.muted : pal.status(now.next);
-        if (lit) nextInk = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+        // one colour a column: the state now on the left; on the right what comes, grey when unknown
+        int nextInk = pal.status(Logic.futureTitleState(now));
+        int valueInk = pal.status(Logic.widgetRightState(now, next[1]));
+        if (lit) nextInk = valueInk = now.next == Logic.MAYBE ? pal.accentInk : pal.ink;
+        note = next[2];
         FitText place = new FitText(c, 13, 12, 1, Ui.heavy(c), pal.text).compact(1.1f);
         place.setText(name); place.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); addView(place); label = place;
         currentTitle = text(now.title, 20, Ui.heavy(c), pal.status(now.state));
         futureTitle = text(next[0], 20, Ui.heavy(c), nextInk);
-        currentClock = text(start[0], 27, start[0].contains(":") ? Ui.display(c) : Ui.bold(c), pal.text);
-        futureClock = text(next[1], 27, next[1].contains(":") ? Ui.display(c) : Ui.bold(c), nextInk);
+        currentClock = text(start[0], 27, start[0].contains(":") ? Ui.display(c) : Ui.bold(c), pal.status(now.state));
+        futureClock = text(next[1], 27, next[1].contains(":") ? Ui.display(c) : Ui.bold(c), valueInk);
         currentSide = text(start[1], 13, Ui.bold(c), pal.muted);
         elapsed = text(now.already, 13.5f, Ui.body(c), pal.muted);
-        remaining = text(Logic.heroCountdown(now), 13.5f, Ui.bold(c), lit ? nextInk : pal.text);
+        // "уже…" and "через…" read alike; a highlighted event keeps its own
+        remaining = text(Logic.heroCountdown(now), 13.5f, lit ? Ui.bold(c) : Ui.body(c), lit ? nextInk : pal.muted);
         bulb = new BulbView(c, pal); bulb.bare(); bulb.still(); bulb.set(now.state);
         bulb.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO); addView(bulb, 0);  // under the words: its glow must not tint them
         setClipChildren(false);
@@ -101,6 +106,7 @@ final class HeroCard extends ViewGroup {
     private void details() {
         String left = under(last.already, currentMoved ? currentEnd : "");
         String right = Logic.heroCountdown(last);
+        if (right.isEmpty()) right = note;
         if (!android.text.TextUtils.equals(elapsed.getText(), left)) elapsed.setText(left);
         if (!android.text.TextUtils.equals(remaining.getText(), right)) remaining.setText(right);
     }
@@ -381,7 +387,7 @@ final class HeroCard extends ViewGroup {
     /** "now, then": a quiet round mark on the line between the halves, in the colour of what comes. */
     private void arrow(Canvas canvas, float cx, float cy) {
         Context c = getContext();
-        int ink = last.next == Logic.UNKNOWN ? pal.muted : pal.status(last.next);
+        int ink = pal.status(Logic.widgetRightState(last, futureClock.getText().toString()));
         float r = Ui.px(c, 11);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(pal.card);

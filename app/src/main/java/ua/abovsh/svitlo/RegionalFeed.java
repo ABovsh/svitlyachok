@@ -59,14 +59,15 @@ final class RegionalFeed {
         return slots;
     }
 
+    /** Every queue asked for has today: tomorrow alone would hide a missing today from the reserve file. */
     static boolean covers(JSONObject days, Set<String> queues, LocalDate today) {
-        for (String group : queues) {
-            JSONObject current = days.optJSONObject(today.toString());
-            JSONObject next = days.optJSONObject(today.plusDays(1).toString());
-            if ((current == null || !current.has(group)) && (next == null || !next.has(group))) return false;
-        }
+        JSONObject current = days.optJSONObject(today.toString());
+        for (String group : queues) if (current == null || !current.has(group)) return false;
         return !queues.isEmpty();
     }
+
+    /** The operator gets two thirds of the time left: a slow answer must leave the reserve file its turn. */
+    static long officialEnd(long now, long end) { return now + (end - now) * 2 / 3; }
 
     static String queue(int i) { return (1 + i / 2) + "." + (1 + i % 2); }
 
@@ -91,7 +92,10 @@ final class RegionalFeed {
         String to = interval.getString("to");
         int end = Arrays.asList("00:00", "23:59", "24:00").contains(to) ? 48 : halfHour(to);
         if (from >= end) throw new JSONException("Invalid interval");
-        if (status != 0) Arrays.fill(slots, from, end, status == 1 ? '0' : '3');
+        // Only 1 is known: the operator's site shows every interval as an outage and ignores the status.
+        // Any other value is a format we do not understand, so the reserve file answers instead.
+        if (status != 1) throw new JSONException("Unknown status " + status);
+        Arrays.fill(slots, from, end, '0');
     }
 
     private static int halfHour(String time) throws JSONException {

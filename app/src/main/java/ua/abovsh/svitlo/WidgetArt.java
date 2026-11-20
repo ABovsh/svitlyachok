@@ -330,7 +330,7 @@ final class WidgetArt {
             bulbAndClock(c, b, m, f, new float[] {left, pad, rowH, tx, tw}, next[1]);
             return;
         }
-        Paint value = valuePaint(c, b.pal, m, clock);
+        Paint value = valuePaint(c, b.pal, m, next[1]);
         float[] sized = Logic.widgetRowSizes(rowH, clock ? sizeToFit(value, next[1], tw) : Float.MAX_VALUE);
         value.setTextSize(clock ? sized[2] : sized[0] * 1.2f);
         fit(value, next[1], tw);
@@ -338,11 +338,11 @@ final class WidgetArt {
         Paint share = text(Ui.heavy(c), sized[0] * .8f, m.lit ? lit : pal.muted, Paint.Align.RIGHT);
         Paint name = text(Ui.heavy(c), sized[0], m.lit ? lit : pal.text, Paint.Align.LEFT);
         String place = readable(name, widgetName(m), Math.max(1, tw - share.measureText(percent) - 4 * s), 9.5f * s);
-        int eventInk = n.next == Logic.UNKNOWN ? pal.muted : pal.status(n.next);
+        int eventInk = pal.status(Logic.futureTitleState(n));
         Paint event = fit(text(Ui.heavy(c), sized[1], m.lit ? lit : eventInk, Paint.Align.LEFT), next[0], tw);
         float block = Logic.widgetRowBlock(sized);
         float y = (f.h - block) / 2f;
-        smallNow(c, b, n.state, new float[] {left, y, y + block, sized[1], s});
+        smallNow(c, b, n, new float[] {left, y, y + block, sized[1], s});
         float nameBaseline = capLine(b, place, tx, y, name);
         b.cv.drawText(percent, f.w - pad * .8f, nameBaseline, share);
         float eventTop = clock ? .74f * sized[0] + sized[3]
@@ -360,10 +360,10 @@ final class WidgetArt {
     }
 
     /** What comes next, in the colour of that state, or on its fill when it comes soon. */
-    private static Paint valuePaint(Context c, Ui.Pal pal, Model m, boolean clock) {
+    private static Paint valuePaint(Context c, Ui.Pal pal, Model m, String value) {
         Logic.Now n = m.now;
-        int ink = m.lit ? onFill(pal, n.next) : pal.status(n.next);
-        if (!clock && n.next == Logic.UNKNOWN) ink = unknownValueInk(n, pal);
+        boolean clock = value.contains(":");
+        int ink = m.lit ? onFill(pal, n.next) : pal.status(Logic.widgetRightState(n, value));
         return text(clock ? Ui.display(c) : Ui.heavy(c), 100, ink, Paint.Align.LEFT);
     }
 
@@ -389,8 +389,7 @@ final class WidgetArt {
         b.p.setColor(Ui.fade(pal.text, .18f));
         b.cv.drawRect(left + 3 * f.s, pad, left + 4 * f.s, f.h - pad, b.p);
         boolean clock = value.contains(":");
-        int ink = m.lit ? onFill(pal, n.next) : pal.status(n.next);
-        if (!clock && n.next == Logic.UNKNOWN) ink = unknownValueInk(n, pal);
+        int ink = m.lit ? onFill(pal, n.next) : pal.status(Logic.widgetRightState(n, value));
         Paint only = fit(text(clock ? Ui.display(c) : Ui.heavy(c), rowH * .62f, ink, Paint.Align.CENTER), value, box[4]);
         b.cv.drawText(value, box[3] + box[4] / 2, half - (only.ascent() + only.descent()) / 2, only);
     }
@@ -415,17 +414,14 @@ final class WidgetArt {
         b.cv.drawCircle(at, cy, h * 1.3f, b.p);
     }
 
-    private static int unknownValueInk(Logic.Now n, Ui.Pal pal) {
-        return n.state == Logic.ON ? pal.status(Logic.ON) : pal.muted;
-    }
-
     /** box: segment width, top and bottom of the lines beside it, size of the event, scale. The word stands on the clock's line. */
-    private static void smallNow(Context c, Brush b, int state, float[] box) {
+    private static void smallNow(Context c, Brush b, Logic.Now n, float[] box) {
+        int state = n.state;
         float s = box[4];
         float left = box[0];
         float centre = left / 2 + 2.5f * s;
         Paint word = text(Ui.heavy(c), box[3] * .92f, b.pal.status(state), Paint.Align.CENTER);
-        String full = Logic.title(state);  // the app's words while they stay readable, else the short ones
+        String full = n.afterOff ? n.title : Logic.title(state);  // the app's words while they stay readable, else the short ones
         String words = Logic.stateWords(full, state, sizeToFit(word, full, left - 11 * s) >= box[3] * .92f * .8f);
         fit(word, words, left - 11 * s);
         float room = box[2] - .74f * word.getTextSize() - box[1] - 5 * s;
@@ -586,10 +582,10 @@ final class WidgetArt {
             float value = inline ? beside : stacked;
             float head = Math.min(value * .8f, room * (inline ? headShare : .24f));
             title = text(Ui.heavy(c), head, b.pal.status(now.state), Paint.Align.LEFT);
-            int labelInk = m.now.next == Logic.UNKNOWN ? b.pal.muted : b.pal.status(m.now.next);
+            int labelInk = b.pal.status(Logic.futureTitleState(m.now));
             label = text(Ui.heavy(c), head, lit ? onFill(b.pal, m.now.next) : labelInk, Paint.Align.LEFT);
-            left = text(leftClock ? Ui.display(c) : Ui.bold(c), leftClock ? value : head, b.pal.text, Paint.Align.LEFT);
-            right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, lit ? onFill(b.pal, m.now.next) : b.pal.status(now.next), Paint.Align.LEFT);
+            left = text(leftClock ? Ui.display(c) : Ui.bold(c), leftClock ? value : head, b.pal.status(now.state), Paint.Align.LEFT);
+            right = text(rightClock ? Ui.display(c) : Ui.bold(c), rightClock ? value : head, lit ? onFill(b.pal, m.now.next) : b.pal.status(Logic.widgetRightState(now, next[1])), Paint.Align.LEFT);
         }
 
         /** The moment drawn, for the line of the interval. */
@@ -681,7 +677,7 @@ final class WidgetArt {
 
         /** "now, then" on the line between the halves, beside the names of the states: the clocks fill their halves. */
         private void arrow(float cx, float cy, float r) {
-            int ink = now.next == Logic.UNKNOWN ? b.pal.muted : b.pal.status(now.next);
+            int ink = b.pal.status(Logic.widgetRightState(now, next[1]));
             Paint p = b.p;
             p.setStyle(Paint.Style.FILL);
             p.setColor(b.pal.card);
@@ -713,7 +709,7 @@ final class WidgetArt {
             drawCentred(b, state, lx + bulb * 1.16f, y, rowHeight, title);
             String event = next[0];
             if (sizeToFit(label, event, width) < 12 * s && now.next != Logic.UNKNOWN) {
-                event = compactEvent(now) + (now.tomorrow ? " завтра" : "");
+                event = Logic.compactEvent(now) + (now.tomorrow ? " завтра" : "");
             }
             fit(label, event, width);
             drawCentred(b, event, rightX + (width - label.measureText(event)) / 2, y, rowHeight, label);
@@ -734,11 +730,6 @@ final class WidgetArt {
             if (!inline) return;
             if (leftSpare > 0) b.cv.drawText(start[1], lx + left.measureText(start[0]) + gapX, baseline, small);
             if (rightSpare > 0) b.cv.drawText(next[2], rx + right.measureText(next[1]) + gapX, baseline, smallRight);
-        }
-
-        private static String compactEvent(Logic.Now now) {
-            if (now.next == Logic.ON) return now.state == Logic.OFF ? "Увімкнуть" : "Буде світло";
-            return now.next == Logic.OFF ? "Вимкнуть" : "Можливо";
         }
 
         private void details(float y, float rightX) {

@@ -39,6 +39,8 @@ public final class Logic {
     private static final String TOMORROW_LABEL = "Завтра: ";
     private static final String UNTIL_TOMORROW = "до завтра ";
     private static final String POSSIBLE_OUTAGE = "Можливе вимкнення";
+    private static final String POSSIBLE_SWITCH_ON = "Можливе увімкнення";
+    private static final String NO_TOMORROW = "графіка на завтра ще немає";
     public static final int ON = 1;
     public static final int UNKNOWN = 2;
     public static final int MAYBE = 3;
@@ -836,6 +838,10 @@ public final class Logic {
         public String endDetail = "";
         /** When the state now on began, as far as the saved schedules know (seconds); 0 if unknown. */
         public long started;
+        /** A possible window that follows an outage: it can only bring power back. */
+        public boolean afterOff;
+        /** Today is known to its end and tomorrow is not published. */
+        public boolean dayEnd;
     }
 
     static int state(char slot) {
@@ -878,7 +884,8 @@ public final class Logic {
         int cur = index(base, now);
         char c = cur >= 0 && cur < tl.length() ? tl.charAt(cur) : '2';
         n.state = state(c);
-        n.title = title(n.state);
+        n.afterOff = c == '3' && before(tl, cur, c, history, base) == '0';
+        n.title = n.afterOff ? POSSIBLE_SWITCH_ON : title(n.state);
         if (n.state == UNKNOWN) {
             n.big = NOT_PUBLISHED;
             n.hint = "Щойно обленерго його оприлюднить, він з'явиться тут";
@@ -892,6 +899,21 @@ public final class Logic {
         }
         if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
         return n;
+    }
+
+    /** The slot before this state began, as far as the saved schedules know; '2' if unknown. */
+    private static char before(String tl, int cur, char c, Map<LocalDate, String> history, LocalDate base) {
+        int i = cur;
+        while (i > 0 && tl.charAt(i - 1) == c) i--;
+        if (i > 0) return tl.charAt(i - 1);
+        for (int back = 1; back <= HISTORY_DAYS; back++) {
+            String slots = history.get(base.minusDays(back));
+            if (slots == null || slots.length() != 48) return '2';
+            int j = 48;
+            while (j > 0 && slots.charAt(j - 1) == c) j--;
+            if (j > 0) return slots.charAt(j - 1);
+        }
+        return '2';
     }
 
     /** Walk the contiguous saved schedules back to where this state began, as far as they are known. */
@@ -945,6 +967,7 @@ public final class Logic {
         } else if (j < tl.length()) {
             n.big = TO_DAY_END;
             n.hint = "Графік на завтра ще не опубліковано";
+            n.dayEnd = true;
         } else if (c == '1') {
             n.big = NO_OUTAGES;
             n.hint = "Сьогодні й завтра вимкнень немає";
@@ -964,15 +987,16 @@ public final class Logic {
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
-            n.then = "потім " + coming(next) + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
+            String what = next == '3' && c == '0' ? "можливе увімкнення" : coming(next);
+            n.then = "потім " + what + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
         if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
         // the clock first, how long in brackets: "Вимкнуть о 22:30", "(через 1 год 44 хв)"
         String at = until(change, now);
         String when = n.tomorrow ? " завтра о " + hm(change) : " о " + at;
         if (next == '0') n.hint = "Вимкнуть" + when;
-        else if (next == '3') n.hint = "Можливо вимкнуть" + when;
-        else if (c == '0') n.hint = "Увімкнуть" + when;
+        else if (next == '3') n.hint = (c == '0' ? "Можливо увімкнуть" : "Можливо вимкнуть") + when;
+        else if (c == '0' || n.afterOff) n.hint = "Увімкнуть" + when;
         else n.hint = "Буде світло" + when;
         n.hintIn = "(" + comingIn(change - now) + ")";
     }
@@ -2105,6 +2129,7 @@ public final class Logic {
     /** The state the right of a widget is coloured by: what comes next; when nothing changes, the state itself. */
     public static int widgetRightState(Now n, String value) {
         if (n.next != UNKNOWN) return n.next;
+        if (n.dayEnd) return n.state;
         return value.equals(NO_OUTAGES_WIDGET) || value.equals(NO_CHANGE) ? n.state : UNKNOWN;
     }
 
@@ -2440,7 +2465,7 @@ public final class Logic {
         if (unknown.length > 0) return unknown;
         String[] next = widgetFuture(n);
         // only the clock: the end of the window is on the grid right below
-        next[2] = "";
+        next[2] = n.dayEnd ? NO_TOMORROW : "";
         return next;
     }
 
@@ -2540,6 +2565,7 @@ public final class Logic {
     /** Optional visual details remain available to a screen reader at every font size. */
     public static String heroDescription(Now n) {
         String detail = nextDetail(n);
+        if (n.dayEnd) detail = lastsToMidnight(n) + " до " + MIDNIGHT + ", " + NO_TOMORROW;
         if (n.next == ON && !n.endDetail.isEmpty()) detail += (detail.isEmpty() ? "" : ". ") + "Світло " + n.endDetail;
         return describeNow(n, detail);
     }
@@ -2554,7 +2580,7 @@ public final class Logic {
         String text = n.hintIn;
         if (text.startsWith("(") && text.endsWith(")")) text = text.substring(1, text.length() - 1);
         int end = n.then.lastIndexOf(" до ");
-        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? "можливе вимкнення " : "світла не буде ") + n.then.substring(end + 1);
+        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? (n.state == OFF ? "можливе увімкнення " : "можливе вимкнення ") : "світла не буде ") + n.then.substring(end + 1);
         return text;
     }
 
@@ -2563,9 +2589,27 @@ public final class Logic {
         if (n.next == UNKNOWN || n.change <= 0) return new String[] {"", "", ""};
         String event = "Буде світло";
         if (n.next == OFF) event = "Вимкнуть";
-        else if (n.next == MAYBE) event = "Можливо вимкнуть";
-        else if (n.state == OFF) event = "Увімкнуть";
+        else if (n.next == MAYBE) event = n.state == OFF ? "Можливо увімкнуть" : "Можливо вимкнуть";
+        else if (n.state == OFF || n.afterOff) event = "Увімкнуть";
         return new String[] {event + (n.tomorrow ? " завтра" : ""), n.changeClock.isEmpty() ? hm(n.change) : n.changeClock, n.endDetail};
+    }
+
+    /** The event in a word or two, when the widget has no room for its full name. */
+    static String compactEvent(Now now) {
+        if (now.next == ON) return now.state == OFF || now.afterOff ? "Увімкнуть" : "Буде світло";
+        return now.next == OFF ? "Вимкнуть" : "Можливо";
+    }
+
+    /** The state the title on the right is coloured by: what comes, or the state that lasts to midnight. */
+    public static int futureTitleState(Now n) {
+        if (n.next != UNKNOWN) return n.next;
+        return n.dayEnd ? n.state : UNKNOWN;
+    }
+
+    /** Tomorrow is not published: only what is known, the state lasts to midnight. */
+    private static String lastsToMidnight(Now n) {
+        if (n.state == ON) return NO_OUTAGES_WIDGET;
+        return n.state == OFF ? "Без увімкнень" : NO_CHANGE;
     }
 
     /** Start clock plus its day, without squeezing the clock on a widget. */
@@ -2582,7 +2626,7 @@ public final class Logic {
         if (!next[0].isEmpty()) return next;
         if (n.knownUntil > 0) return new String[] {"Після " + hm(n.knownUntil), NO_SCHEDULE, ""};
         if (n.state == UNKNOWN) return new String[] {"Далі", NO_SCHEDULE, ""};
-        if (n.hint.equals("Графік на завтра ще не опубліковано")) return new String[] {TOMORROW, "Графіка ще немає", ""};
+        if (n.dayEnd) return new String[] {lastsToMidnight(n), "до " + MIDNIGHT, ""};
         if (n.state == ON && n.big.equals(NO_OUTAGES)) return new String[] {"Сьогодні й завтра", NO_OUTAGES_WIDGET, ""};
         return new String[] {"Далі", NO_CHANGE, "до кінця графіка"};
     }

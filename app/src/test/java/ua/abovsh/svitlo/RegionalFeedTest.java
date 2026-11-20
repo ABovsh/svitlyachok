@@ -17,13 +17,15 @@ public class RegionalFeedTest {
         assertThrows(Logic.BadFile.class, () -> Logic.parse(file.toString()));
     }
 
-    @Test public void rejectsOldDatesAndAcceptsPublishedTomorrow() throws Exception {
+    @Test public void needsTodayOfEveryQueue() throws Exception {
         LocalDate today = LocalDate.parse("2026-11-20");
         java.util.Set<String> chosen = java.util.Collections.singleton("1.1");
         JSONObject row = new JSONObject().put("1.1","1".repeat(48));
         JSONObject days = new JSONObject().put(today.minusDays(1).toString(), row);
         assertFalse(RegionalFeed.covers(days, chosen, today));
         days.put(today.plusDays(1).toString(),row);
+        assertFalse(RegionalFeed.covers(days, chosen, today));  // tomorrow alone hides a missing today
+        days.put(today.toString(),row);
         assertTrue(RegionalFeed.covers(days, chosen, today));
         assertFalse(RegionalFeed.covers(days, java.util.Collections.singleton("2.2"), today));
     }
@@ -36,5 +38,20 @@ public class RegionalFeedTest {
         JSONObject file = new JSONObject().put("region", RegionalFeed.IF).put("updated","1795161600").put("days",days);
         assertEquals("1".repeat(45) + "000", Logic.day(Logic.parse(file.toString()),"GPV6.2",LocalDate.parse("2026-11-20")));
         assertThrows(org.json.JSONException.class, () -> RegionalFeed.addQueue(days, queue, response.replace("22:30","22:10")));
+    }
+
+    @Test public void onlyAnOutageStatusIsUnderstood() throws Exception {
+        // the operator's site shows every listed interval as an outage and never reads the status
+        String response = "[{\"eventDate\":\"20.11.2026\",\"queues\":{\"1.1\":[{\"from\":\"10:00\",\"to\":\"12:00\",\"status\":1}]}}]";
+        RegionalFeed.addQueue(new JSONObject(), "1.1", response);
+        for (String other : new String[] {"0", "2", "3", "-1"}) {
+            assertThrows(org.json.JSONException.class,
+                    () -> RegionalFeed.addQueue(new JSONObject(), "1.1", response.replace("\"status\":1", "\"status\":" + other)));
+        }
+    }
+
+    @Test public void theOperatorLeavesTimeForTheReserveFile() {
+        assertEquals(20_000, RegionalFeed.officialEnd(0, 30_000));
+        assertEquals(1_020_000, RegionalFeed.officialEnd(1_000_000, 1_030_000));
     }
 }

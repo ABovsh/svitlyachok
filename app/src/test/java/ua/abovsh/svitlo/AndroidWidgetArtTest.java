@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.robolectric.annotation.GraphicsMode;
@@ -58,6 +60,49 @@ public class AndroidWidgetArtTest extends AndroidRegressionFixture {
                 unmarked.recycle();
             }
         }
+    }
+
+    @Test
+    public void emergencySignOnlyChangesItsOwnBoundsOnTheSmallWidget() {
+        for (String theme : THEMES) {
+            Prefs.setTheme(context, theme);
+            WidgetArt.Model model = model();
+            Bitmap unmarked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
+            model.notice = Logic.NOTICE_EMERGENCY;
+            Bitmap marked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
+            Bitmap sign = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+            try {
+                Ui.Pal palette = Ui.pal(context);
+                Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                paint.setTypeface(Ui.heavy(context));
+                Notices.sign(new Canvas(sign), paint, palette, model.notice, WidgetArt.signAt(
+                        Logic.widgetForm(WIDTH, HEIGHT), WIDTH, 1f, model.notice), palette.card);
+                Rect bounds = inkBounds(sign);
+                int changed = 0;
+                for (int y = 0; y < HEIGHT; y++) {
+                    for (int x = 0; x < WIDTH; x++) {
+                        if (unmarked.getPixel(x, y) == marked.getPixel(x, y)) continue;
+                        assertTrue("Changed pixel outside sign: " + x + ", " + y, bounds.contains(x, y));
+                        changed++;
+                    }
+                }
+                assertTrue("The fixture must draw the emergency sign", changed > 0);
+            } finally {
+                sign.recycle();
+                marked.recycle();
+                unmarked.recycle();
+            }
+        }
+    }
+
+    private static Rect inkBounds(Bitmap bitmap) {
+        Rect bounds = new Rect();
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            for (int x = 0; x < bitmap.getWidth(); x++) {
+                if (Color.alpha(bitmap.getPixel(x, y)) > 0) bounds.union(x, y, x + 1, y + 1);
+            }
+        }
+        return bounds;
     }
 
     private void assertClipped(int width, int height) {

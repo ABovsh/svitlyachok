@@ -21,10 +21,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
+import org.robolectric.shadows.ShadowPausedLooper;
 
 public class AndroidSyncTest extends AndroidRegressionFixture {
     private static final String FIRST = "p1";
@@ -60,7 +62,7 @@ public class AndroidSyncTest extends AndroidRegressionFixture {
         assertFalse(Store.online(context));
         Prefs.savePlaces(context, List.of(place(FIRST, "Бібліотека")));
         AlarmReceiver alarm = new AlarmReceiver();
-        final boolean[] finished = {false};
+        boolean[] finished = {false};
         BroadcastReceiver completion = new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
                 finished[0] = true;
@@ -70,10 +72,14 @@ public class AndroidSyncTest extends AndroidRegressionFixture {
         try {
             context.sendOrderedBroadcast(new Intent(Sync.ACTION_REFRESH).setPackage(context.getPackageName()),
                     null, completion, null, 0, null, null);
+            ShadowPausedLooper main = (ShadowPausedLooper) Shadows.shadowOf(Looper.getMainLooper());
             long stop = System.nanoTime() + 2_000_000_000L;
-            while (!finished[0] && System.nanoTime() < stop) {
-                Shadows.shadowOf(Looper.getMainLooper()).idle();
-                if (!finished[0]) Thread.sleep(5);
+            main.idle();
+            while (!finished[0]) {
+                long remainingMillis = TimeUnit.NANOSECONDS.toMillis(stop - System.nanoTime());
+                if (remainingMillis <= 0) break;
+                main.poll(remainingMillis);
+                main.idle();
             }
             assertTrue("The ordered broadcast must complete after goAsync", finished[0]);
             JobInfo retry = context.getSystemService(JobScheduler.class).getPendingJob(Sync.JOB_NOW);

@@ -70,3 +70,5 @@ dependencies {
     // Android's org.json is a stub in local unit tests; the real one parses the fixtures.
     testImplementation 'org.json:json:20260814'
 }
+
+apply from: "testing.gradle"

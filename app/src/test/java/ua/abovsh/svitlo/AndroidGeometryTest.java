@@ -15,7 +15,6 @@ import android.text.Layout;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.GraphicsMode;
@@ -108,7 +107,6 @@ public class AndroidGeometryTest extends AndroidRegressionFixture {
         }
     }
 
-    @Ignore("R14: the 12:00 interval labels possible restoration as possible outage")
     @Test
     public void intervalListNamesPossibleRestorationAfterAnOutage() {
         String slots = "0".repeat(24) + "3".repeat(4) + "1".repeat(20);

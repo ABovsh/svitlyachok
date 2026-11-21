@@ -17,12 +17,12 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.os.Looper;
 import android.service.notification.StatusBarNotification;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
@@ -91,7 +91,6 @@ public class AndroidSyncTest extends AndroidRegressionFixture {
         }
     }
 
-    @Ignore("R13: the definite restoration reminder is missing after possible restoration")
     @Test
     public void definiteRestorationFollowsAPossibleOne() {
         String slots = "0".repeat(24) + "3".repeat(4) + "1".repeat(20);
@@ -103,6 +102,29 @@ public class AndroidSyncTest extends AndroidRegressionFixture {
                 hasRestorationReminder(place, definiteOutage, alerts, restoration));
         assertTrue("Missing the 14:00 restoration reminder after a possible restoration",
                 hasRestorationReminder(place, slots, alerts, restoration));
+    }
+
+    @Test
+    public void rereadingTheScheduleKeepsOnlyTheReminderThatHasNotFired() throws Exception {
+        long observed = Sync.now();
+        LocalDate today = Logic.today(observed);
+        long before = today.atTime(10, 0).atZone(Logic.KYIV).toEpochSecond();
+        Logic.Place place = place(FIRST, "Бібліотека");
+        Prefs.savePlaces(context, List.of(place));
+        Prefs.setAlerts(context, place.id, new Logic.Alerts());
+        String slots = "0".repeat(24) + "3".repeat(4) + "1".repeat(20);
+        context.getSharedPreferences(FEED, Context.MODE_PRIVATE).edit()
+                .putString(STORED_FEED, feed(today, slots, observed)).apply();
+        List<Object[]> beforeFiring = Sync.upcoming(context, before);
+        assertEquals(2, beforeFiring.size());
+        Logic.Event possible = (Logic.Event) beforeFiring.get(0)[0];
+        Logic.Event definite = (Logic.Event) beforeFiring.get(1)[0];
+        Prefs.addFired(context, possible.key(), before);
+        List<Object[]> remaining = Sync.upcoming(context, before);
+        assertEquals(1, remaining.size());
+        assertEquals(definite.key(), ((Logic.Event) remaining.get(0)[0]).key());
+        Prefs.addFired(context, definite.key(), before);
+        assertTrue(Sync.upcoming(context, before).isEmpty());
     }
 
     private static boolean hasRestorationReminder(Logic.Place place, String slots, Logic.Alerts alerts,

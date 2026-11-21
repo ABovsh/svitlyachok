@@ -8,7 +8,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.robolectric.annotation.GraphicsMode;
 
@@ -27,38 +26,43 @@ public class AndroidWidgetArtTest extends AndroidRegressionFixture {
         }
     }
 
-    @Ignore("R12: the emergency sign overpaints the bulb at 110 by 40 dp")
     @Test
     public void emergencySignDoesNotChangeOpaquePixelsOfTheSmallBulb() {
         for (String theme : THEMES) {
             Prefs.setTheme(context, theme);
-            WidgetArt.Model model = model();
-            Bitmap unmarked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
-            model.notice = Logic.NOTICE_EMERGENCY;
-            Bitmap marked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
-            Bitmap bulb = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
-            Ui.Pal palette = Ui.pal(context);
-            float segment = Logic.widgetBulbSegment(WIDTH);
-            float rowHeight = HEIGHT * .74f;
-            BulbView.plain(new Brush(palette, palette.card).on(new Canvas(bulb)), model.now.state,
-                    segment / 2 + 2.5f, HEIGHT / 2f, Math.min(rowHeight * .95f, segment * .9f));
-            try {
-                int glyphPixels = 0;
-                int changed = 0;
-                for (int y = 0; y < HEIGHT; y++) {
-                    for (int x = 0; x < WIDTH; x++) {
-                        if (Color.alpha(bulb.getPixel(x, y)) < 192) continue;
-                        glyphPixels++;
-                        if (unmarked.getPixel(x, y) != marked.getPixel(x, y)) changed++;
-                    }
-                }
-                assertTrue("The fixture must render the bulb glyph", glyphPixels > 0);
-                assertEquals("The sign must leave the bulb intact", 0, changed);
-            } finally {
-                bulb.recycle();
-                marked.recycle();
-                unmarked.recycle();
+            for (int state : new int[] {Logic.ON, Logic.OFF, Logic.MAYBE}) {
+                assertSignLeavesBulbIntact(state);
             }
+        }
+    }
+
+    private void assertSignLeavesBulbIntact(int state) {
+        WidgetArt.Model model = model();
+        model.now.state = state;
+        model.now.title = Logic.title(state);
+        Bitmap unmarked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
+        model.notice = Logic.NOTICE_EMERGENCY;
+        Bitmap marked = WidgetArt.draw(context, model, NOW, WIDTH, HEIGHT);
+        Bitmap bulb = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888);
+        Ui.Pal palette = Ui.pal(context);
+        WidgetArt.compactBulb(new Brush(palette, palette.card).on(new Canvas(bulb)),
+                model.now.state, WIDTH, HEIGHT, 1f);
+        try {
+            int glyphPixels = 0;
+            int changed = 0;
+            for (int y = 0; y < HEIGHT; y++) {
+                for (int x = 0; x < WIDTH; x++) {
+                    if (Color.alpha(bulb.getPixel(x, y)) < 192) continue;
+                    glyphPixels++;
+                    if (unmarked.getPixel(x, y) != marked.getPixel(x, y)) changed++;
+                }
+            }
+            assertTrue("The fixture must render the bulb glyph", glyphPixels > 0);
+            assertEquals("The sign must leave the bulb intact in state " + state, 0, changed);
+        } finally {
+            bulb.recycle();
+            marked.recycle();
+            unmarked.recycle();
         }
     }
 
@@ -76,7 +80,7 @@ public class AndroidWidgetArtTest extends AndroidRegressionFixture {
                 Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 paint.setTypeface(Ui.heavy(context));
                 Notices.sign(new Canvas(sign), paint, palette, model.notice, WidgetArt.signAt(
-                        Logic.widgetForm(WIDTH, HEIGHT), WIDTH, 1f, model.notice), palette.card);
+                        Logic.widgetForm(WIDTH, HEIGHT), WIDTH, HEIGHT, 1f, model.notice), palette.card);
                 Rect bounds = inkBounds(sign);
                 int changed = 0;
                 for (int y = 0; y < HEIGHT; y++) {

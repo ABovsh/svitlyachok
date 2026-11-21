@@ -2,6 +2,7 @@ package ua.abovsh.svitlo;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -2873,6 +2874,76 @@ public class LogicTest {
         Logic.Now unknown = Logic.now(repeat('3', 6) + repeat('1', 90), OCT30, at(1, 0), false);
         assertEquals("Можливе вимкнення", unknown.title);
         assertEquals("Вимкнуть", Logic.compactEvent(Logic.now(repeat('1', 24) + repeat('0', 72), OCT30, at(11, 0), false)));
+    }
+
+    @Test public void possibleWindowAndItsDefiniteSuccessorUseOneDirectionRule() {
+        for (char previous : new char[] {'0', '1'}) {
+            boolean restored = previous == '0';
+            String label = restored ? "Можливе увімкнення" : "Можливе вимкнення";
+            String upcoming = restored ? "Можливо увімкнуть" : "Можливо вимкнуть";
+            for (char next : new char[] {'0', '1'}) {
+                String tl = repeat(previous, 24) + repeat('3', 4) + repeat(next, 20);
+                String definite = next == '1' ? "Увімкнуть" : "Вимкнуть";
+                Logic.Now before = Logic.now(tl, OCT30, at(10, 0), false);
+                assertEquals(upcoming, Logic.heroFuture(before, "")[0]);
+                assertEquals(upcoming, Logic.widgetFuture(before)[0]);
+                Logic.Now during = Logic.now(tl, OCT30, at(13, 0), false);
+                assertEquals(label, during.title);
+                assertEquals(label, Logic.intervalTitle(tl, 24, OCT30, java.util.Map.of()));
+                assertEquals(List.of("Можливо\nдо 14:00"), Logic.tileFormats(during));
+                String display = definite;
+                if (next == '1' && !restored) display = "Буде світло";
+                assertEquals(display, Logic.heroFuture(during, "")[0]);
+                assertEquals(display, Logic.widgetFuture(during)[0]);
+
+                Logic.Alerts settings = new Logic.Alerts();
+                settings.leadOn = 10;
+                settings.leadOff = 30;
+                List<Logic.Event> events = Logic.events(home(), tl, OCT30, at(10, 0), settings);
+                assertEquals(2, events.size());
+                assertNotEquals(events.get(0).key(), events.get(1).key());
+                Logic.Event possibleEvent = events.get(0);
+                assertEquals(at(12, 0) - (restored ? 600 : 1800), possibleEvent.at);
+                Logic.Notice notice = Logic.eventText(possibleEvent, tl, OCT30);
+                assertEquals(Logic.MAYBE, notice.state);
+                assertTrue(notice.title.endsWith(label));
+                assertEquals(at(14, 0) - (next == '1' ? 600 : 1800), events.get(1).at);
+                assertTrue(Logic.eventText(events.get(1), tl, OCT30).title.endsWith(definite + " світло"));
+
+                settings.on = false;
+                List<Logic.Event> offOnly = Logic.events(home(), tl, OCT30, at(10, 0), settings);
+                assertEquals((restored ? 0 : 1) + (next == '0' ? 1 : 0), offOnly.size());
+                assertTrue(offOnly.stream().allMatch(event -> event.kind == Logic.Event.SOON_OFF));
+                settings.on = true;
+                settings.off = false;
+                List<Logic.Event> onOnly = Logic.events(home(), tl, OCT30, at(10, 0), settings);
+                assertEquals((restored ? 1 : 0) + (next == '1' ? 1 : 0), onOnly.size());
+                assertTrue(onOnly.stream().allMatch(event -> event.kind == Logic.Event.SOON_ON));
+            }
+        }
+    }
+
+    @Test public void anImmediatePossibleReminderExpiresAtTheDefiniteChange() {
+        Logic.Alerts settings = new Logic.Alerts();
+        settings.leadOn = 0;
+        settings.leadOff = 0;
+        for (char previous : new char[] {'0', '1'}) {
+            String tl = repeat(previous, 24) + repeat('3', 4) + repeat('0', 20);
+            Logic.Event possible = Logic.events(home(), tl, OCT30, at(10, 0), settings).get(0);
+            assertEquals(at(12, 0), possible.at);
+            assertEquals(at(14, 0), Logic.eventText(possible, tl, OCT30).until);
+        }
+    }
+
+    @Test public void possibleIntervalUsesHistoryAcrossMidnightAndStopsAtUnknown() {
+        String day = repeat('3', 6) + repeat('1', 42);
+        LocalDate yesterday = OCT30.minusDays(1);
+        assertEquals("Можливе увімкнення",
+                Logic.intervalTitle(day, 0, OCT30, java.util.Map.of(yesterday, repeat('0', 47) + '3')));
+        assertEquals("Можливе вимкнення", Logic.intervalTitle(day, 0, OCT30, java.util.Map.of()));
+        String gap = repeat('0', 23) + '2' + repeat('3', 4) + repeat('0', 20);
+        assertEquals("Можливе вимкнення", Logic.intervalTitle(gap, 24, OCT30, java.util.Map.of()));
+        assertEquals(1, Logic.events(home(), gap, OCT30, at(10, 0), new Logic.Alerts()).size());
     }
 
     @Test public void dayWithoutTomorrowSaysNoChangeUntilMidnight() {

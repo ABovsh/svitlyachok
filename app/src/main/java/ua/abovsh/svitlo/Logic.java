@@ -871,15 +871,15 @@ public final class Logic {
         switch (state) {
             case ON: return "Світло є";
             case OFF: return "Світла немає";
-            case MAYBE: return POSSIBLE_OUTAGE;
+            case MAYBE: return possibleTitle(false);
             default: return NO_SCHEDULE;
         }
     }
 
     /** "без світла", "світло", "можливе вимкнення": what comes after a change. */
-    private static String coming(char slot) {
-        if (slot == '0') return "без світла";
-        return slot == '1' ? "світло" : possible(false);
+    private static String coming(char previous, char next) {
+        if (next == '3') return possible(possibleRestoration(previous));
+        return next == '1' ? "світло" : "без світла";
     }
 
     public static Now now(String tl, LocalDate base, long now, boolean none) {
@@ -898,8 +898,8 @@ public final class Logic {
         int cur = index(base, now);
         char c = cur >= 0 && cur < tl.length() ? tl.charAt(cur) : '2';
         n.state = state(c);
-        n.afterOff = c == '3' && before(tl, cur, c, history, base) == '0';
-        n.title = n.afterOff ? POSSIBLE_SWITCH_ON : title(n.state);
+        n.afterOff = c == '3' && possibleRestoration(before(tl, cur, c, history, base));
+        n.title = n.state == MAYBE ? possibleTitle(n.afterOff) : title(n.state);
         if (n.state == UNKNOWN) {
             n.big = NOT_PUBLISHED;
             n.hint = "Щойно обленерго його оприлюднить, він з'явиться тут";
@@ -913,6 +913,12 @@ public final class Logic {
         }
         if (n.state != UNKNOWN) since(n, tl, cur, c, history, base, now);
         return n;
+    }
+
+    static String intervalTitle(String day, int from, LocalDate date, Map<LocalDate, String> history) {
+        char slot = day.charAt(from);
+        if (slot == '3') return possibleTitle(possibleRestoration(before(day, from, slot, history, date)));
+        return title(state(slot));
     }
 
     /** The slot before this state began, as far as the saved schedules know; '2' if unknown. */
@@ -1001,7 +1007,7 @@ public final class Logic {
         n.big = "до " + until(change, now);
         n.soon = change - now <= SOON_S;
         if (ch.size() > 1 || next != '1') {  // "потім світло" with no end tells nothing new
-            String what = next == '3' ? possible(c == '0') : coming(next);
+            String what = coming(c, next);
             n.then = "потім " + what + (ch.size() > 1 ? " до " + until(slotStart(base, ch.get(1)[0]), now) : "");
         }
         if (ch.size() > 1) n.endDetail = "до " + until(slotStart(base, ch.get(1)[0]), now);
@@ -1482,9 +1488,9 @@ public final class Logic {
 
     /** The reminder for one change, or null when it is not a power change or not wanted. */
     private static Event event(Place p, char prev, char next, long change, Alerts a) {
-        boolean off = next == '0' && prev != '0' || next == '3' && prev == '1';
-        boolean on = next == '1' && prev == '0';
-        if (off ? !a.off : !(on && a.on)) return null;
+        boolean on = next == '1' || next == '3' && possibleRestoration(prev);
+        boolean off = !on;
+        if (on ? !a.on : !a.off) return null;
         int lead = off ? a.leadOff : a.leadOn;
         Event e = new Event();
         if (lead > 0) e.kind = off ? Event.SOON_OFF : Event.SOON_ON;
@@ -1537,22 +1543,29 @@ public final class Logic {
         Notice n = new Notice();
         n.on = e.kind == Event.SOON_ON || e.kind == Event.AT_ON;
         int i = index(base, e.change);
-        boolean maybe = !n.on && i >= 0 && i < tl.length() && tl.charAt(i) == '3';
-        long end = n.on ? lightEnd(tl, base, e.change) : outageEnd(tl, base, e.change);
-        int state = OFF;
-        if (n.on) state = ON;
-        else if (maybe) state = MAYBE;
+        boolean maybe = i >= 0 && i < tl.length() && tl.charAt(i) == '3';
+        long end = eventEnd(tl, base, e.change, i, n.on, maybe);
+        int state = n.on ? ON : OFF;
+        if (maybe) state = MAYBE;
         n.state = state; n.change = e.change; n.planned = e.at; n.kind = e.kind;
         String what = n.on ? "Увімкнуть світло" : "Вимкнуть світло";
-        if (maybe) what = POSSIBLE_OUTAGE;
+        if (maybe) what = possibleTitle(n.on);
         n.title = headed(mark(state), what);
         int detailState = state;
         if (state == OFF && end > 0 && tl.substring(i, index(base, end)).indexOf('3') >= 0) detailState = MAYBE;
         n.text = named(e.name, eventWhen(e, end, detailState, now));
         if (e.at < e.change) n.until = e.change;
-        else if (n.on) n.until = e.change + 3600;
+        else if (n.on && !maybe) n.until = e.change + 3600;
         else n.until = end > 0 ? end : e.change + 4 * 3600;
         return n;
+    }
+
+    private static long eventEnd(String tl, LocalDate base, long change, int slot, boolean on, boolean maybe) {
+        if (maybe) {
+            List<int[]> changes = clockChanges(tl, base, slot);
+            return changes.isEmpty() ? 0 : slotStart(base, changes.get(0)[0]);
+        }
+        return on ? lightEnd(tl, base, change) : outageEnd(tl, base, change);
     }
 
     /** Guaranteed light ends at the first definite or possible outage, never beyond a gap. */
@@ -2591,7 +2604,10 @@ public final class Logic {
         String text = n.hintIn;
         if (text.startsWith("(") && text.endsWith(")")) text = text.substring(1, text.length() - 1);
         int end = n.then.lastIndexOf(" до ");
-        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) text += (text.isEmpty() ? "" : " · ") + (n.next == MAYBE ? possible(n.state == OFF) + " " : "світла не буде ") + n.then.substring(end + 1);
+        if (end >= 0 && (n.next == OFF || n.next == MAYBE)) {
+            String what = n.next == MAYBE ? possible(n.state == OFF) : "світла не буде";
+            text += (text.isEmpty() ? "" : " · ") + what + " " + n.then.substring(end + 1);
+        }
         return text;
     }
 
@@ -2615,8 +2631,16 @@ public final class Logic {
     }
 
     /** A possible window: after an outage it can only bring power back. */
+    private static boolean possibleRestoration(char previous) {
+        return previous == '0';
+    }
+
+    private static String possibleTitle(boolean afterOff) {
+        return afterOff ? POSSIBLE_SWITCH_ON : POSSIBLE_OUTAGE;
+    }
+
     private static String possible(boolean afterOff) {
-        return afterOff ? "можливе увімкнення" : "можливе вимкнення";
+        return possibleTitle(afterOff).toLowerCase(Locale.ROOT);
     }
 
     /** The state the title on the right is coloured by: what comes, or the state that lasts to midnight. */

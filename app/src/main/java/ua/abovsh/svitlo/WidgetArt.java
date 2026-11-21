@@ -276,7 +276,7 @@ final class WidgetArt {
             if (m.waiting) Waiting.draw(c, b, m, f, form);
             else one(c, b, m, now, f, form);
             if (m.notice != Logic.NOTICE_NONE) {
-                float[] at = signAt(form, (float) f.w, s, m.notice);
+                float[] at = signAt(form, f.w, f.h, s, m.notice);
                 Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);
                 sign.setTypeface(Ui.heavy(c));
                 Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);
@@ -286,8 +286,12 @@ final class WidgetArt {
     }
 
     /** Centre and radius of the sign: above the bulb of a small widget, right of the name of a large one. */
-    static float[] signAt(int form, float width, float s, int level) {
+    static float[] signAt(int form, float width, float height, float s, int level) {
         float r = (level == Logic.NOTICE_EMERGENCY ? 8.5f : 6.5f) * s;
+        if (form == Logic.W_ROW && !Logic.widgetSmallWords((height - 2 * height * .13f) / s)) {
+            // The upper-left corner above the bulb is smaller in the clock-only row.
+            r = Math.min(r, height / 10);
+        }
         float inset = 3.5f * s + r;
         return new float[] {form == Logic.W_FULL ? width - inset : inset, inset, r};
     }
@@ -377,6 +381,12 @@ final class WidgetArt {
         return android.text.TextUtils.ellipsize(words, new android.text.TextPaint(p), room, android.text.TextUtils.TruncateAt.END).toString();
     }
 
+    static void compactBulb(Brush b, int state, int width, int height, float scale) {
+        float left = Logic.widgetBulbSegment(Math.round(width / scale)) * scale;
+        float rowHeight = height - 2 * (height * .13f);
+        BulbView.plain(b, state, left / 2 + 2.5f * scale, height / 2f, Math.min(rowHeight * .95f, left * .9f));
+    }
+
     /** box: segment width, padding, row height, left and width of the text. The bulb, and what comes next as the clock. */
     private static void bulbAndClock(Context c, Brush b, Model m, Frame f, float[] box, String value) {
         Logic.Now n = m.now;
@@ -385,7 +395,7 @@ final class WidgetArt {
         float pad = box[1];
         float rowH = box[2];
         float half = f.h / 2f;
-        BulbView.plain(b, n.state, left / 2 + 2.5f * f.s, half, Math.min(rowH * .95f, left * .9f));
+        compactBulb(b, n.state, f.w, f.h, f.s);
         b.p.setColor(Ui.fade(pal.text, .18f));
         b.cv.drawRect(left + 3 * f.s, pad, left + 4 * f.s, f.h - pad, b.p);
         boolean clock = value.contains(":");

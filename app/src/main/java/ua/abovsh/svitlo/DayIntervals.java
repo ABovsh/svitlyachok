@@ -26,7 +26,6 @@ final class DayIntervals {
      * Returns what to run when the schedule may have changed.
      */
     static Runnable show(Base page, Logic.Place place, LocalDate date, java.util.function.Supplier<String> slots, Runnable closed) {
-        String day = slots.get();
         LinearLayout top = Ui.column(page);
         BottomSheet.grip(page, top);
 
@@ -43,14 +42,13 @@ final class DayIntervals {
         where.setPadding(where.getPaddingLeft(), Ui.dp(page, 4), where.getPaddingRight(), 0);
         top.addView(where, Base.fill());
         TextView summary = Ui.text(page, 13.5f, Ui.heavy(page), page.pal.onText);
-        summary.setText(Logic.intervalsSummary(day));
         summary.setPadding(Ui.dp(page, 6), Ui.dp(page, 2), Ui.dp(page, 6), 0);
         top.addView(summary, page.gap(10));
         LinearLayout content = Ui.column(page);
         LinearLayout intervals = Ui.column(page);
         content.addView(intervals, Base.fill());
 
-        Panel panel = new Panel(page, date, day, slots, title, summary, intervals);
+        Panel panel = new Panel(page, place, date, slots, title, summary, intervals);
         panel.render();
         android.app.Dialog dialog = BottomSheet.show(page, top, content, () -> { panel.stop(); closed.run(); });
         panel.dialog = dialog;
@@ -64,6 +62,7 @@ final class DayIntervals {
     /** The rows of one open panel and the clock that keeps its mark of now true. */
     private static final class Panel {
         private final Base page;
+        private final Logic.Place place;
         private final LocalDate date;
         private final java.util.function.Supplier<String> source;
         private final TextView title;
@@ -79,9 +78,10 @@ final class DayIntervals {
         private View runningRow;
         private boolean stopped;
 
-        Panel(Base page, LocalDate date, String day, java.util.function.Supplier<String> source, TextView title,
+        Panel(Base page, Logic.Place place, LocalDate date, java.util.function.Supplier<String> source, TextView title,
                 TextView summary, LinearLayout intervals) {
-            this.page = page; this.date = date; this.day = day; this.source = source;
+            this.page = page; this.place = place; this.date = date; this.source = source;
+            this.day = source.get();
             this.title = title; this.summary = summary; this.intervals = intervals;
         }
 
@@ -96,7 +96,6 @@ final class DayIntervals {
             }
             if (fresh.equals(day)) return;
             day = fresh;
-            summary.setText(Logic.intervalsSummary(day));
             render();
         }
 
@@ -110,6 +109,8 @@ final class DayIntervals {
             else if (date.equals(today.minusDays(1))) name = "Вчора";
             String fullDate = date.getDayOfMonth() + " " + Ui.MONTHS[date.getMonthValue() - 1];
             title.setText(name.isEmpty() ? fullDate : name + ", " + fullDate);
+            summary.setText(Logic.intervalsSummary(day));
+            var history = Prefs.knownHistory(page, place, Store.data(page, place.region));
             intervals.removeAllViews();
             left = null; end = -1; runningRow = null;
             int from = 0;
@@ -119,7 +120,9 @@ final class DayIntervals {
                 if (running) end = to;
                 LinearLayout.LayoutParams lp = Base.fill();
                 if (from > 0) lp.topMargin = Ui.dp(page, 5);
-                intervals.addView(row(Logic.state(day.charAt(from)), from, to, running, current >= to, now), lp);
+                int state = Logic.state(day.charAt(from));
+                String status = state == Logic.UNKNOWN ? "Даних немає" : Logic.intervalTitle(day, from, date, history);
+                intervals.addView(row(state, status, from, to, running, current >= to, now), lp);
                 from = to;
             }
             change = Logic.nextIntervalChange(day, date, now);
@@ -171,7 +174,7 @@ final class DayIntervals {
             return bg;
         }
 
-        private View row(int state, int from, int to, boolean running, boolean past, long now) {
+        private View row(int state, String status, int from, int to, boolean running, boolean past, long now) {
             Ui.Pal pal = page.pal;
             LinearLayout line = Ui.row(page);
             line.setGravity(Gravity.CENTER_VERTICAL);
@@ -193,7 +196,6 @@ final class DayIntervals {
             line.addView(bulb, bp);
 
             String time = Logic.clock(from) + "–" + Logic.clock(to);
-            String status = state == Logic.UNKNOWN ? "Даних немає" : Logic.title(state);
             FlowRow words = new FlowRow(page, Ui.dp(page, 8), Ui.dp(page, 2));
             TextView range = Ui.text(page, 15.5f, Ui.heavy(page), past ? pal.muted : pal.text);
             range.setText(time);

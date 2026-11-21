@@ -276,7 +276,7 @@ final class WidgetArt {
             if (m.waiting) Waiting.draw(c, b, m, f, form);
             else one(c, b, m, now, f, form);
             if (m.notice != Logic.NOTICE_NONE) {
-                float[] at = signAt(form, f.w, f.h, s, m.notice);
+                float[] at = signAt(form, (float) f.w, (float) f.h, s, m.notice);
                 Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);
                 sign.setTypeface(Ui.heavy(c));
                 Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);

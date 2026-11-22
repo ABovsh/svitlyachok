@@ -32,7 +32,8 @@ final class DayHeader extends ViewGroup {
         button = share == null ? 0 : Ui.dp(c, 48); gap = Ui.dp(c, 6); row = Ui.dp(c, 30);
         formats = summaries;
         title = Ui.text(c, 16, Ui.heavy(c), pal.text); title.setText(day);
-        total = Ui.text(c, 13, Ui.heavy(c), ink); total.setSingleLine(true);
+        // One line wherever it fits; under the title it may wrap by words rather than run off the left edge.
+        total = Ui.text(c, 13, Ui.heavy(c), ink); total.setGravity(android.view.Gravity.END);
         title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 16, 1.1f));
         total.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, Ui.compactSp(c, 13, 1.1f));
         total.setContentDescription(formats.get(0));
@@ -102,7 +103,10 @@ final class DayHeader extends ViewGroup {
             titleWidth = title.getMeasuredWidth();
         }
         split = !summaryFits(titleRoom - titleWidth);
-        if (split) summaryFits(width);
+        if (split && !summaryFits(width)) {
+            total.setText(formats.get(formats.size() - 1));
+            total.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED);
+        }
         if (chevron != null) {
             int markerWidth = chevron.getBounds().width() + title.getCompoundDrawablePadding();
             int available = titleRoom - (split ? 0 : total.getMeasuredWidth());

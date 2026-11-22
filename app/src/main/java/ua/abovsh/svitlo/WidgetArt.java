@@ -28,6 +28,7 @@ final class WidgetArt {
         boolean many;  // the app follows several places: name the one shown
         boolean stale;
         boolean gone;  // the place of this widget was removed
+        float[] sign;  // centre and radius of the sign as drawn, null without one
         LocalDate base;
         String tl;
         Logic.Now now;
@@ -261,6 +262,11 @@ final class WidgetArt {
         b.r.set(0f, 0f, (float) f.w, (float) f.h);
         b.cv.drawRoundRect(b.r, r, r, b.p);
         b.p.setShader(null);
+        // The glow of the bulb and the fill of what comes next stay inside the rounded card.
+        android.graphics.Path card = new android.graphics.Path();
+        card.addRoundRect(b.r, r, r, android.graphics.Path.Direction.CW);
+        b.cv.save();
+        b.cv.clipPath(card);
         if (m == null) {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);
             String msg = "Оберіть чергу в Світлячку";
@@ -277,11 +283,14 @@ final class WidgetArt {
             else one(c, b, m, now, f, form);
             if (m.notice != Logic.NOTICE_NONE) {
                 float[] at = signAt(form, (float) f.w, (float) f.h, s, m.notice);
+                if (form == Logic.W_ROW && b.bulb != null) at = clearOfBulb(at, b.bulb, 3.5f * s, s);
+                m.sign = at;
                 Paint sign = new Paint(Paint.ANTI_ALIAS_FLAG);
                 sign.setTypeface(Ui.heavy(c));
                 Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);
             }
         }
+        b.cv.restore();
         return bm;
     }
 
@@ -294,6 +303,28 @@ final class WidgetArt {
         }
         float inset = 3.5f * s + r;
         return new float[] {form == Logic.W_FULL ? width - inset : inset, inset, r};
+    }
+
+    /** In the corner above the bulb the sign grows no larger than the room left clear of the bulb and its rays. */
+    static float[] clearOfBulb(float[] at, float[] bulb, float inset, float s) {
+        float gap = s;
+        float low = 0;
+        float high = at[2];
+        if (clear(high, bulb, inset, gap)) return at;
+        for (int i = 0; i < 24; i++) {
+            float mid = (low + high) / 2;
+            if (clear(mid, bulb, inset, gap)) low = mid;
+            else high = mid;
+        }
+        float r = low;
+        return new float[] {inset + r, inset + r, r};
+    }
+
+    private static boolean clear(float r, float[] bulb, float inset, float gap) {
+        float dx = bulb[0] - (inset + r);
+        float dy = bulb[1] - (inset + r);
+        float reach = r + bulb[2] + gap;
+        return dx * dx + dy * dy >= reach * reach;
     }
 
     /** The room the sign of a large widget takes from its name. */

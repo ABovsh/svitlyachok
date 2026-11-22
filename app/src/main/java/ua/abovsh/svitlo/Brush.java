@@ -18,6 +18,7 @@ final class Brush {
     final Path path = new Path();
     final RectF r = new RectF();
     final RectF r2 = new RectF();
+    float[] bulb;  // centre and outer radius of the last bulb drawn, rays included
     RadialGradient halo;
     float haloX;
     float haloY;

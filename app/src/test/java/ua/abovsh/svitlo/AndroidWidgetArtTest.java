@@ -79,8 +79,7 @@ public class AndroidWidgetArtTest extends AndroidRegressionFixture {
                 Ui.Pal palette = Ui.pal(context);
                 Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 paint.setTypeface(Ui.heavy(context));
-                Notices.sign(new Canvas(sign), paint, palette, model.notice, WidgetArt.signAt(
-                        Logic.widgetForm(WIDTH, HEIGHT), WIDTH, HEIGHT, 1f, model.notice), palette.card);
+                Notices.sign(new Canvas(sign), paint, palette, model.notice, model.sign, palette.card);
                 Rect bounds = inkBounds(sign);
                 int changed = 0;
                 for (int y = 0; y < HEIGHT; y++) {

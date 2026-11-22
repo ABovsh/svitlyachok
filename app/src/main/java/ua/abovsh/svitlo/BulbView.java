@@ -98,6 +98,7 @@ final class BulbView extends View {
 
     /** Without the disc: on a widget the whole card already carries the colour of the state. */
     static void plain(Brush b, int state, float cx, float cy, float size) {
+        b.bulb = new float[] {cx, cy - size * 0.09f, size * 0.40f};
         shine(b, state, cx, cy, size);
         float line = size * 0.045f;
         glass(b, state, cx, cy, size, line);

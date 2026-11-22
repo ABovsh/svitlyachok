@@ -39,8 +39,6 @@ public class MainScreenGeometryTest {
 
     private static final int DPI = 420;
     private static final int HEIGHT_PX = 2340;
-    private static final int EMPTY_DAY_SUMMARY_RC4_PX = 824;
-    private static final String NO_SCHEDULE = "графік ще не опубліковано";
     private static final String CURRENT_CLOCK = "currentClock";
     private static final String FUTURE_CLOCK = "futureClock";
     private static final String HERO = "hero";
@@ -294,18 +292,10 @@ public class MainScreenGeometryTest {
         if (view instanceof TextView text && text.length() > 0) checkText(text);
         if (view.getParent() instanceof View parent) {
             int x = position(view)[0];
-            // RC4 lays out this empty-day summary at its intrinsic width even when it cannot fit.
-            // Allow only the observed profiles and intrinsic width, and record the clipped geometry.
-            boolean emptyDayOverflow = scenario == Scenario.NO_FEED && width <= 360 && scale == 2f
-                    && parent instanceof DayHeader && view instanceof TextView summary
-                    && NO_SCHEDULE.contentEquals(summary.getText()) && view.getLeft() < -1
-                    && view.getWidth() <= EMPTY_DAY_SUMMARY_RC4_PX + 2;
-            if (emptyDayOverflow) existingOverflow.put(new JSONArray().put(view.getLeft())
-                    .put(view.getWidth()).put(parent.getWidth()));
             assertTrue(active + " outside screen width " + screenWidth + ": " + describe(view) + " x=" + x,
-                    (x >= -1 || emptyDayOverflow) && x + view.getWidth() <= screenWidth + 1);
+                    x >= -1 && x + view.getWidth() <= screenWidth + 1);
             assertTrue(active + " outside parent: " + describe(view) + " parent " + describe(parent),
-                    (view.getLeft() >= -1 || emptyDayOverflow) && view.getRight() <= parent.getWidth() + 1
+                    view.getLeft() >= -1 && view.getRight() <= parent.getWidth() + 1
                             && view.getTop() >= -1
                             && (parent instanceof ScrollView || view.getBottom() <= parent.getHeight() + 1));
         }

@@ -244,13 +244,12 @@ public class WidgetGeometryTest {
                 if (state != State.LONG && text.value().contains("…")) failures.add("unexpected ellipsis " + text.value());
             }
             int sign = model.notice;
-            float[] circle = sign == Logic.NOTICE_NONE ? null : WidgetArt.signAt(
-                    Logic.widgetForm(size.width, size.height), size.width, size.height, 1f, sign);
+            float[] circle = sign == Logic.NOTICE_NONE ? null : model.sign;
             int maxAlpha = maxAlphaOutside(bitmap, circle);
-            int overlap = bulbSignOverlap(context, frame, size, sign);
-            int allowance = System.getenv("SVITLO_GEOMETRY_STRICT") != null ? 4 : existingCornerAlpha(size, state);
+            int overlap = bulbSignOverlap(context, frame, size, sign, circle);
+            int allowance = 4;
             if (maxAlpha > allowance) failures.add("alpha outside card=" + maxAlpha + " (limit " + allowance + ")");
-            int covered = System.getenv("SVITLO_GEOMETRY_STRICT") != null ? 0 : existingSignOverlap(size, state);
+            int covered = 0;
             if (overlap > covered) failures.add("opaque bulb pixels covered by sign=" + overlap + " (limit " + covered + ")");
             if ((state == State.NORMAL || state == State.EMERGENCY) && maxAlpha > 4) {
                 GeometryEvidence.save("widget-defects/" + theme + "-" + scale + "/" + state + "-"
@@ -263,32 +262,7 @@ public class WidgetGeometryTest {
         }
     }
 
-    // Existing RC4 overflow verified with native pixels. New sizes and states still require clean corners.
-    private int existingCornerAlpha(Size size, State state) {
-        if (state == State.UNKNOWN || state == State.WAITING) return 4;
-        boolean noEvent = state == State.NO_TOMORROW || state == State.TOMORROW_CLEAR;
-        boolean possible = state == State.POSSIBLE_AFTER_LIGHT || state == State.POSSIBLE_AFTER_OFF;
-        if (size.width == 180 && size.height == 80 && !possible && state != State.FIRST_PLACE) {
-            return theme.equals("dark") ? 7 : 10;
-        }
-        if (size.height != 70) return 4;
-        if (!noEvent) return 46;
-        if (size.width == 150) return theme.equals("dark") ? 7 : 10;
-        return theme.equals("dark") ? 18 : 26;
-    }
-
-    // Keep the existing R12 strict at 110×40; cap the independent overlap at three other sizes.
-    private static int existingSignOverlap(Size size, State state) {
-        if (state == State.EMERGENCY) {
-            if (size.width == 150 && size.height == 70) return 12;
-            if (size.width == 180 && size.height == 80) return 7;
-            if (size.width == 300 && size.height == 70) return 14;
-        }
-        if (state == State.CALM && size.height == 70) return size.width == 150 ? 2 : 3;
-        return 0;
-    }
-
-    private static int bulbSignOverlap(Context context, CanvasGeometry.Frame frame, Size size, int sign) {
+    private static int bulbSignOverlap(Context context, CanvasGeometry.Frame frame, Size size, int sign, float[] at) {
         if (sign == Logic.NOTICE_NONE) return 0;
         assertFalse(size + " no bulb", frame.bulb.isEmpty());
         Bitmap bulb = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888);
@@ -296,7 +270,6 @@ public class WidgetGeometryTest {
         try {
             Canvas bulbCanvas = new Canvas(bulb);
             for (CanvasGeometry.BulbStroke stroke : frame.bulb) stroke.draw(bulbCanvas);
-            float[] at = WidgetArt.signAt(Logic.widgetForm(size.width, size.height), size.width, size.height, 1f, sign);
             Ui.Pal pal = Ui.pal(context);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setTypeface(Ui.heavy(context));

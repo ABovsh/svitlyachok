@@ -35,6 +35,23 @@ jobs:
           # Android image again and Maven Central answers 429.
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/rc' }}
 
+      # Maven Central answers GitHub runners 429 for the large Robolectric Android image; Google's
+      # official mirror of Maven Central serves the same files. The build files stay unchanged.
+      - name: Дзеркало Maven Central
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/central-mirror.gradle <<'EOF'
+          settingsEvaluated { s ->
+              [s.pluginManagement.repositories, s.dependencyResolutionManagement.repositories].each { repos ->
+                  repos.withType(MavenArtifactRepository).configureEach { r ->
+                      if (r.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+                          r.url = 'https://maven-central.storage-download.googleapis.com/maven2/'
+                      }
+                  }
+              }
+          }
+          EOF
+
       - name: Тести, lint і збірка
         run: ./gradlew --no-daemon testDebugUnitTest createDebugUnitTestCoverageReport lintDebug lintRc assembleRelease assembleRc
 

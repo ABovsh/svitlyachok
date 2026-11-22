@@ -20,6 +20,7 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
@@ -34,6 +35,8 @@ import ua.abovsh.svitlo.MainScreenGeometryFixture.Scenario;
 @Config(sdk = 35, instrumentedPackages = "ua.abovsh.svitlo")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class MainScreenGeometryTest {
+    @Rule public final CoverageCases coverage = new CoverageCases();
+
     private static final int DPI = 420;
     private static final int HEIGHT_PX = 2340;
     private static final int EMPTY_DAY_SUMMARY_RC4_PX = 824;
@@ -53,6 +56,7 @@ public class MainScreenGeometryTest {
                 for (String theme : List.of("light", "dark")) profiles.add(new Object[] {width, scale, theme});
             }
         }
+        profiles.add(new Object[] {411, 1.3f, "dark"});
         return profiles;
     }
 
@@ -61,6 +65,8 @@ public class MainScreenGeometryTest {
     private final String theme;
     private final String profile;
     private String active;
+    private static final String SIDE = "currentSide";
+    private record MainCase(Scenario scenario, int count) {}
 
     public MainScreenGeometryTest(int width, float scale, String theme) {
         this.width = width;
@@ -78,10 +84,22 @@ public class MainScreenGeometryTest {
     @Test
     public void mainScreenFitsEveryScenario() throws Exception {
         JSONArray measurements = new JSONArray();
-        for (Scenario scenario : DAY_CASES) measurements.put(measure(scenario, 15));
+        List<MainCase> cases = cases(isAdaptationWidth() && (scale == 1f || scale == 1.3f));
+        List<JSONObject> baselines = measureBaseline(cases);
+        for (int i = 0; i < cases.size(); i++) {
+            MainCase fixture = cases.get(i);
+            JSONObject measurement = measure(fixture.scenario(), 15, fixture.count(), scale);
+            String combination = fixture.scenario().id + "/" + fixture.count();
+            if (!baselines.isEmpty()) {
+                checkBudgets(fixture.scenario(), baselines.get(i), measurement);
+                coverage.report("pair/" + combination);
+            }
+            measurements.put(measurement);
+            coverage.report(combination);
+        }
         for (Scenario scenario : highlightCases()) {
-            JSONObject lit = measure(scenario, 30);
-            JSONObject plain = measure(scenario, 10);
+            JSONObject lit = measure(scenario, 30, 4, scale);
+            JSONObject plain = measure(scenario, 10, 4, scale);
             assertTrue(active + " expected lit hero", lit.getBoolean("highlighted"));
             assertFalse(active + " expected plain hero", plain.getBoolean("highlighted"));
             assertEquals(active + " highlight changed geometry relative to the first tile",
@@ -95,6 +113,70 @@ public class MainScreenGeometryTest {
             Files.write(directory.resolve(profile + ".json"), new JSONObject()
                     .put("density", DPI / 160f).put("cases", measurements).toString(2).getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private static List<MainCase> cases(boolean full) {
+        List<MainCase> cases = new ArrayList<>();
+        for (Scenario scenario : DAY_CASES) cases.add(new MainCase(scenario, 4));
+        if (full) {
+            for (Scenario scenario : List.of(Scenario.NORMAL, Scenario.POSSIBLE, Scenario.LONG)) {
+                for (int count = 1; count < 4; count++) cases.add(new MainCase(scenario, count));
+            }
+            cases.add(new MainCase(Scenario.ON, 1));
+            cases.add(new MainCase(Scenario.NO_FEED, 1));
+            for (Scenario scenario : List.of(Scenario.CLEAR, Scenario.ALL_OFF, Scenario.PARTIAL, Scenario.AUTO,
+                    Scenario.MISSING_QUEUE, Scenario.NEXT_POSSIBLE, Scenario.NO_TOMORROW, Scenario.STALE,
+                    Scenario.LOADING)) {
+                cases.add(new MainCase(scenario, 4));
+            }
+        }
+        return cases;
+    }
+
+    private boolean isAdaptationWidth() {
+        return width == 320 || width == 360 || width == 393 || width == 412;
+    }
+
+    private List<JSONObject> measureBaseline(List<MainCase> cases) throws Exception {
+        if (!isAdaptationWidth() || scale <= 1f || scale > 1.3f || (width == 412 && scale != 1.3f)) {
+            return List.of();
+        }
+        MainScreenGeometryFixture.profile(width, 1f, theme, DPI);
+        try {
+            List<JSONObject> baselines = new ArrayList<>();
+            for (MainCase fixture : cases) baselines.add(measure(fixture.scenario(), 15, fixture.count(), 1f));
+            return baselines;
+        } finally {
+            configureDevice();
+        }
+    }
+
+    private void checkBudgets(Scenario scenario, JSONObject before, JSONObject after) throws Exception {
+        assertEquals(active + " card orientation changed", before.getBoolean("horizontal"), after.getBoolean("horizontal"));
+        if (scenario == Scenario.NORMAL && before.getInt("contentHeight") <= before.getInt("viewportHeight") + 1) {
+            assertTrue(active + " overview stopped fitting viewport: " + after.getInt("contentHeight"),
+                    after.getInt("contentHeight") <= after.getInt("viewportHeight") + 2);
+        }
+        if (!List.of(Scenario.NORMAL, Scenario.ON, Scenario.LONG, Scenario.POSSIBLE, Scenario.TOMORROW).contains(scenario)) {
+            return;
+        }
+        float extraLine = before.getBoolean("sideVisible") && !after.getBoolean("sideVisible")
+                ? 13.5f * scale * (DPI / 160f) * 1.25f : 0;
+        int heroBefore = before.getJSONArray(HERO).getInt(3);
+        int heroAfter = after.getJSONArray(HERO).getInt(3);
+        assertTrue(active + " excessive card growth: " + heroBefore + " -> " + heroAfter,
+                heroAfter <= heroBefore * 1.25f + 8 + extraLine);
+        JSONArray oldTiles = before.getJSONArray(TILES);
+        JSONArray newTiles = after.getJSONArray(TILES);
+        assertEquals(active, oldTiles.length(), newTiles.length());
+        for (int i = 0; i < oldTiles.length(); i++) {
+            checkTileBudget(active, oldTiles.getJSONArray(i).getInt(3), newTiles.getJSONArray(i).getInt(3));
+        }
+    }
+
+    static void checkTileBudget(String label, int before, int after) {
+        assertTrue(label + " excessive tile growth: " + before + " -> " + after,
+                after <= before * 1.15 + 5);
     }
 
     // The old card showed the end beside the next event. Keep its exact text as a narrow-width probe.
@@ -129,40 +211,56 @@ public class MainScreenGeometryTest {
         };
     }
 
-    private JSONObject measure(Scenario scenario, int lead) throws Exception {
-        active = profile + "/" + scenario.id + "/lead=" + lead;
-        MainScreenGeometryFixture.seed(RuntimeEnvironment.getApplication(), theme, scenario, lead);
+    private JSONObject measure(Scenario scenario, int lead, int count, float expectedScale) throws Exception {
+        active = profile + "/" + scenario.id + "/" + count + "/lead=" + lead;
+        MainScreenGeometryFixture.seed(RuntimeEnvironment.getApplication(), theme, scenario, lead, count);
         // Use the normal Activity lifecycle. The seeded cache and update timestamp prevent refreshes.
         try (var controller = Robolectric.buildActivity(MainActivity.class).create().start().resume()) {
             MainActivity activity = controller.get();
             Configuration config = activity.getResources().getConfiguration();
             assertEquals(active + " configuration width", width, config.screenWidthDp);
-            assertEquals(active + " configuration font", scale, config.fontScale, .001f);
+            assertEquals(active + " configuration font", expectedScale, config.fontScale, .001f);
             assertEquals(active + " configuration density", DPI, config.densityDpi);
             assertEquals(active + " palette", theme.equals("dark"), activity.pal.dark);
             assertEquals(active + " fixture clock", scenario.now, Sync.now());
+            if (scenario == Scenario.LOADING) {
+                ReflectionHelpers.setField(activity, "loading", true);
+                activity.render();
+            }
             View root = activity.getWindow().getDecorView();
             int pixels = Math.round(width * DPI / 160f);
             root.measure(View.MeasureSpec.makeMeasureSpec(pixels, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(HEIGHT_PX, View.MeasureSpec.EXACTLY));
             root.layout(0, 0, pixels, HEIGHT_PX);
+            if (scenario == Scenario.LOADING) {
+                assertTrue(active + " visible loading indicator", descendants(root, TextView.class).stream()
+                        .anyMatch(text -> text.getVisibility() == View.VISIBLE
+                                && "оновлюю графік…".contentEquals(text.getText())));
+            }
+            assertEquals(active + " selected place", "p" + count, Prefs.current(activity));
             List<HeroCard> heroes = descendants(root, HeroCard.class);
             List<PlaceTile> tiles = descendants(root, PlaceTile.class);
+            assertEquals(active + " tile count", count > 1 ? count : 0, tiles.size());
+            JSONArray existingOverflow = new JSONArray();
+            inspectTree(root, pixels, scenario, existingOverflow);
+            checkTiles(tiles, config.fontScale);
+            if (scenario == Scenario.MISSING_QUEUE) {
+                assertTrue(active + " absent queue must have no state card", heroes.isEmpty());
+                return new JSONObject().put("mode", scenario.id).put("count", count)
+                        .put("horizontal", false).put(TILES, new JSONArray());
+            }
             assertEquals(active + " hero count", 1, heroes.size());
-            assertEquals(active + " tile count", 4, tiles.size());
             HeroCard hero = heroes.get(0);
             TextView current = field(hero, CURRENT_CLOCK);
             TextView next = field(hero, FUTURE_CLOCK);
-            assertScenario(hero, scenario, next);
-            JSONArray existingOverflow = new JSONArray();
-            inspectTree(root, pixels, scenario, existingOverflow);
-            checkTiles(tiles);
-            checkHero(hero, current, next, scenario);
+            if (count == 4) assertScenario(hero, scenario, next);
+            checkHero(hero, current, next, scenario, config.fontScale);
             JSONArray tileBoxes = new JSONArray();
             for (PlaceTile tile : tiles) tileBoxes.put(box(tile));
-            return new JSONObject().put("mode", scenario.id).put("lead", lead)
+            return new JSONObject().put("mode", scenario.id).put("count", count).put("lead", lead)
                     .put("horizontal", horizontal(hero)).put("highlighted",
                             ReflectionHelpers.<Boolean>getField(hero, "highlighted"))
+                    .put("sideVisible", field(hero, SIDE).getVisibility() == View.VISIBLE)
                     .put(HERO, box(hero)).put(TILES, tileBoxes)
                     .put(CURRENT_CLOCK, box(current)).put(FUTURE_CLOCK, box(next))
                     .put("clockPx", current.getTextSize()).put("nextClockPx", next.getTextSize())
@@ -181,6 +279,7 @@ public class MainScreenGeometryTest {
             case NIGHT -> "21:30";
             case SOON_OFF, SOON_MAYBE -> "17:30";
             case NO_FEED -> "Інтернет потрібен для першого завантаження";
+            default -> "";
         };
         assertTrue(active + " expected " + expected + " in " + describe(next),
                 next.getText().toString().contains(expected));
@@ -236,7 +335,8 @@ public class MainScreenGeometryTest {
         }
     }
 
-    private void checkTiles(List<PlaceTile> tiles) {
+    private void checkTiles(List<PlaceTile> tiles, float effectiveScale) {
+        if (tiles.isEmpty()) return;
         PlaceTile first = tiles.get(0);
         for (PlaceTile tile : tiles) {
             assertEquals(active + " tile width " + describe(first) + " / " + describe(tile),
@@ -244,8 +344,8 @@ public class MainScreenGeometryTest {
             checkDisjoint(descendants(tile, TextView.class));
         }
         checkDisjoint(tiles);
-        if (width < 320 || scale > 1.3f) return;
-        for (int i = 0; i < tiles.size(); i += 2) {
+        if (width < 320 || effectiveScale > 1.3f) return;
+        for (int i = 0; i + 1 < tiles.size(); i += 2) {
             PlaceTile left = tiles.get(i);
             PlaceTile right = tiles.get(i + 1);
             assertTrue(active + " two places per row " + describe(left) + " / " + describe(right),
@@ -255,7 +355,7 @@ public class MainScreenGeometryTest {
         }
     }
 
-    private void checkHero(HeroCard hero, TextView current, TextView next, Scenario scenario) {
+    private void checkHero(HeroCard hero, TextView current, TextView next, Scenario scenario, float effectiveScale) {
         checkDisjoint(descendants(hero, TextView.class));
         TextView currentTitle = field(hero, "currentTitle");
         TextView nextTitle = field(hero, "futureTitle");
@@ -266,7 +366,7 @@ public class MainScreenGeometryTest {
         if (current.getText().toString().contains(":") && next.getText().toString().contains(":")) {
             checkTextSize(current, next);
         }
-        if (scenario != Scenario.NO_FEED && width >= 320 && scale <= 1.3f) {
+        if (scenario != Scenario.NO_FEED && scenario != Scenario.LOADING && width >= 320 && effectiveScale <= 1.3f) {
             assertTrue(active + " unnecessary stacked card " + describe(hero), horizontal(hero));
         }
         if (horizontal(hero)) {
@@ -274,6 +374,42 @@ public class MainScreenGeometryTest {
             checkBaseline(elapsed, remaining);
             checkBaseline(current, next);
         }
+        checkHeroRows(hero);
+    }
+
+    private void checkHeroRows(HeroCard hero) {
+        boolean horizontal = horizontal(hero);
+        String[][] rows = horizontal
+                ? new String[][] {{"label"}, {"currentTitle", "futureTitle"},
+                    {CURRENT_CLOCK, SIDE, FUTURE_CLOCK}, {"elapsed", "remaining"}}
+                : new String[][] {{"label"}, {"currentTitle"}, {CURRENT_CLOCK, SIDE}, {"elapsed"},
+                    {"futureTitle"}, {FUTURE_CLOCK}, {"remaining"}};
+        List<Integer> gaps = new ArrayList<>();
+        int previous = 0;
+        Rect ink = new Rect();
+        for (int row = 0; row < rows.length; row++) {
+            int top = Integer.MAX_VALUE;
+            int bottom = Integer.MIN_VALUE;
+            for (String name : rows[row]) {
+                TextView text = field(hero, name);
+                if (text.getVisibility() != View.VISIBLE || text.length() == 0) continue;
+                text.getPaint().getTextBounds("Н", 0, 1, ink);
+                top = Math.min(top, text.getTop() + text.getBaseline() + ink.top);
+                Layout layout = text.getLayout();
+                bottom = Math.max(bottom, text.getTop() + text.getTotalPaddingTop()
+                        + layout.getLineBaseline(layout.getLineCount() - 1));
+            }
+            if (top == Integer.MAX_VALUE) continue;
+            int sectionGap = !horizontal && row == 4 ? Ui.dp(hero.getContext(), 8) : 0;
+            gaps.add(top - previous - sectionGap);
+            previous = bottom;
+        }
+        List<Integer> inner = gaps.subList(1, gaps.size());
+        int smallest = inner.stream().mapToInt(Integer::intValue).min().orElseThrow();
+        int largest = inner.stream().mapToInt(Integer::intValue).max().orElseThrow();
+        assertTrue(active + " card top gap " + gaps, gaps.get(0) >= 1 && gaps.get(0) <= smallest + 2);
+        assertTrue(active + " uneven card rows " + gaps, largest <= smallest * 1.6f + 2);
+        assertTrue(active + " card bottom gap " + gaps, hero.getHeight() - previous >= smallest - 2);
     }
 
     private void checkTextSize(TextView left, TextView right) {

@@ -28,10 +28,21 @@ final class MainScreenGeometryFixture {
 
     enum Scenario {
         NORMAL("normal", 13, 0),
+        ON("on", 13, 0),
+        CLEAR("clear", 13, 0),
+        ALL_OFF("all-off", 13, 0),
+        PARTIAL("partial", 13, 0),
+        AUTO("auto", 13, 0),
+        MISSING_QUEUE("missing-queue", 13, 0),
+        NEXT_POSSIBLE("next-possible", 13, 0),
+        NO_TOMORROW("no-tomorrow", 13, 0),
+        STALE("stale", 13, 0),
+        LOADING("loading", 13, 0),
         LONG("long", 13, 0),
         POSSIBLE("possible", 13, 0),
         MIDNIGHT("midnight", 13, 0),
         TOMORROW("tomorrow", 13, 0),
+        TOMORROW_POSSIBLE("tomorrow-possible", 13, 0),
         NO_FEED("nofeed", 13, 0),
         NIGHT("night", 21, 10),
         SOON_OFF("soon-off", 17, 10),
@@ -62,24 +73,35 @@ final class MainScreenGeometryFixture {
 
     // Same synthetic places, operator payload and time as device.seed and AdaptationChecks.
     static void seed(Context context, String theme, Scenario scenario, int lead) throws JSONException {
+        seed(context, theme, scenario, lead, 4);
+    }
+
+    static void seed(Context context, String theme, Scenario scenario, int lead, int count) throws JSONException {
         SystemClock.setCurrentTimeMillis(scenario.now * 1000);
         JSONArray places = new JSONArray();
-        for (int i = 0; i < GROUPS.length; i++) {
+        for (int i = 0; i < count; i++) {
             places.put(new JSONObject().put("id", "p" + (i + 1))
-                    .put("region", REGION).put("group", GROUPS[i])
-                    .put("name", scenario == Scenario.LONG ? LONG_NAMES[i] : NAMES[i]));
+                    .put("region", REGION)
+                    .put("group", scenario == Scenario.MISSING_QUEUE && i == count - 1 ? "GPV10.2" : GROUPS[i])
+                    .put("name", switch (scenario) {
+                        case LONG -> LONG_NAMES[i];
+                        case AUTO -> "Черга " + GROUPS[i].substring(3);
+                        case MISSING_QUEUE -> i == count - 1 ? "Черга 10.2" : NAMES[i];
+                        default -> NAMES[i];
+                    }));
         }
         JSONObject alerts = new JSONObject().put("off", true).put("on", true)
                 .put("tomorrow", true).put("changes", true).put("leadOff", lead).put("leadOn", lead);
+        String selected = "p" + count;
         context.getSharedPreferences("prefs", 0).edit()
-                .putString("places", places.toString()).putString("current", "p4")
-                .putString("theme", theme).putString("alerts_p4", alerts.toString())
+                .putString("places", places.toString()).putString("current", selected)
+                .putString("theme", theme).putString("alerts_" + selected, alerts.toString())
                 .putBoolean("asked_battery", true).putBoolean("quiet", true).apply();
         context.getSharedPreferences("updates", 0).edit().putLong("upd_checked", scenario.now).apply();
-        context.getSharedPreferences("feed_state", 0).edit().putLong("checked_" + REGION, scenario.now).apply();
+        context.getSharedPreferences("feed_state", 0).edit().putLong("checked_" + REGION, scenario == Scenario.STALE ? scenario.now - 30000 : scenario.now).apply();
         var feed = context.getSharedPreferences("feed", 0).edit().clear();
-        if (scenario != Scenario.NO_FEED) {
-            feed.putString("json_" + REGION, operatorFeed(scenario).toString());
+        if (scenario != Scenario.NO_FEED && scenario != Scenario.LOADING) {
+            feed.putString("json_" + REGION, operatorFeed(scenario, count - 1).toString());
         }
         feed.apply();
         var history = context.getSharedPreferences("history", 0).edit();
@@ -88,15 +110,16 @@ final class MainScreenGeometryFixture {
         history.apply();
     }
 
-    private static JSONObject operatorFeed(Scenario scenario) throws JSONException {
+    private static JSONObject operatorFeed(Scenario scenario, int selected) throws JSONException {
         JSONObject days = new JSONObject();
         JSONObject names = new JSONObject();
         for (String group : GROUPS) names.put(group, group);
         for (int offset = -1; offset <= 1; offset++) {
+            if (offset == 1 && scenario == Scenario.NO_TOMORROW) continue;
             JSONObject queues = new JSONObject();
             for (int i = 0; i < GROUPS.length; i++) {
                 String value = i < 2 ? FIRST_TWO : offset == 1 ? NEXT_DAY : NORMAL;
-                if (i == 3) value = selectedSlots(scenario, offset, value);
+                if (i == selected) value = selectedSlots(scenario, offset, value);
                 queues.put(GROUPS[i], hours(value));
             }
             days.put(Long.toString(DAY.plusDays(offset).atStartOfDay(Logic.KYIV).toEpochSecond()), queues);
@@ -108,15 +131,22 @@ final class MainScreenGeometryFixture {
     private static String selectedSlots(Scenario scenario, int offset, String fallback) {
         if (offset == 1) {
             return switch (scenario) {
+                case CLEAR -> slots();
+                case ALL_OFF -> slots(0, 48, '0');
                 case MIDNIGHT, NIGHT -> slots(1, 48, '0');
                 case TOMORROW -> slots(12, 20, '0');
+                case TOMORROW_POSSIBLE -> slots(14, 20, '3', 30, 36, '0');
                 default -> fallback;
             };
         }
         if (offset != 0) return fallback;
         return switch (scenario) {
             case POSSIBLE -> slots(24, 30, '3', 36, 40, '0');
-            case MIDNIGHT -> slots(0, 48, '0');
+            case ALL_OFF, MIDNIGHT -> slots(0, 48, '0');
+            case CLEAR -> slots();
+            case ON -> NORMAL;
+            case PARTIAL -> slots(0, 18, '0', 36, 48, '2');
+            case NEXT_POSSIBLE -> slots(0, 18, '0', 31, 35, '3', 38, 42, '0');
             case TOMORROW -> slots();
             case NIGHT -> slots(28, 43, '0');
             case SOON_OFF -> slots(0, 18, '0', 35, 39, '0');
@@ -142,6 +172,7 @@ final class MainScreenGeometryFixture {
                 case "01" -> "first";
                 case "10" -> "second";
                 case "33" -> "maybe";
+                case "22" -> "unknown";
                 case "31" -> "mfirst";
                 case "13" -> "msecond";
                 default -> throw new AssertionError(slots);

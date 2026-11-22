@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.ParameterizedRobolectricTestRunner;
@@ -37,6 +38,8 @@ import ua.abovsh.svitlo.MainScreenGeometryFixture.Scenario;
 @Config(sdk = 35, instrumentedPackages = "ua.abovsh.svitlo", shadows = CanvasGeometry.class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 public class OtherScreensGeometryTest {
+    @Rule public final CoverageCases coverage = new CoverageCases();
+
     private static final int DPI = 420;
     private static final int WIDGET = 8504;
     private static final String WEEK = "тиждень";
@@ -45,7 +48,8 @@ public class OtherScreensGeometryTest {
     @ParameterizedRobolectricTestRunner.Parameters(name = "w{0}-f{1}-{2}")
     public static List<Object[]> profiles() {
         return MainScreenGeometryTest.profiles().stream()
-                .filter(p -> (float) p[1] == 1f || (float) p[1] >= 1.3f).toList();
+                .filter(p -> (float) p[1] == 1f || (float) p[1] >= 1.3f
+                        || List.of(320, 360, 393).contains(p[0])).toList();
     }
 
     private final int width;
@@ -241,6 +245,12 @@ public class OtherScreensGeometryTest {
 
     private void inspectStatistics(String name, View root) {
         inspect(name, root);
+        HorizontalScrollView scroll = ViewGeometry.one(root, HorizontalScrollView.class, v -> true, profile);
+        int viewport = scroll.getWidth() - scroll.getPaddingLeft() - scroll.getPaddingRight();
+        int scrollPx = scroll.getChildAt(0).getWidth() - viewport;
+        if ((width >= 360 && scale <= 1.3f) || (width == 320 && scale == 1.3f)) {
+            assertEquals(profile + " " + name + " chart scrollPx", 0, scrollPx);
+        }
         List<TextView> headings = ViewGeometry.visible(root, TextView.class,
                 view -> WEEK.equals(view.getContentDescription()));
         assertTrue(profile + " statistic captions", !headings.isEmpty());
@@ -261,6 +271,7 @@ public class OtherScreensGeometryTest {
     }
 
     private View layoutScreen(Base activity) {
+        assertEquals(profile + " effective width", width, activity.getResources().getConfiguration().screenWidthDp);
         assertEquals(profile + " effective font", scale, activity.getResources().getConfiguration().fontScale, 0f);
         View root = activity.findViewById(android.R.id.content);
         ViewGeometry.layout(root, Ui.dp(context, width), 2340, View.MeasureSpec.EXACTLY);
@@ -272,11 +283,12 @@ public class OtherScreensGeometryTest {
     }
 
     private void inspect(String name, View root) {
+        coverage.report(name);
         List<String> issues = new ArrayList<>();
         ViewGeometry.inspect(root, issues);
         for (String issue : issues) failures.add(name + " " + issue);
         if (width >= 320 && width <= 412 && scale <= 1.3f) {
-            String font = scale == 1f ? "1" : "1.3";
+            String font = scale == 1f ? "1" : Float.toString(scale);
             GeometryEvidence.saveView("screens/w" + width + "-f" + font + "-" + theme + "/" + name + ".png", root);
         }
     }

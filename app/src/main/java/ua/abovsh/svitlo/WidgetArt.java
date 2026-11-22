@@ -267,6 +267,15 @@ final class WidgetArt {
         card.addRoundRect(b.r, r, r, android.graphics.Path.Direction.CW);
         b.cv.save();
         b.cv.clipPath(card);
+        content(c, b, m, now, f, form);
+        b.cv.restore();
+        return bm;
+    }
+
+    /** What the card shows: a hint without a place, a note when its place is gone, otherwise the schedule and the sign. */
+    private static void content(Context c, Brush b, Model m, long now, Frame f, int form) {
+        Ui.Pal pal = b.pal;
+        float s = f.s;
         if (m == null) {
             Paint t = text(Ui.bold(c), 13 * s, pal.muted, Paint.Align.CENTER);
             String msg = "Оберіть чергу в Світлячку";
@@ -290,8 +299,6 @@ final class WidgetArt {
                 Notices.sign(b.cv, sign, pal, m.notice, at, pal.card);
             }
         }
-        b.cv.restore();
-        return bm;
     }
 
     /** Centre and radius of the sign: above the bulb of a small widget, right of the name of a large one. */

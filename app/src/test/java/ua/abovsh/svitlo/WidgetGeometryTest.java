@@ -148,13 +148,13 @@ public class WidgetGeometryTest {
         }
         try {
             CanvasGeometry.Frame frame = frames.get(0);
-            CanvasGeometry.Text today = text(frame, "Сьогодні · 12–23", 0, size.height);
-            CanvasGeometry.Text tomorrow = text(frame, "Завтра · 00–11", today.baseline(), size.height);
+            CanvasGeometry.Text today = text(frame, "Сьогодні · 12–23", 0f, (float) size.height);
+            CanvasGeometry.Text tomorrow = text(frame, "Завтра · 00–11", today.baseline(), (float) size.height);
             Ui.Pal pal = Ui.pal(context);
             assertCellColor(bitmap, frame, "17", today.baseline(), tomorrow.baseline(), Ui.blend(pal.card, pal.slot('0')));
             assertCellColor(bitmap, frame, "20", today.baseline(), tomorrow.baseline(), Ui.blend(pal.card, pal.slot('1')));
-            assertCellColor(bitmap, frame, "08", tomorrow.baseline(), size.height, Ui.blend(pal.card, pal.slot('3')));
-            assertCellColor(bitmap, frame, "05", tomorrow.baseline(), size.height, Ui.blend(pal.card, pal.slot('1')));
+            assertCellColor(bitmap, frame, "08", tomorrow.baseline(), (float) size.height, Ui.blend(pal.card, pal.slot('3')));
+            assertCellColor(bitmap, frame, "05", tomorrow.baseline(), (float) size.height, Ui.blend(pal.card, pal.slot('1')));
             coverage.report("13:00/today-17-off/today-20-on/tomorrow-08-possible/tomorrow-05-on");
         } finally {
             bitmap.recycle();
